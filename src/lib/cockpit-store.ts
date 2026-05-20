@@ -10,6 +10,7 @@ export type EndpointLabel = {
   headers?: string; // JSON string
   responsePath?: string; // dot path to text e.g. choices.0.message.content
   stream?: boolean;
+  pinned?: boolean;
 };
 
 export type Settings = {
@@ -48,6 +49,44 @@ export type Kind = "chat" | "image" | "video" | "library" | "gems" | "notebook";
 const SETTINGS_KEY = "cockpit.settings.v1";
 const THREADS_KEY = "cockpit.threads.v1";
 const CACHE_KEY = "cockpit.cache.v1";
+const STATS_KEY = "cockpit.endpoint-stats.v1";
+
+export type EndpointStat = { hits: number; misses: number };
+type StatsMap = Record<string, EndpointStat>;
+
+function loadStats(): StatsMap {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(STATS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+function saveStats(s: StatsMap) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STATS_KEY, JSON.stringify(s));
+}
+export function getEndpointStats(): StatsMap {
+  return loadStats();
+}
+export function bumpEndpointStat(id: string, kind: "hit" | "miss") {
+  const s = loadStats();
+  const cur = s[id] ?? { hits: 0, misses: 0 };
+  if (kind === "hit") cur.hits++;
+  else cur.misses++;
+  s[id] = cur;
+  saveStats(s);
+  statsListeners.forEach((l) => l());
+}
+export function resetEndpointStats() {
+  saveStats({});
+  statsListeners.forEach((l) => l());
+}
+const statsListeners = new Set<() => void>();
+export function subscribeEndpointStats(l: () => void) {
+  statsListeners.add(l);
+  return () => statsListeners.delete(l);
+}
 
 const defaultEndpoints: EndpointLabel[] = [
   {
