@@ -489,6 +489,7 @@ export async function callEndpoint(opts: {
         } catch { /* ignore */ }
       }
     }
+    bumpEndpointStat(endpoint.id, "miss");
     return { text: acc, raw: acc, cached: false, label: endpoint.label };
   }
 
