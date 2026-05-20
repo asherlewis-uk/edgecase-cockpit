@@ -103,15 +103,17 @@ function Index() {
     });
   }, [messages.length, isStreaming]);
 
-  const accentGrad: Record<string, string> = {
-    indigo:
-      "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(76,99,255,0.55) 0%, rgba(20,24,55,0.55) 38%, rgba(0,0,0,1) 75%)",
-    emerald:
-      "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(34,197,94,0.45) 0%, rgba(15,40,30,0.55) 38%, rgba(0,0,0,1) 75%)",
-    rose: "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(244,63,94,0.45) 0%, rgba(45,15,25,0.55) 38%, rgba(0,0,0,1) 75%)",
-    amber:
-      "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(245,158,11,0.45) 0%, rgba(45,30,10,0.55) 38%, rgba(0,0,0,1) 75%)",
-  };
+  // Derive accent from live UI state — pulsing light reacts to activity.
+  const uiState: keyof typeof STATE_ACCENTS = !isOnline
+    ? "offline"
+    : error
+      ? "error"
+      : isCoolingDown
+        ? "cooldown"
+        : isStreaming
+          ? "streaming"
+          : "idle";
+  const accent = STATE_ACCENTS[uiState];
 
   async function handleSend() {
     const text = input.trim();
@@ -145,7 +147,6 @@ function Index() {
   return (
     <div
       className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-black text-white"
-      style={{ background: accentGrad[settings.accent] }}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -157,6 +158,23 @@ function Index() {
         if (e.dataTransfer?.files?.length) ingestFiles(e.dataTransfer.files);
       }}
     >
+      {/* Pulsing state-aware accent halo */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-0 transition-[background] duration-700 ease-out"
+        style={{
+          background: `radial-gradient(ellipse 90% 60% at 50% 0%, ${accent.bright} 0%, ${accent.mid} 38%, rgba(0,0,0,1) 75%)`,
+          animation: `cockpit-breathe ${accent.duration}ms ease-in-out infinite`,
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[60vh] blur-3xl transition-opacity duration-500"
+        style={{
+          background: `radial-gradient(ellipse 60% 40% at 50% 0%, ${accent.glow} 0%, transparent 70%)`,
+          animation: `cockpit-pulse ${accent.duration}ms ease-in-out infinite`,
+        }}
+      />
       {dragOver && (
         <div className="pointer-events-none absolute inset-3 z-50 grid place-items-center rounded-3xl border-2 border-dashed border-white/40 bg-black/40 backdrop-blur">
           <p className="text-sm text-white/80">Drop images to attach</p>
