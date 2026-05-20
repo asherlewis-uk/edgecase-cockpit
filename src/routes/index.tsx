@@ -18,7 +18,6 @@ import {
   Clock,
   X,
   Image as ImageIcon,
-  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
