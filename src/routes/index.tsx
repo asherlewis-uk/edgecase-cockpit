@@ -103,15 +103,17 @@ function Index() {
     });
   }, [messages.length, isStreaming]);
 
-  const accentGrad: Record<string, string> = {
-    indigo:
-      "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(76,99,255,0.55) 0%, rgba(20,24,55,0.55) 38%, rgba(0,0,0,1) 75%)",
-    emerald:
-      "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(34,197,94,0.45) 0%, rgba(15,40,30,0.55) 38%, rgba(0,0,0,1) 75%)",
-    rose: "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(244,63,94,0.45) 0%, rgba(45,15,25,0.55) 38%, rgba(0,0,0,1) 75%)",
-    amber:
-      "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(245,158,11,0.45) 0%, rgba(45,30,10,0.55) 38%, rgba(0,0,0,1) 75%)",
-  };
+  // Derive accent from live UI state — pulsing light reacts to activity.
+  const uiState: keyof typeof STATE_ACCENTS = !isOnline
+    ? "offline"
+    : error
+      ? "error"
+      : isCoolingDown
+        ? "cooldown"
+        : isStreaming
+          ? "streaming"
+          : "idle";
+  const accent = STATE_ACCENTS[uiState];
 
   async function handleSend() {
     const text = input.trim();
@@ -145,7 +147,6 @@ function Index() {
   return (
     <div
       className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-black text-white"
-      style={{ background: accentGrad[settings.accent] }}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -157,6 +158,23 @@ function Index() {
         if (e.dataTransfer?.files?.length) ingestFiles(e.dataTransfer.files);
       }}
     >
+      {/* Pulsing state-aware accent halo */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-0 transition-[background] duration-700 ease-out"
+        style={{
+          background: `radial-gradient(ellipse 90% 60% at 50% 0%, ${accent.bright} 0%, ${accent.mid} 38%, rgba(0,0,0,1) 75%)`,
+          animation: `cockpit-breathe ${accent.duration}ms ease-in-out infinite`,
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[60vh] blur-3xl transition-opacity duration-500"
+        style={{
+          background: `radial-gradient(ellipse 60% 40% at 50% 0%, ${accent.glow} 0%, transparent 70%)`,
+          animation: `cockpit-pulse ${accent.duration}ms ease-in-out infinite`,
+        }}
+      />
       {dragOver && (
         <div className="pointer-events-none absolute inset-3 z-50 grid place-items-center rounded-3xl border-2 border-dashed border-white/40 bg-black/40 backdrop-blur">
           <p className="text-sm text-white/80">Drop images to attach</p>
@@ -179,7 +197,14 @@ function Index() {
           aria-label="Open menu"
         >
           <Menu className="size-5 text-white/90" strokeWidth={1.8} />
-          <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full bg-sky-400" />
+          <span
+            className="absolute right-2.5 top-2.5 size-1.5 rounded-full animate-pulse"
+            style={{
+              backgroundColor: accent.bright.replace(/,[^,]+\)$/, ",1)"),
+              boxShadow: `0 0 8px ${accent.glow}`,
+              animationDuration: `${accent.duration}ms`,
+            }}
+          />
         </button>
 
         <DropdownMenu>
@@ -382,7 +407,7 @@ function Index() {
             </div>
           ) : isStreaming ? (
             <button
-              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
+              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
               aria-label="Stop"
               onClick={stop}
             >
@@ -391,7 +416,7 @@ function Index() {
           ) : input.trim() || attachments.length > 0 ? (
             <button
               onClick={handleSend}
-              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
+              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
               aria-label="Send"
             >
               <AudioLines className="size-5" strokeWidth={1.8} />
@@ -405,7 +430,7 @@ function Index() {
                 <Mic className="size-5" strokeWidth={1.6} />
               </button>
               <button
-                className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
+                className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
                 aria-label="Live"
               >
                 <AudioLines className="size-5" strokeWidth={1.8} />
@@ -431,16 +456,50 @@ function Index() {
 
 function accentBtn(a: string) {
   switch (a) {
-    case "emerald":
+    case "streaming":
       return "bg-emerald-500 hover:bg-emerald-400";
-    case "rose":
+    case "error":
+    case "offline":
       return "bg-rose-500 hover:bg-rose-400";
-    case "amber":
+    case "cooldown":
       return "bg-amber-500 hover:bg-amber-400";
     default:
       return "bg-indigo-500 hover:bg-indigo-400";
   }
 }
+
+const STATE_ACCENTS = {
+  idle: {
+    bright: "rgba(76,99,255,0.55)",
+    mid: "rgba(20,24,55,0.55)",
+    glow: "rgba(76,99,255,0.35)",
+    duration: 4200,
+  },
+  streaming: {
+    bright: "rgba(34,197,94,0.6)",
+    mid: "rgba(15,40,30,0.6)",
+    glow: "rgba(34,197,94,0.5)",
+    duration: 1400,
+  },
+  cooldown: {
+    bright: "rgba(245,158,11,0.55)",
+    mid: "rgba(45,30,10,0.6)",
+    glow: "rgba(245,158,11,0.45)",
+    duration: 2600,
+  },
+  error: {
+    bright: "rgba(244,63,94,0.6)",
+    mid: "rgba(45,15,25,0.65)",
+    glow: "rgba(244,63,94,0.5)",
+    duration: 1800,
+  },
+  offline: {
+    bright: "rgba(120,120,130,0.45)",
+    mid: "rgba(20,20,25,0.7)",
+    glow: "rgba(120,120,130,0.3)",
+    duration: 5200,
+  },
+} as const;
 
 function MessageRow({
   m,

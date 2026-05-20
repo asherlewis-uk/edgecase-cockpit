@@ -142,3 +142,13 @@
     color: var(--color-foreground);
   }
 }
+
+@keyframes cockpit-breathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.015); }
+}
+
+@keyframes cockpit-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
