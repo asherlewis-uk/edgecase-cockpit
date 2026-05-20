@@ -197,7 +197,14 @@ function Index() {
           aria-label="Open menu"
         >
           <Menu className="size-5 text-white/90" strokeWidth={1.8} />
-          <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full bg-sky-400" />
+          <span
+            className="absolute right-2.5 top-2.5 size-1.5 rounded-full animate-pulse"
+            style={{
+              backgroundColor: accent.bright.replace(/,[^,]+\)$/, ",1)"),
+              boxShadow: `0 0 8px ${accent.glow}`,
+              animationDuration: `${accent.duration}ms`,
+            }}
+          />
         </button>
 
         <DropdownMenu>
