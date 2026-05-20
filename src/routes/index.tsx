@@ -12,6 +12,7 @@ import {
   Database,
   AlertCircle,
   Copy,
+  RefreshCw,
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
@@ -19,9 +20,9 @@ import { SettingsDialog } from "@/components/cockpit/SettingsDialog";
 import {
   useStore,
   store,
-  callEndpoint,
   type Message,
 } from "@/lib/cockpit-store";
+import { useChat } from "@/hooks/use-chat";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,19 +46,23 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const settings = useStore((s) => s.settings);
-  const threads = useStore((s) => s.threads);
-  const activeId = useStore((s) => s.activeThreadId);
-  const active = threads.find((t) => t.id === activeId) || null;
-  const messages = active?.messages ?? [];
-
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
   const [activeEndpointId, setActiveEndpointId] = useState<string>(
     settings.defaultEndpointId,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const {
+    messages,
+    isStreaming,
+    error,
+    sendMessage,
+    stop,
+    regenerate,
+    retry,
+  } = useChat({ endpointId: activeEndpointId });
 
   useEffect(() => {
     setActiveEndpointId(settings.defaultEndpointId);
@@ -68,7 +73,7 @@ function Index() {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages.length, sending]);
+  }, [messages.length, isStreaming]);
 
   const accentGrad: Record<string, string> = {
     indigo:
@@ -82,57 +87,9 @@ function Index() {
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || sending) return;
-    let threadId = activeId;
-    if (!threadId) threadId = store.newThread();
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: text,
-      ts: Date.now(),
-    };
-    store.addMessage(threadId, userMsg);
+    if (!text || isStreaming) return;
     setInput("");
-    setSending(true);
-
-    const endpoint =
-      settings.endpoints.find((e) => e.id === activeEndpointId) ??
-      settings.endpoints[0];
-    const placeholderId = crypto.randomUUID();
-    store.addMessage(threadId, {
-      id: placeholderId,
-      role: "assistant",
-      content: "",
-      endpointLabel: endpoint?.label,
-      ts: Date.now(),
-    });
-
-    try {
-      if (!endpoint) throw new Error("No endpoint configured");
-      const history = store
-        .getState()
-        .threads.find((t) => t.id === threadId)!
-        .messages.filter((m) => m.role !== "assistant" || m.content)
-        .map((m) => ({ role: m.role, content: m.content }));
-      const res = await callEndpoint({
-        endpoint,
-        settings: store.getState().settings,
-        messages: history,
-        prompt: text,
-      });
-      store.patchMessage(threadId, placeholderId, {
-        content: res.text || "(empty response)",
-        cached: res.cached,
-        endpointLabel: res.label,
-      });
-    } catch (e) {
-      store.patchMessage(threadId, placeholderId, {
-        content: (e as Error).message,
-        error: true,
-      });
-    } finally {
-      setSending(false);
-    }
+    await sendMessage(text);
   }
 
   const endpoint = settings.endpoints.find((e) => e.id === activeEndpointId);
@@ -234,10 +191,27 @@ function Index() {
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 py-8">
             {messages.map((m) => (
-              <MessageRow key={m.id} m={m} sending={sending} />
+              <MessageRow key={m.id} m={m} streaming={isStreaming} />
             ))}
-            {sending && messages[messages.length - 1]?.role !== "assistant" && (
-              <ThinkingDots />
+            {error && (
+              <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+                <AlertCircle className="size-4" />
+                <span className="flex-1 truncate">{error}</span>
+                <button
+                  onClick={retry}
+                  className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
+                >
+                  <RefreshCw className="size-3" /> Retry
+                </button>
+              </div>
+            )}
+            {!isStreaming && !error && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
+              <button
+                onClick={regenerate}
+                className="self-start flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.12]"
+              >
+                <RefreshCw className="size-3" /> Regenerate
+              </button>
             )}
           </div>
         )}
@@ -265,11 +239,11 @@ function Index() {
             placeholder={`Ask ${endpoint?.label ?? "/v1"}…`}
             className="flex-1 bg-transparent px-2 py-2 text-[17px] text-white placeholder:text-white/40 focus:outline-none"
           />
-          {sending ? (
+          {isStreaming ? (
             <button
               className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
               aria-label="Stop"
-              onClick={() => setSending(false)}
+              onClick={stop}
             >
               <Square className="size-4 fill-white" strokeWidth={0} />
             </button>
@@ -326,17 +300,7 @@ function accentBtn(a: string) {
   }
 }
 
-function ThinkingDots() {
-  return (
-    <div className="flex items-center gap-1.5 pl-1">
-      <span className="size-1.5 animate-bounce rounded-full bg-white/70 [animation-delay:-0.2s]" />
-      <span className="size-1.5 animate-bounce rounded-full bg-white/70 [animation-delay:-0.1s]" />
-      <span className="size-1.5 animate-bounce rounded-full bg-white/70" />
-    </div>
-  );
-}
-
-function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
+function MessageRow({ m, streaming }: { m: Message; streaming: boolean }) {
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
@@ -346,7 +310,7 @@ function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
       </div>
     );
   }
-  const isEmpty = !m.content && sending;
+  const isEmpty = !m.content && (m.pending || streaming);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider">
@@ -367,10 +331,13 @@ function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
         )}
       </div>
       {isEmpty ? (
-        <ThinkingDots />
+        <PulsingDot />
       ) : (
         <div className="group relative max-w-[92%] whitespace-pre-wrap break-words text-[16px] leading-relaxed text-white/95">
           {m.content}
+          {m.pending && m.content && (
+            <span className="ml-1 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-white/80 align-middle" />
+          )}
           {!m.error && m.content && (
             <button
               onClick={() => navigator.clipboard?.writeText(m.content)}
@@ -382,6 +349,15 @@ function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function PulsingDot() {
+  return (
+    <div className="flex items-center gap-2 pl-1">
+      <span className="size-2.5 animate-pulse rounded-full bg-white/80" />
+      <span className="text-xs text-white/40">thinking…</span>
     </div>
   );
 }

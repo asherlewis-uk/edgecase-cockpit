@@ -27,8 +27,11 @@ export type Message = {
   role: "user" | "assistant" | "system";
   content: string;
   endpointLabel?: string;
+  endpointUsed?: string;
   cached?: boolean;
   error?: boolean;
+  pending?: boolean;
+  timestamp?: number;
   ts: number;
 };
 
@@ -302,8 +305,10 @@ export async function callEndpoint(opts: {
   settings: Settings;
   messages: { role: string; content: string }[];
   prompt: string;
+  signal?: AbortSignal;
+  onDelta?: (chunk: string) => void;
 }): Promise<{ text: string; raw: unknown; cached: boolean; label: string }> {
-  const { endpoint, settings, messages, prompt } = opts;
+  const { endpoint, settings, messages, prompt, signal, onDelta } = opts;
   const url = settings.baseUrl.replace(/\/+$/, "") + endpoint.path;
   const cacheKey = JSON.stringify({
     url,
@@ -315,8 +320,10 @@ export async function callEndpoint(opts: {
     const hit = getCached(cacheKey);
     if (hit) {
       const picked = pickByPath(hit.value, endpoint.responsePath);
+      const txt = typeof picked === "string" ? picked : JSON.stringify(picked, null, 2);
+      onDelta?.(txt);
       return {
-        text: typeof picked === "string" ? picked : JSON.stringify(picked, null, 2),
+        text: txt,
         raw: hit.value,
         cached: true,
         label: endpoint.label,
@@ -325,18 +332,26 @@ export async function callEndpoint(opts: {
   }
 
   let body: string | undefined;
+  const wantStream = !!endpoint.stream && endpoint.method === "POST" && !!onDelta;
   if (endpoint.method === "POST") {
     const tpl = endpoint.bodyTemplate?.trim();
     if (tpl) {
-      const filled = tpl
+      let filled = tpl
         .replaceAll('"{{messages}}"', JSON.stringify(messages))
         .replaceAll('"{{model}}"', JSON.stringify(settings.model))
         .replaceAll('"{{prompt}}"', JSON.stringify(prompt))
         .replaceAll("{{model}}", settings.model)
         .replaceAll("{{prompt}}", prompt.replace(/"/g, '\\"'));
+      if (wantStream) {
+        try {
+          const parsed = JSON.parse(filled);
+          parsed.stream = true;
+          filled = JSON.stringify(parsed);
+        } catch { /* ignore */ }
+      }
       body = filled;
     } else {
-      body = JSON.stringify({ model: settings.model, messages });
+      body = JSON.stringify({ model: settings.model, messages, stream: wantStream });
     }
   }
 
@@ -352,7 +367,40 @@ export async function callEndpoint(opts: {
     }
   }
 
-  const res = await fetch(url, { method: endpoint.method, headers, body });
+  const res = await fetch(url, { method: endpoint.method, headers, body, signal });
+
+  if (wantStream && res.ok && res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let acc = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith("data:")) continue;
+        const payload = t.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        try {
+          const j = JSON.parse(payload);
+          const delta =
+            j?.choices?.[0]?.delta?.content ??
+            j?.choices?.[0]?.message?.content ??
+            "";
+          if (delta) {
+            acc += delta;
+            onDelta?.(delta);
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    return { text: acc, raw: acc, cached: false, label: endpoint.label };
+  }
+
   const text = await res.text();
   let raw: unknown = text;
   try {
@@ -377,5 +425,6 @@ export async function callEndpoint(opts: {
     typeof picked === "string"
       ? picked
       : JSON.stringify(picked ?? raw, null, 2);
+  onDelta?.(out);
   return { text: out, raw, cached: false, label: endpoint.label };
 }
