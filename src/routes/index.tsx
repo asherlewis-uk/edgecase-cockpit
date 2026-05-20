@@ -310,7 +310,7 @@ function ThinkingDots() {
   );
 }
 
-function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
+function MessageRow({ m, streaming }: { m: Message; streaming: boolean }) {
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
@@ -320,7 +320,7 @@ function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
       </div>
     );
   }
-  const isEmpty = !m.content && sending;
+  const isEmpty = !m.content && (m.pending || streaming);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider">
@@ -341,10 +341,13 @@ function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
         )}
       </div>
       {isEmpty ? (
-        <ThinkingDots />
+        <PulsingDot />
       ) : (
         <div className="group relative max-w-[92%] whitespace-pre-wrap break-words text-[16px] leading-relaxed text-white/95">
           {m.content}
+          {m.pending && m.content && (
+            <span className="ml-1 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-white/80 align-middle" />
+          )}
           {!m.error && m.content && (
             <button
               onClick={() => navigator.clipboard?.writeText(m.content)}
@@ -356,6 +359,15 @@ function MessageRow({ m, sending }: { m: Message; sending: boolean }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function PulsingDot() {
+  return (
+    <div className="flex items-center gap-2 pl-1">
+      <span className="size-2.5 animate-pulse rounded-full bg-white/80" />
+      <span className="text-xs text-white/40">thinking…</span>
     </div>
   );
 }
