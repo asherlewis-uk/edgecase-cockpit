@@ -100,26 +100,29 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
             />
             <div>
               <Label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
-                Accent
+                Accent — reactive
               </Label>
-              <div className="flex gap-2">
-                {(["indigo", "emerald", "rose", "amber"] as const).map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => store.updateSettings({ accent: a })}
-                    className={`size-8 rounded-full border-2 transition ${
-                      s.accent === a ? "border-white" : "border-transparent"
-                    } ${
-                      a === "indigo"
-                        ? "bg-indigo-500"
-                        : a === "emerald"
-                          ? "bg-emerald-500"
-                          : a === "rose"
-                            ? "bg-rose-500"
-                            : "bg-amber-500"
-                    }`}
-                    aria-label={a}
-                  />
+              <p className="mb-2 text-xs text-white/45">
+                The cockpit halo pulses with live activity. Color is derived,
+                not chosen.
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 text-[11px] text-white/70 sm:grid-cols-5">
+                {[
+                  { label: "Idle", cls: "bg-indigo-500" },
+                  { label: "Streaming", cls: "bg-emerald-500" },
+                  { label: "Cooldown", cls: "bg-amber-500" },
+                  { label: "Error", cls: "bg-rose-500" },
+                  { label: "Offline", cls: "bg-zinc-500" },
+                ].map((x) => (
+                  <div
+                    key={x.label}
+                    className="flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-1"
+                  >
+                    <span
+                      className={`size-2.5 rounded-full ${x.cls} animate-pulse`}
+                    />
+                    {x.label}
+                  </div>
                 ))}
               </div>
             </div>
