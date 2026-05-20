@@ -1,11 +1,27 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useStore, store, clearCache, type EndpointLabel } from "@/lib/cockpit-store";
+import {
+  useStore,
+  store,
+  clearCache,
+  type EndpointLabel,
+  getEndpointStats,
+  subscribeEndpointStats,
+  resetEndpointStats,
+} from "@/lib/cockpit-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus, Database } from "lucide-react";
-import { useState } from "react";
+import { Trash2, Plus, Database, Pin, PinOff } from "lucide-react";
+import { useState, useSyncExternalStore } from "react";
+
+function useEndpointStats() {
+  return useSyncExternalStore(
+    subscribeEndpointStats,
+    () => JSON.stringify(getEndpointStats()),
+    () => "{}",
+  );
+}
 
 type Props = { open: boolean; onOpenChange: (v: boolean) => void };
 
@@ -13,6 +29,8 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
   const s = useStore((st) => st.settings);
   const [tab, setTab] = useState<"conn" | "endpoints">("conn");
   const [editing, setEditing] = useState<EndpointLabel | null>(null);
+  useEndpointStats();
+  const stats = getEndpointStats();
 
   function newEndpoint() {
     setEditing({
@@ -147,14 +165,34 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
                         cache {e.cacheTtlSec}s
                       </span>
                     )}
+                    {(stats[e.id]?.hits || stats[e.id]?.misses) ? (
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] tabular-nums text-white/70">
+                        {stats[e.id]?.hits ?? 0}h / {stats[e.id]?.misses ?? 0}m
+                      </span>
+                    ) : null}
                     {s.defaultEndpointId === e.id && (
                       <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] uppercase text-indigo-300">
                         default
                       </span>
                     )}
+                    {e.pinned && (
+                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] uppercase text-amber-300">
+                        pinned
+                      </span>
+                    )}
                   </div>
                   <div className="truncate text-xs text-white/50">{e.path}</div>
                 </div>
+                <button
+                  onClick={() =>
+                    store.upsertEndpoint({ ...e, pinned: !e.pinned })
+                  }
+                  className="text-white/50 hover:text-amber-300"
+                  aria-label={e.pinned ? "Unpin" : "Pin to sidebar"}
+                  title={e.pinned ? "Unpin from sidebar" : "Pin to sidebar"}
+                >
+                  {e.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+                </button>
                 <button
                   onClick={() => store.updateSettings({ defaultEndpointId: e.id })}
                   className="text-xs text-white/60 hover:text-white"
@@ -181,6 +219,13 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
               className="w-full bg-white/10 text-white hover:bg-white/15"
             >
               <Plus className="mr-2 size-4" /> New labeled endpoint
+            </Button>
+            <Button
+              variant="outline"
+              onClick={resetEndpointStats}
+              className="w-full border-white/10 bg-transparent text-xs text-white/60 hover:bg-white/5"
+            >
+              Reset hit/miss counters
             </Button>
           </div>
         )}

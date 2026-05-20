@@ -25,8 +25,11 @@ import {
   useStore,
   store,
   type Message,
+  getEndpointStats,
+  subscribeEndpointStats,
 } from "@/lib/cockpit-store";
 import { useChat } from "@/hooks/use-chat";
+import { useSyncExternalStore } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +53,12 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const settings = useStore((s) => s.settings);
+  useSyncExternalStore(
+    subscribeEndpointStats,
+    () => JSON.stringify(getEndpointStats()),
+    () => "{}",
+  );
+  const stats = getEndpointStats();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -192,9 +201,18 @@ function Index() {
               >
                 <span className="font-medium">{e.label}</span>
                 <span className="text-xs text-white/50">{e.path}</span>
-                {e.cacheTtlSec > 0 && (
-                  <Database className="ml-auto size-3 text-emerald-400" />
-                )}
+                <span className="ml-auto flex items-center gap-1.5">
+                  {(stats[e.id]?.hits || stats[e.id]?.misses) ? (
+                    <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] tabular-nums text-white/70">
+                      <span className="text-emerald-300">{stats[e.id]?.hits ?? 0}</span>
+                      <span className="text-white/30">/</span>
+                      <span className="text-amber-300">{stats[e.id]?.misses ?? 0}</span>
+                    </span>
+                  ) : null}
+                  {e.cacheTtlSec > 0 && (
+                    <Database className="size-3 text-emerald-400" />
+                  )}
+                </span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
