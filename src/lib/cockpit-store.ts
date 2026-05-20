@@ -149,6 +149,37 @@ function persist() {
   localStorage.setItem(THREADS_KEY, JSON.stringify(state.threads));
 }
 
+function normalizeBaseUrl(url: string): string {
+  const trimmed = url.replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (trimmed.endsWith("/v1")) return trimmed;
+  return trimmed + "/v1";
+}
+
+function setupCrossTabSync() {
+  if (typeof window === "undefined") return;
+  window.addEventListener("storage", (e) => {
+    if (e.key === SETTINGS_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue) as Settings;
+        state = { ...state, settings: { ...defaultSettings, ...parsed } };
+        emit();
+      } catch {
+        /* ignore corrupt storage */
+      }
+    }
+    if (e.key === THREADS_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue) as Thread[];
+        state = { ...state, threads: parsed };
+        emit();
+      } catch {
+        /* ignore corrupt storage */
+      }
+    }
+  });
+}
+
 export const store = {
   getState: () => {
     hydrate();
@@ -159,6 +190,9 @@ export const store = {
     return () => listeners.delete(l);
   },
   updateSettings(patch: Partial<Settings>) {
+    if (patch.baseUrl !== undefined) {
+      patch = { ...patch, baseUrl: normalizeBaseUrl(patch.baseUrl) };
+    }
     state = { ...state, settings: { ...state.settings, ...patch } };
     persist();
     emit();
