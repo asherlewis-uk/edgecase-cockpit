@@ -449,16 +449,50 @@ function Index() {
 
 function accentBtn(a: string) {
   switch (a) {
-    case "emerald":
+    case "streaming":
       return "bg-emerald-500 hover:bg-emerald-400";
-    case "rose":
+    case "error":
+    case "offline":
       return "bg-rose-500 hover:bg-rose-400";
-    case "amber":
+    case "cooldown":
       return "bg-amber-500 hover:bg-amber-400";
     default:
       return "bg-indigo-500 hover:bg-indigo-400";
   }
 }
+
+const STATE_ACCENTS = {
+  idle: {
+    bright: "rgba(76,99,255,0.55)",
+    mid: "rgba(20,24,55,0.55)",
+    glow: "rgba(76,99,255,0.35)",
+    duration: 4200,
+  },
+  streaming: {
+    bright: "rgba(34,197,94,0.6)",
+    mid: "rgba(15,40,30,0.6)",
+    glow: "rgba(34,197,94,0.5)",
+    duration: 1400,
+  },
+  cooldown: {
+    bright: "rgba(245,158,11,0.55)",
+    mid: "rgba(45,30,10,0.6)",
+    glow: "rgba(245,158,11,0.45)",
+    duration: 2600,
+  },
+  error: {
+    bright: "rgba(244,63,94,0.6)",
+    mid: "rgba(45,15,25,0.65)",
+    glow: "rgba(244,63,94,0.5)",
+    duration: 1800,
+  },
+  offline: {
+    bright: "rgba(120,120,130,0.45)",
+    mid: "rgba(20,20,25,0.7)",
+    glow: "rgba(120,120,130,0.3)",
+    duration: 5200,
+  },
+} as const;
 
 function MessageRow({
   m,
