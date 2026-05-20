@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Menu,
   ChevronDown,
@@ -13,6 +14,11 @@ import {
   AlertCircle,
   Copy,
   RefreshCw,
+  WifiOff,
+  Clock,
+  X,
+  Image as ImageIcon,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
@@ -49,6 +55,9 @@ function Index() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeEndpointId, setActiveEndpointId] = useState<string>(
     settings.defaultEndpointId,
   );
@@ -62,7 +71,19 @@ function Index() {
     stop,
     regenerate,
     retry,
-  } = useChat({ endpointId: activeEndpointId });
+    isOnline,
+    queueSize,
+    cooldownSeconds,
+    isCoolingDown,
+  } = useChat({
+    endpointId: activeEndpointId,
+    onAuthError: () => {
+      toast.error("Invalid API key", {
+        description: "Update your credentials in settings.",
+      });
+      setSettingsOpen(true);
+    },
+  });
 
   useEffect(() => {
     setActiveEndpointId(settings.defaultEndpointId);
@@ -87,9 +108,29 @@ function Index() {
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || isStreaming) return;
+    if ((!text && attachments.length === 0) || isStreaming) return;
+    if (isCoolingDown) return;
     setInput("");
-    await sendMessage(text);
+    const a = attachments;
+    setAttachments([]);
+    await sendMessage(text, a);
+  }
+
+  async function ingestFiles(files: FileList | File[]) {
+    const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (!arr.length) return;
+    const datas = await Promise.all(
+      arr.map(
+        (f) =>
+          new Promise<string>((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(fr.result as string);
+            fr.onerror = reject;
+            fr.readAsDataURL(f);
+          }),
+      ),
+    );
+    setAttachments((prev) => [...prev, ...datas].slice(0, 6));
   }
 
   const endpoint = settings.endpoints.find((e) => e.id === activeEndpointId);
@@ -98,7 +139,31 @@ function Index() {
     <div
       className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-black text-white"
       style={{ background: accentGrad[settings.accent] }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer?.files?.length) ingestFiles(e.dataTransfer.files);
+      }}
     >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-3 z-50 grid place-items-center rounded-3xl border-2 border-dashed border-white/40 bg-black/40 backdrop-blur">
+          <p className="text-sm text-white/80">Drop images to attach</p>
+        </div>
+      )}
+      {(!isOnline || queueSize > 0) && (
+        <div className="relative z-20 mx-3 mt-2 flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-100">
+          <WifiOff className="size-3.5" />
+          <span>
+            {isOnline ? "Back online" : "You're offline"}
+            {queueSize > 0 && ` — ${queueSize} queued`}
+          </span>
+        </div>
+      )}
       {/* Top bar */}
       <header className="relative z-10 flex items-center justify-between px-3 pt-3">
         <button
@@ -191,18 +256,33 @@ function Index() {
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 py-8">
             {messages.map((m) => (
-              <MessageRow key={m.id} m={m} streaming={isStreaming} />
+              <MessageRow
+                key={m.id}
+                m={m}
+                streaming={isStreaming}
+                onRegenerate={regenerate}
+              />
             ))}
             {error && (
               <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
-                <AlertCircle className="size-4" />
+                {isCoolingDown ? (
+                  <Clock className="size-4" />
+                ) : (
+                  <AlertCircle className="size-4" />
+                )}
                 <span className="flex-1 truncate">{error}</span>
-                <button
-                  onClick={retry}
-                  className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
-                >
-                  <RefreshCw className="size-3" /> Retry
-                </button>
+                {isCoolingDown ? (
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs tabular-nums text-white">
+                    {cooldownSeconds}s
+                  </span>
+                ) : (
+                  <button
+                    onClick={retry}
+                    className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
+                  >
+                    <RefreshCw className="size-3" /> Retry
+                  </button>
+                )}
               </div>
             )}
             {!isStreaming && !error && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
@@ -219,13 +299,47 @@ function Index() {
 
       {/* Composer */}
       <div className="relative z-10 px-3 pb-6 pt-2">
-        <div className="mx-auto flex max-w-3xl items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2 py-2 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl flex-col gap-2 rounded-3xl border border-white/10 bg-white/[0.04] px-2 py-2 backdrop-blur">
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-2 pt-1">
+              {attachments.map((src, i) => (
+                <div key={i} className="relative">
+                  <img
+                    src={src}
+                    alt="attachment"
+                    className="size-14 rounded-lg object-cover ring-1 ring-white/15"
+                  />
+                  <button
+                    onClick={() =>
+                      setAttachments((p) => p.filter((_, j) => j !== i))
+                    }
+                    className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-black/80 text-white ring-1 ring-white/20"
+                    aria-label="Remove attachment"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files) ingestFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
           <button
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => fileInputRef.current?.click()}
             className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/85 transition hover:bg-white/[0.12]"
-            aria-label="Tools"
+            aria-label="Attach image"
           >
-            <Plus className="size-5" strokeWidth={1.6} />
+            <ImageIcon className="size-5" strokeWidth={1.6} />
           </button>
           <input
             value={input}
@@ -236,10 +350,21 @@ function Index() {
                 handleSend();
               }
             }}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData?.files ?? []);
+              if (files.length) {
+                e.preventDefault();
+                ingestFiles(files);
+              }
+            }}
             placeholder={`Ask ${endpoint?.label ?? "/v1"}…`}
             className="flex-1 bg-transparent px-2 py-2 text-[17px] text-white placeholder:text-white/40 focus:outline-none"
           />
-          {isStreaming ? (
+          {isCoolingDown ? (
+            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 text-xs tabular-nums text-white/80">
+              {cooldownSeconds}
+            </div>
+          ) : isStreaming ? (
             <button
               className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
               aria-label="Stop"
@@ -247,7 +372,7 @@ function Index() {
             >
               <Square className="size-4 fill-white" strokeWidth={0} />
             </button>
-          ) : input.trim() ? (
+          ) : input.trim() || attachments.length > 0 ? (
             <button
               onClick={handleSend}
               className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
@@ -271,6 +396,7 @@ function Index() {
               </button>
             </>
           )}
+          </div>
         </div>
         <p className="mt-2 text-center text-[11px] text-white/35">
           Cockpit may hallucinate. Verify critical info.
@@ -300,17 +426,46 @@ function accentBtn(a: string) {
   }
 }
 
-function MessageRow({ m, streaming }: { m: Message; streaming: boolean }) {
+function MessageRow({
+  m,
+  streaming,
+  onRegenerate,
+}: {
+  m: Message;
+  streaming: boolean;
+  onRegenerate: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[82%] whitespace-pre-wrap rounded-3xl bg-white/[0.08] px-5 py-3 text-[16px] text-white">
-          {m.content}
+        <div className="flex max-w-[82%] flex-col items-end gap-2">
+          {m.attachments && m.attachments.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-2">
+              {m.attachments.map((src, i) => (
+                <img
+                  key={i}
+                  src={src}
+                  alt=""
+                  className="size-24 rounded-2xl object-cover ring-1 ring-white/10"
+                />
+              ))}
+            </div>
+          )}
+          {m.content && (
+            <div className="whitespace-pre-wrap rounded-3xl bg-white/[0.08] px-5 py-3 text-[16px] text-white">
+              {m.content}
+            </div>
+          )}
         </div>
       </div>
     );
   }
   const isEmpty = !m.content && (m.pending || streaming);
+  const finishedEmpty = !m.pending && !streaming && !m.content && !m.error;
+  const lines = m.content ? m.content.split("\n") : [];
+  const isLong = lines.length > 10;
+  const visible = !isLong || expanded ? m.content : lines.slice(0, 10).join("\n");
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider">
@@ -332,9 +487,39 @@ function MessageRow({ m, streaming }: { m: Message; streaming: boolean }) {
       </div>
       {isEmpty ? (
         <PulsingDot />
+      ) : finishedEmpty ? (
+        <div className="flex flex-col items-start gap-2">
+          <p className="italic text-white/60">The model returned no content.</p>
+          <button
+            onClick={onRegenerate}
+            className="flex items-center gap-1.5 rounded-full bg-white/[0.08] px-3 py-1.5 text-xs text-white/80 hover:bg-white/[0.15]"
+          >
+            <RefreshCw className="size-3" /> Regenerate
+          </button>
+        </div>
       ) : (
         <div className="group relative max-w-[92%] whitespace-pre-wrap break-words text-[16px] leading-relaxed text-white/95">
-          {m.content}
+          {visible}
+          {isLong && !expanded && (
+            <>
+              <span className="text-white/40">…</span>
+              <button
+                onClick={() => setExpanded(true)}
+                className="mt-2 flex items-center gap-1 rounded-full bg-white/[0.08] px-3 py-1 text-xs text-white/70 hover:bg-white/[0.15]"
+              >
+                <ChevronDownIcon className="size-3" />
+                Show {lines.length - 10} more lines
+              </button>
+            </>
+          )}
+          {isLong && expanded && (
+            <button
+              onClick={() => setExpanded(false)}
+              className="mt-2 flex items-center gap-1 rounded-full bg-white/[0.08] px-3 py-1 text-xs text-white/70 hover:bg-white/[0.15]"
+            >
+              Collapse
+            </button>
+          )}
           {m.pending && m.content && (
             <span className="ml-1 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-white/80 align-middle" />
           )}
