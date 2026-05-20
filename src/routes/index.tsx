@@ -5,7 +5,6 @@ import {
   Menu,
   ChevronDown,
   SquarePen,
-  Plus,
   Mic,
   AudioLines,
   Square,
