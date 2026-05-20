@@ -300,16 +300,6 @@ function accentBtn(a: string) {
   }
 }
 
-function ThinkingDots() {
-  return (
-    <div className="flex items-center gap-1.5 pl-1">
-      <span className="size-1.5 animate-bounce rounded-full bg-white/70 [animation-delay:-0.2s]" />
-      <span className="size-1.5 animate-bounce rounded-full bg-white/70 [animation-delay:-0.1s]" />
-      <span className="size-1.5 animate-bounce rounded-full bg-white/70" />
-    </div>
-  );
-}
-
 function MessageRow({ m, streaming }: { m: Message; streaming: boolean }) {
   if (m.role === "user") {
     return (
