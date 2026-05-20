@@ -33,6 +33,7 @@ export type Message = {
   pending?: boolean;
   timestamp?: number;
   ts: number;
+  attachments?: string[]; // data URLs
 };
 
 export type Thread = {
@@ -339,10 +340,21 @@ export function pickByPath(obj: unknown, path?: string): unknown {
   }, obj);
 }
 
+export class ApiError extends Error {
+  status: number;
+  retryAfter?: number;
+  constructor(message: string, status: number, retryAfter?: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
 export async function callEndpoint(opts: {
   endpoint: EndpointLabel;
   settings: Settings;
-  messages: { role: string; content: string }[];
+  messages: { role: string; content: unknown }[];
   prompt: string;
   signal?: AbortSignal;
   onDelta?: (chunk: string) => void;
@@ -454,7 +466,13 @@ export async function callEndpoint(opts: {
         : typeof raw === "string"
           ? raw
           : `HTTP ${res.status}`;
-    throw new Error(`${endpoint.label} → ${res.status}: ${errMsg}`);
+    const retryAfterHeader = res.headers.get("retry-after");
+    const retryAfter = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+    throw new ApiError(
+      `${endpoint.label} → ${res.status}: ${errMsg}`,
+      res.status,
+      Number.isFinite(retryAfter) ? retryAfter : undefined,
+    );
   }
   if (endpoint.cacheTtlSec > 0) {
     setCached(cacheKey, raw, endpoint.cacheTtlSec, endpoint.label);

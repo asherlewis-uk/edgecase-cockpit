@@ -1,17 +1,19 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   store,
   useStore,
   callEndpoint,
+  ApiError,
   type Message,
   type EndpointLabel,
 } from "@/lib/cockpit-store";
 
 export type UseChatOptions = {
   endpointId: string;
+  onAuthError?: (message: string) => void;
 };
 
-export function useChat({ endpointId }: UseChatOptions) {
+export function useChat({ endpointId, onAuthError }: UseChatOptions) {
   const settings = useStore((s) => s.settings);
   const threads = useStore((s) => s.threads);
   const activeId = useStore((s) => s.activeThreadId);
@@ -20,8 +22,54 @@ export function useChat({ endpointId }: UseChatOptions) {
 
   const [status, setStatus] = useState<"idle" | "streaming" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownNow, setCooldownNow] = useState(0);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [queueSize, setQueueSize] = useState(0);
+  const queueRef = useRef<{ text: string; attachments?: string[] }[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-  const lastPromptRef = useRef<string | null>(null);
+  const lastPromptRef = useRef<{ text: string; attachments?: string[] } | null>(
+    null,
+  );
+  const backoffRef = useRef(0); // count of consecutive 429s
+
+  // Online/offline tracking + flush queue
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const on = () => {
+      setIsOnline(true);
+      // drain queue
+      const q = queueRef.current.splice(0);
+      setQueueSize(0);
+      (async () => {
+        for (const item of q) {
+          await sendMessageRef.current?.(item.text, item.attachments);
+        }
+      })();
+    };
+    const off = () => setIsOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  // Cooldown ticker
+  useEffect(() => {
+    if (!cooldownUntil) return;
+    const tick = () => {
+      const remaining = Math.max(0, cooldownUntil - Date.now());
+      setCooldownNow(Math.ceil(remaining / 1000));
+      if (remaining <= 0) setCooldownUntil(null);
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [cooldownUntil]);
 
   const resolveEndpoint = useCallback((): EndpointLabel | undefined => {
     return (
@@ -60,7 +108,21 @@ export function useChat({ endpointId }: UseChatOptions) {
         .getState()
         .threads.find((t) => t.id === threadId)!
         .messages.filter((m) => m.role !== "assistant" || m.content)
-        .map((m) => ({ role: m.role, content: m.content }));
+        .map((m) => {
+          if (m.attachments && m.attachments.length) {
+            return {
+              role: m.role,
+              content: [
+                ...(m.content ? [{ type: "text", text: m.content }] : []),
+                ...m.attachments.map((url) => ({
+                  type: "image_url",
+                  image_url: { url },
+                })),
+              ],
+            };
+          }
+          return { role: m.role, content: m.content };
+        });
 
       let acc = "";
       try {
@@ -80,39 +142,67 @@ export function useChat({ endpointId }: UseChatOptions) {
             }
           },
         });
+        const finalText = (res.text || "").trim();
         store.patchMessage(threadId, placeholderId, {
-          content: res.text || "(empty response)",
+          content: finalText,
           cached: res.cached,
           endpointLabel: res.label,
           endpointUsed: endpoint.path,
           pending: false,
         });
+        backoffRef.current = 0;
         setStatus("idle");
       } catch (e) {
-        const aborted = (e as Error).name === "AbortError";
-        const msg = aborted ? "Stopped" : (e as Error).message;
+        const err = e as Error;
+        const aborted = err.name === "AbortError";
+        const msg = aborted ? "Stopped" : err.message;
+        const apiErr = e instanceof ApiError ? e : null;
         store.patchMessage(threadId, placeholderId, {
           content: acc || msg,
           error: !aborted,
           pending: false,
         });
-        if (!aborted) {
-          setError(msg);
+        if (aborted) {
+          setStatus("idle");
+        } else if (apiErr && (apiErr.status === 401 || apiErr.status === 403)) {
+          setError("Invalid API key");
+          setStatus("error");
+          onAuthError?.(msg);
+        } else if (apiErr && apiErr.status === 429) {
+          backoffRef.current = Math.min(backoffRef.current + 1, 6);
+          const base = apiErr.retryAfter
+            ? apiErr.retryAfter
+            : Math.min(2 ** backoffRef.current, 60);
+          setCooldownUntil(Date.now() + base * 1000);
+          setError(`Rate limited — retrying in ${base}s`);
+          setStatus("error");
+        } else if (
+          typeof navigator !== "undefined" &&
+          !navigator.onLine
+        ) {
+          // queue for when we're back online
+          if (lastPromptRef.current) {
+            queueRef.current.push(lastPromptRef.current);
+            setQueueSize(queueRef.current.length);
+          }
+          setError("Offline — queued for retry");
           setStatus("error");
         } else {
-          setStatus("idle");
+          setError(msg);
+          setStatus("error");
         }
       } finally {
         abortRef.current = null;
       }
     },
-    [resolveEndpoint],
+    [resolveEndpoint, onAuthError],
   );
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, attachments?: string[]) => {
       const content = text.trim();
-      if (!content || status === "streaming") return;
+      if ((!content && !attachments?.length) || status === "streaming") return;
+      if (cooldownUntil && cooldownUntil > Date.now()) return;
       let threadId = store.getState().activeThreadId;
       if (!threadId) threadId = store.newThread();
       const now = Date.now();
@@ -120,14 +210,24 @@ export function useChat({ endpointId }: UseChatOptions) {
         id: crypto.randomUUID(),
         role: "user",
         content,
+        attachments: attachments?.length ? attachments : undefined,
         ts: now,
         timestamp: now,
       });
-      lastPromptRef.current = content;
+      lastPromptRef.current = { text: content, attachments };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        queueRef.current.push({ text: content, attachments });
+        setQueueSize(queueRef.current.length);
+        setError("Offline — queued for retry");
+        setStatus("error");
+        return;
+      }
       await runAssistant(threadId, content);
     },
-    [runAssistant, status],
+    [runAssistant, status, cooldownUntil],
   );
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -156,7 +256,7 @@ export function useChat({ endpointId }: UseChatOptions) {
     if (lastPromptRef.current) {
       setError(null);
       const threadId = store.getState().activeThreadId;
-      if (threadId) await runAssistant(threadId, lastPromptRef.current);
+      if (threadId) await runAssistant(threadId, lastPromptRef.current.text);
     }
   }, [runAssistant]);
 
@@ -169,5 +269,9 @@ export function useChat({ endpointId }: UseChatOptions) {
     stop,
     regenerate,
     retry,
+    isOnline,
+    queueSize,
+    cooldownSeconds: cooldownNow,
+    isCoolingDown: !!cooldownUntil,
   };
 }
