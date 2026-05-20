@@ -27,8 +27,11 @@ export type Message = {
   role: "user" | "assistant" | "system";
   content: string;
   endpointLabel?: string;
+  endpointUsed?: string;
   cached?: boolean;
   error?: boolean;
+  pending?: boolean;
+  timestamp?: number;
   ts: number;
 };
 
