@@ -12,6 +12,7 @@ import {
   Settings as SettingsIcon,
   Trash2,
   X,
+  Pin,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -39,6 +40,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
   const filtered = threads.filter((t) =>
     t.title.toLowerCase().includes(filter.toLowerCase()),
   );
+  const pinned = settings.endpoints.filter((e) => e.pinned);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -71,6 +73,10 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
                     store.newThread();
                     onOpenChange(false);
                   }
+                  if (it.id === "gems") {
+                    onOpenChange(false);
+                    onOpenSettings();
+                  }
                 }}
                 className={`flex w-full items-center gap-5 rounded-full px-5 py-3.5 text-left text-[17px] transition ${
                   isNew ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
@@ -82,6 +88,35 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
             );
           })}
         </nav>
+
+        {pinned.length > 0 && (
+          <div className="px-3 pt-5">
+            <div className="px-5 pb-1 text-sm text-white/45">Pinned endpoints</div>
+            <div className="flex flex-col gap-1">
+              {pinned.map((e) => {
+                const isDefault = settings.defaultEndpointId === e.id;
+                return (
+                  <button
+                    key={e.id}
+                    onClick={() => {
+                      store.updateSettings({ defaultEndpointId: e.id });
+                      onOpenChange(false);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-full px-5 py-2.5 text-left transition ${
+                      isDefault ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <Pin className="size-4 shrink-0 text-amber-300" strokeWidth={1.8} />
+                    <span className="text-[15px] text-white/90">{e.label}</span>
+                    <span className="ml-auto truncate text-xs text-white/40">
+                      {e.method} · {e.path}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="px-3 pt-6">
           <div className="px-5 pb-1 text-sm text-white/45">Recent</div>
