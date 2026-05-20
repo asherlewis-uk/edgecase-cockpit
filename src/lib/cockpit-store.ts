@@ -136,6 +136,7 @@ function hydrate() {
     threads: readArr<Thread>(THREADS_KEY),
     activeThreadId: null,
   };
+  setupCrossTabSync();
 }
 
 const listeners = new Set<() => void>();
