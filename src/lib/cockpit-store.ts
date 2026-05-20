@@ -412,6 +412,7 @@ export async function callEndpoint(opts: {
       const picked = pickByPath(hit.value, endpoint.responsePath);
       const txt = typeof picked === "string" ? picked : JSON.stringify(picked, null, 2);
       onDelta?.(txt);
+      bumpEndpointStat(endpoint.id, "hit");
       return {
         text: txt,
         raw: hit.value,
@@ -516,6 +517,7 @@ export async function callEndpoint(opts: {
   if (endpoint.cacheTtlSec > 0) {
     setCached(cacheKey, raw, endpoint.cacheTtlSec, endpoint.label);
   }
+  bumpEndpointStat(endpoint.id, "miss");
   const picked = pickByPath(raw, endpoint.responsePath);
   const out =
     typeof picked === "string"
