@@ -506,7 +506,7 @@ function MessageRow({
                 onClick={() => setExpanded(true)}
                 className="mt-2 flex items-center gap-1 rounded-full bg-white/[0.08] px-3 py-1 text-xs text-white/70 hover:bg-white/[0.15]"
               >
-                <ChevronDownIcon className="size-3" />
+                <ChevronDown className="size-3" />
                 Show {lines.length - 10} more lines
               </button>
             </>
