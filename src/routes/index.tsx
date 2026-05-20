@@ -400,7 +400,7 @@ function Index() {
             </div>
           ) : isStreaming ? (
             <button
-              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
+              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
               aria-label="Stop"
               onClick={stop}
             >
@@ -409,7 +409,7 @@ function Index() {
           ) : input.trim() || attachments.length > 0 ? (
             <button
               onClick={handleSend}
-              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
+              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
               aria-label="Send"
             >
               <AudioLines className="size-5" strokeWidth={1.8} />
@@ -423,7 +423,7 @@ function Index() {
                 <Mic className="size-5" strokeWidth={1.6} />
               </button>
               <button
-                className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(settings.accent)}`}
+                className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
                 aria-label="Live"
               >
                 <AudioLines className="size-5" strokeWidth={1.8} />
