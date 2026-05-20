@@ -131,8 +131,12 @@ let hydrated = false;
 function hydrate() {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
+  const loadedSettings = read<Settings>(SETTINGS_KEY, defaultSettings);
+  if (loadedSettings.baseUrl) {
+    loadedSettings.baseUrl = normalizeBaseUrl(loadedSettings.baseUrl);
+  }
   state = {
-    settings: read<Settings>(SETTINGS_KEY, defaultSettings),
+    settings: loadedSettings,
     threads: readArr<Thread>(THREADS_KEY),
     activeThreadId: null,
   };
