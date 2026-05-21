@@ -41,6 +41,7 @@ export type Thread = {
   title: string;
   messages: Message[];
   updatedAt: number;
+  temporary?: boolean;
 };
 
 const SETTINGS_KEY = "cockpit.settings.v1";
@@ -187,7 +188,10 @@ function emit() {
 function persist() {
   if (typeof window === "undefined") return;
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
-  localStorage.setItem(THREADS_KEY, JSON.stringify(state.threads));
+  localStorage.setItem(
+    THREADS_KEY,
+    JSON.stringify(state.threads.filter((t) => !t.temporary)),
+  );
 }
 
 function normalizeBaseUrl(url: string): string {
@@ -250,12 +254,13 @@ export const store = {
       endpoints: state.settings.endpoints.filter((e) => e.id !== id),
     });
   },
-  newThread(): string {
+  newThread(opts?: { temporary?: boolean }): string {
     const t: Thread = {
       id: crypto.randomUUID(),
-      title: "New chat",
+      title: opts?.temporary ? "Temporary chat" : "New chat",
       messages: [],
       updatedAt: Date.now(),
+      temporary: opts?.temporary,
     };
     state = {
       ...state,
