@@ -20,7 +20,6 @@ export type Settings = {
   model: string;
   defaultEndpointId: string;
   endpoints: EndpointLabel[];
-  accent: "indigo" | "emerald" | "rose" | "amber";
 };
 
 export type Message = {
@@ -43,8 +42,6 @@ export type Thread = {
   messages: Message[];
   updatedAt: number;
 };
-
-export type Kind = "chat" | "image" | "video" | "library" | "gems" | "notebook";
 
 const SETTINGS_KEY = "cockpit.settings.v1";
 const THREADS_KEY = "cockpit.threads.v1";
@@ -131,7 +128,6 @@ export const defaultSettings: Settings = {
   model: "gpt-4o-mini",
   defaultEndpointId: "chat-default",
   endpoints: defaultEndpoints,
-  accent: "indigo",
 };
 
 function read<T>(key: string, fallback: T): T {
