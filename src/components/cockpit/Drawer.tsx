@@ -1,8 +1,12 @@
 import { useStore, store } from "@/lib/cockpit-store";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Pencil,
   Search,
+  Image as ImgIcon,
+  Video,
+  LayoutGrid,
   Gem,
   Plus,
   FileText,
@@ -22,6 +26,9 @@ type Props = {
 const navItems = [
   { id: "new", label: "New chat", icon: Pencil, active: true },
   { id: "search", label: "Search chats", icon: Search },
+  { id: "images", label: "Images", icon: ImgIcon },
+  { id: "videos", label: "Videos", icon: Video },
+  { id: "library", label: "Library", icon: LayoutGrid },
   { id: "gems", label: "Endpoints", icon: Gem },
 ];
 
@@ -30,6 +37,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
   const settings = useStore((s) => s.settings);
   const active = useStore((s) => s.activeThreadId);
   const [filter, setFilter] = useState("");
+  const navigate = useNavigate();
 
   const filtered = threads.filter((t) =>
     t.title.toLowerCase().includes(filter.toLowerCase()),
@@ -70,6 +78,18 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
                   if (it.id === "gems") {
                     onOpenChange(false);
                     onOpenSettings();
+                  }
+                  if (it.id === "images") {
+                    onOpenChange(false);
+                    navigate({ to: "/images" });
+                  }
+                  if (it.id === "videos") {
+                    onOpenChange(false);
+                    navigate({ to: "/videos" });
+                  }
+                  if (it.id === "library") {
+                    onOpenChange(false);
+                    navigate({ to: "/library" });
                   }
                 }}
                 className={`flex w-full items-center gap-5 rounded-full px-5 py-3.5 text-left text-[17px] transition ${
