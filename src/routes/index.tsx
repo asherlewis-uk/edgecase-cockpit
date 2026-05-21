@@ -103,8 +103,10 @@ function Index() {
     });
   }, [messages.length, isStreaming]);
 
-  // Derive accent from live UI state — pulsing light reacts to activity.
-  const uiState: keyof typeof STATE_ACCENTS = !isOnline
+  // The accent is a single light that continuously cycles through the entire
+  // hue spectrum. Activity changes the cycle speed and intensity — it does NOT
+  // pin a state-specific color.
+  const uiState: keyof typeof PULSE = !isOnline
     ? "offline"
     : error
       ? "error"
@@ -113,7 +115,10 @@ function Index() {
         : isStreaming
           ? "streaming"
           : "idle";
-  const accent = STATE_ACCENTS[uiState];
+  const pulse = PULSE[uiState];
+  const hueStyle = {
+    animation: `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite`,
+  } as React.CSSProperties;
 
   async function handleSend() {
     const text = input.trim();
@@ -158,23 +163,31 @@ function Index() {
         if (e.dataTransfer?.files?.length) ingestFiles(e.dataTransfer.files);
       }}
     >
-      {/* Pulsing state-aware accent halo */}
+      {/* Hue-cycling accent halo — single light bouncing through the spectrum */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-0 transition-[background] duration-700 ease-out"
-        style={{
-          background: `radial-gradient(ellipse 90% 60% at 50% 0%, ${accent.bright} 0%, ${accent.mid} 38%, rgba(0,0,0,1) 75%)`,
-          animation: `cockpit-breathe ${accent.duration}ms ease-in-out infinite`,
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[60vh] blur-3xl transition-opacity duration-500"
-        style={{
-          background: `radial-gradient(ellipse 60% 40% at 50% 0%, ${accent.glow} 0%, transparent 70%)`,
-          animation: `cockpit-pulse ${accent.duration}ms ease-in-out infinite`,
-        }}
-      />
+        className="pointer-events-none absolute inset-0 -z-0"
+        style={hueStyle}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `radial-gradient(ellipse 90% 60% at 50% 0%,
+              hsl(var(--cockpit-hue) 90% 60% / ${pulse.bright}) 0%,
+              hsl(var(--cockpit-hue) 60% 18% / ${pulse.mid}) 38%,
+              rgba(0,0,0,1) 75%)`,
+            animation: `cockpit-breathe ${pulse.breatheMs}ms ease-in-out infinite`,
+          }}
+        />
+        <div
+          className="absolute inset-x-0 top-0 h-[60vh] blur-3xl"
+          style={{
+            background: `radial-gradient(ellipse 60% 40% at 50% 0%,
+              hsl(var(--cockpit-hue) 95% 65% / ${pulse.glow}) 0%, transparent 70%)`,
+            animation: `cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
+          }}
+        />
+      </div>
       {dragOver && (
         <div className="pointer-events-none absolute inset-3 z-50 grid place-items-center rounded-3xl border-2 border-dashed border-white/40 bg-black/40 backdrop-blur">
           <p className="text-sm text-white/80">Drop images to attach</p>
@@ -198,11 +211,11 @@ function Index() {
         >
           <Menu className="size-5 text-white/90" strokeWidth={1.8} />
           <span
-            className="absolute right-2.5 top-2.5 size-1.5 rounded-full animate-pulse"
+            className="absolute right-2.5 top-2.5 size-1.5 rounded-full"
             style={{
-              backgroundColor: accent.bright.replace(/,[^,]+\)$/, ",1)"),
-              boxShadow: `0 0 8px ${accent.glow}`,
-              animationDuration: `${accent.duration}ms`,
+              backgroundColor: `hsl(var(--cockpit-hue) 95% 65%)`,
+              boxShadow: `0 0 8px hsl(var(--cockpit-hue) 95% 65% / 0.8)`,
+              animation: `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite, cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
             }}
           />
         </button>
@@ -407,7 +420,8 @@ function Index() {
             </div>
           ) : isStreaming ? (
             <button
-              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
+              className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
+              style={hueButtonStyle(pulse)}
               aria-label="Stop"
               onClick={stop}
             >
@@ -416,7 +430,8 @@ function Index() {
           ) : input.trim() || attachments.length > 0 ? (
             <button
               onClick={handleSend}
-              className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
+              className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
+              style={hueButtonStyle(pulse)}
               aria-label="Send"
             >
               <AudioLines className="size-5" strokeWidth={1.8} />
@@ -430,7 +445,8 @@ function Index() {
                 <Mic className="size-5" strokeWidth={1.6} />
               </button>
               <button
-                className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${accentBtn(uiState)}`}
+                className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
+                style={hueButtonStyle(pulse)}
                 aria-label="Live"
               >
                 <AudioLines className="size-5" strokeWidth={1.8} />
@@ -454,52 +470,23 @@ function Index() {
   );
 }
 
-function accentBtn(a: string) {
-  switch (a) {
-    case "streaming":
-      return "bg-emerald-500 hover:bg-emerald-400";
-    case "error":
-    case "offline":
-      return "bg-rose-500 hover:bg-rose-400";
-    case "cooldown":
-      return "bg-amber-500 hover:bg-amber-400";
-    default:
-      return "bg-indigo-500 hover:bg-indigo-400";
-  }
-}
-
-const STATE_ACCENTS = {
-  idle: {
-    bright: "rgba(76,99,255,0.55)",
-    mid: "rgba(20,24,55,0.55)",
-    glow: "rgba(76,99,255,0.35)",
-    duration: 4200,
-  },
-  streaming: {
-    bright: "rgba(34,197,94,0.6)",
-    mid: "rgba(15,40,30,0.6)",
-    glow: "rgba(34,197,94,0.5)",
-    duration: 1400,
-  },
-  cooldown: {
-    bright: "rgba(245,158,11,0.55)",
-    mid: "rgba(45,30,10,0.6)",
-    glow: "rgba(245,158,11,0.45)",
-    duration: 2600,
-  },
-  error: {
-    bright: "rgba(244,63,94,0.6)",
-    mid: "rgba(45,15,25,0.65)",
-    glow: "rgba(244,63,94,0.5)",
-    duration: 1800,
-  },
-  offline: {
-    bright: "rgba(120,120,130,0.45)",
-    mid: "rgba(20,20,25,0.7)",
-    glow: "rgba(120,120,130,0.3)",
-    duration: 5200,
-  },
+// Pulse profiles only modulate SPEED + INTENSITY of the shared hue cycle.
+// Hue itself cycles continuously through the entire spectrum regardless of state.
+const PULSE = {
+  idle:      { cycleMs: 14000, breatheMs: 4200, bright: 0.45, mid: 0.45, glow: 0.28 },
+  streaming: { cycleMs:  2200, breatheMs: 1100, bright: 0.75, mid: 0.55, glow: 0.65 },
+  cooldown:  { cycleMs:  9000, breatheMs: 2600, bright: 0.55, mid: 0.5,  glow: 0.4  },
+  error:     { cycleMs:  3200, breatheMs: 1600, bright: 0.7,  mid: 0.55, glow: 0.55 },
+  offline:   { cycleMs: 22000, breatheMs: 5200, bright: 0.25, mid: 0.55, glow: 0.15 },
 } as const;
+
+function hueButtonStyle(p: (typeof PULSE)[keyof typeof PULSE]): React.CSSProperties {
+  return {
+    animation: `cockpit-hue-cycle ${p.cycleMs}ms linear infinite`,
+    backgroundColor: `hsl(var(--cockpit-hue) 80% 55%)`,
+    boxShadow: `0 0 24px hsl(var(--cockpit-hue) 95% 60% / 0.55)`,
+  };
+}
 
 function MessageRow({
   m,
