@@ -3,9 +3,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import {
   Pencil,
   Search,
-  Image as ImgIcon,
-  Video,
-  LayoutGrid,
   Gem,
   Plus,
   FileText,
@@ -25,9 +22,6 @@ type Props = {
 const navItems = [
   { id: "new", label: "New chat", icon: Pencil, active: true },
   { id: "search", label: "Search chats", icon: Search },
-  { id: "images", label: "Images", icon: ImgIcon },
-  { id: "videos", label: "Videos", icon: Video },
-  { id: "library", label: "Library", icon: LayoutGrid },
   { id: "gems", label: "Endpoints", icon: Gem },
 ];
 
