@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useStore } from "@/lib/cockpit-store";
 import { ArrowLeft, FileText } from "lucide-react";
+import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
@@ -24,7 +25,8 @@ function LibraryPage() {
         >
           <ArrowLeft className="size-5" />
         </Link>
-        <h1 className="text-2xl font-light tracking-tight">Library</h1>
+        <h1 className="flex-1 text-2xl font-light tracking-tight">Library</h1>
+        <ProviderStatus />
       </header>
       <div className="mx-auto max-w-3xl px-4 py-6">
         {threads.length === 0 ? (

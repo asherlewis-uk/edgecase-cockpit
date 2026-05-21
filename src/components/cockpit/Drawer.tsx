@@ -1,6 +1,7 @@
 import { useStore, store } from "@/lib/cockpit-store";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "@tanstack/react-router";
+import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
 import {
   Pencil,
   Search,
@@ -174,21 +175,26 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
         </div>
 
         <div className="absolute inset-x-0 bottom-0 border-t border-white/5 bg-black px-5 py-4">
+          <div className="mb-3">
+            <ProviderStatus variant="bar" onOpenSettings={() => { onOpenChange(false); onOpenSettings(); }} />
+          </div>
           <div className="flex items-center gap-3">
             <div className="grid size-11 place-items-center rounded-full bg-gradient-to-br from-rose-400 via-amber-400 to-emerald-400 text-sm font-semibold text-black">
               {(settings.userName || "U").slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1">
               <div className="text-[15px] text-white/95">{settings.userName || "User"}</div>
-              <div className="text-xs text-white/45">Cockpit · /v1</div>
+              <div className="truncate text-xs text-white/45">
+                {settings.baseUrl || "no base url"}
+              </div>
             </div>
             <button
               onClick={() => {
                 onOpenChange(false);
-                onOpenSettings();
+                navigate({ to: "/settings" });
               }}
               className="grid size-10 place-items-center rounded-full text-white/70 transition hover:bg-white/10"
-              aria-label="Settings"
+              aria-label="Open settings page"
             >
               <SettingsIcon className="size-5" strokeWidth={1.6} />
             </button>
