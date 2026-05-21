@@ -24,9 +24,9 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
   const [error, setError] = useState<string | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownNow, setCooldownNow] = useState(0);
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
+  // Always init to true so SSR and first client render agree.
+  // Real value is read in the effect below after mount.
+  const [isOnline, setIsOnline] = useState(true);
   const [queueSize, setQueueSize] = useState(0);
   const queueRef = useRef<{ text: string; attachments?: string[] }[]>([]);
   const abortRef = useRef<AbortController | null>(null);
@@ -38,6 +38,8 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
   // Online/offline tracking + flush queue
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Sync with actual browser state after hydration.
+    setIsOnline(navigator.onLine);
     const on = () => {
       setIsOnline(true);
       // drain queue
