@@ -152,3 +152,14 @@
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
+
+@property --cockpit-hue {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+
+@keyframes cockpit-hue-cycle {
+  from { --cockpit-hue: 0deg; }
+  to   { --cockpit-hue: 360deg; }
+}
