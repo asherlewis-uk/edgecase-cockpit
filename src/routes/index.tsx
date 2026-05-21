@@ -17,6 +17,7 @@ import {
   Clock,
   X,
   Image as ImageIcon,
+  MessageSquareDashed,
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
@@ -68,6 +69,7 @@ function Index() {
   const [activeEndpointId, setActiveEndpointId] = useState<string>(
     settings.defaultEndpointId,
   );
+  const [temporary, setTemporary] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -124,6 +126,9 @@ function Index() {
     const text = input.trim();
     if ((!text && attachments.length === 0) || isStreaming) return;
     if (isCoolingDown) return;
+    if (temporary && !store.getState().activeThreadId) {
+      store.newThread({ temporary: true });
+    }
     setInput("");
     const a = attachments;
     setAttachments([]);
@@ -257,13 +262,32 @@ function Index() {
         </DropdownMenu>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => store.newThread()}
-            className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
-            aria-label="New chat"
-          >
-            <SquarePen className="size-5 text-white/90" strokeWidth={1.6} />
-          </button>
+          {messages.length === 0 ? (
+            <button
+              onClick={() => setTemporary((v) => !v)}
+              className={`grid size-11 place-items-center rounded-full backdrop-blur transition ${
+                temporary
+                  ? "bg-white/20 text-white ring-1 ring-white/40"
+                  : "bg-white/[0.06] text-white/90 hover:bg-white/[0.12]"
+              }`}
+              aria-label="Temporary chat"
+              aria-pressed={temporary}
+              title={temporary ? "Temporary chat on — won't be saved" : "Temporary chat"}
+            >
+              <MessageSquareDashed className="size-5" strokeWidth={1.6} />
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                store.selectThread(null);
+                setTemporary(false);
+              }}
+              className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
+              aria-label="New chat"
+            >
+              <SquarePen className="size-5 text-white/90" strokeWidth={1.6} />
+            </button>
+          )}
           {messages.length > 0 && (
             <button
               onClick={() => setSettingsOpen(true)}
