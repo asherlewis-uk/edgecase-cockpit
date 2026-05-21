@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Video } from "lucide-react";
+import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
 
 export const Route = createFileRoute("/videos")({
   head: () => ({
@@ -22,7 +23,8 @@ function VideosPage() {
         >
           <ArrowLeft className="size-5" />
         </Link>
-        <h1 className="text-2xl font-light tracking-tight">Videos</h1>
+        <h1 className="flex-1 text-2xl font-light tracking-tight">Videos</h1>
+        <ProviderStatus />
       </header>
       <div className="mx-auto max-w-3xl px-4 py-6">
         <div className="flex flex-col items-center gap-3 py-20 text-white/50">
