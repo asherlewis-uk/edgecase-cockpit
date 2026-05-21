@@ -49,10 +49,10 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  component: Index,
+  component: Cockpit,
 });
 
-function Index() {
+export function Cockpit() {
   const settings = useStore((s) => s.settings);
   useSyncExternalStore(
     subscribeEndpointStats,
@@ -363,14 +363,6 @@ function Index() {
                 )}
               </div>
             )}
-            {!isStreaming && !error && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
-              <button
-                onClick={regenerate}
-                className="self-start flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.12]"
-              >
-                <RefreshCw className="size-3" /> Regenerate
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -617,6 +609,16 @@ function MessageRow({
             >
               <Copy className="size-3.5" />
             </button>
+          )}
+          {m.error && (
+            <div className="mt-2">
+              <button
+                onClick={onRegenerate}
+                className="flex items-center gap-1.5 rounded-full bg-white/[0.08] px-3 py-1.5 text-xs text-white/80 hover:bg-white/[0.15]"
+              >
+                <RefreshCw className="size-3" /> Regenerate
+              </button>
+            </div>
           )}
         </div>
       )}

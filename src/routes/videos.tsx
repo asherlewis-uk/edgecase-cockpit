@@ -32,12 +32,20 @@ function VideosPage() {
           <p className="text-sm">
             No videos yet. Configure a video endpoint in Settings to populate this view.
           </p>
-          <Link
-            to="/"
-            className="mt-2 rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/20"
-          >
-            Back to chat
-          </Link>
+          <div className="mt-2 flex gap-2">
+            <Link
+              to="/settings"
+              className="rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/20"
+            >
+              Configure video endpoint
+            </Link>
+            <Link
+              to="/"
+              className="rounded-full bg-white/[0.04] px-4 py-2 text-xs text-white/80 hover:bg-white/[0.1]"
+            >
+              Back to chat
+            </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useStore } from "@/lib/cockpit-store";
+import { useStore, store } from "@/lib/cockpit-store";
 import { ArrowLeft, FileText } from "lucide-react";
 import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
 
@@ -36,12 +36,9 @@ function LibraryPage() {
             {threads.map((t) => (
               <li key={t.id}>
                 <Link
-                  to="/"
-                  onClick={() => {
-                    import("@/lib/cockpit-store").then((m) =>
-                      m.store.selectThread(t.id),
-                    );
-                  }}
+                  to="/thread/$id"
+                  params={{ id: t.id }}
+                  onClick={() => store.selectThread(t.id)}
                   className="flex items-center gap-3 rounded-2xl px-4 py-3 hover:bg-white/[0.05]"
                 >
                   <FileText className="size-4 text-white/60" />

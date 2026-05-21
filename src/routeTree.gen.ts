@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImagesRouteImport } from './routes/images'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ThreadIdRouteImport } from './routes/thread.$id'
 
 const VideosRoute = VideosRouteImport.update({
   id: '/videos',
@@ -40,6 +41,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ThreadIdRoute = ThreadIdRouteImport.update({
+  id: '/thread/$id',
+  path: '/thread/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/thread/$id': typeof ThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/thread/$id': typeof ThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,27 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/thread/$id': typeof ThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/images' | '/library' | '/settings' | '/videos'
+  fullPaths:
+    | '/'
+    | '/images'
+    | '/library'
+    | '/settings'
+    | '/videos'
+    | '/thread/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/images' | '/library' | '/settings' | '/videos'
-  id: '__root__' | '/' | '/images' | '/library' | '/settings' | '/videos'
+  to: '/' | '/images' | '/library' | '/settings' | '/videos' | '/thread/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/images'
+    | '/library'
+    | '/settings'
+    | '/videos'
+    | '/thread/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +99,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   SettingsRoute: typeof SettingsRoute
   VideosRoute: typeof VideosRoute
+  ThreadIdRoute: typeof ThreadIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,6 +139,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/thread/$id': {
+      id: '/thread/$id'
+      path: '/thread/$id'
+      fullPath: '/thread/$id'
+      preLoaderRoute: typeof ThreadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -125,6 +155,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   SettingsRoute: SettingsRoute,
   VideosRoute: VideosRoute,
+  ThreadIdRoute: ThreadIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
