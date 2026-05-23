@@ -10,13 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VideosRouteImport } from './routes/videos'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImagesRouteImport } from './routes/images'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadIdRouteImport } from './routes/thread.$id'
 
 const VideosRoute = VideosRouteImport.update({
   id: '/videos',
   path: '/videos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LibraryRoute = LibraryRouteImport.update({
@@ -29,6 +36,11 @@ const ImagesRoute = ImagesRouteImport.update({
   path: '/images',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ThreadIdRoute = ThreadIdRouteImport.update({
   id: '/thread/$id',
   path: '/thread/$id',
@@ -36,35 +48,56 @@ const ThreadIdRoute = ThreadIdRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/images': typeof ImagesRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/images': typeof ImagesRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/images': typeof ImagesRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/images' | '/library' | '/videos' | '/thread/$id'
+  fullPaths:
+    | '/'
+    | '/images'
+    | '/library'
+    | '/settings'
+    | '/videos'
+    | '/thread/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/images' | '/library' | '/videos' | '/thread/$id'
-  id: '__root__' | '/images' | '/library' | '/videos' | '/thread/$id'
+  to: '/' | '/images' | '/library' | '/settings' | '/videos' | '/thread/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/images'
+    | '/library'
+    | '/settings'
+    | '/videos'
+    | '/thread/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   ImagesRoute: typeof ImagesRoute
   LibraryRoute: typeof LibraryRoute
+  SettingsRoute: typeof SettingsRoute
   VideosRoute: typeof VideosRoute
   ThreadIdRoute: typeof ThreadIdRoute
 }
@@ -76,6 +109,13 @@ declare module '@tanstack/react-router' {
       path: '/videos'
       fullPath: '/videos'
       preLoaderRoute: typeof VideosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/library': {
@@ -92,6 +132,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ImagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/thread/$id': {
       id: '/thread/$id'
       path: '/thread/$id'
@@ -103,11 +150,23 @@ declare module '@tanstack/react-router' {
 }
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   ImagesRoute: ImagesRoute,
   LibraryRoute: LibraryRoute,
+  SettingsRoute: SettingsRoute,
   VideosRoute: VideosRoute,
   ThreadIdRoute: ThreadIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
