@@ -42,7 +42,7 @@ function ImagesPage() {
               to="/settings"
               className="mt-2 rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/20"
             >
-              Configure image endpoint
+              Choose a vision provider
             </Link>
           </div>
         ) : (

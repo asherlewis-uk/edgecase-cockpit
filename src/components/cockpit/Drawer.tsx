@@ -1,4 +1,5 @@
-import { useStore, store } from "@/lib/cockpit-store";
+import { useStore, store, PROVIDERS } from "@/lib/cockpit-store";
+import { getProvider } from "@/lib/providers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "@tanstack/react-router";
 import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
@@ -8,8 +9,7 @@ import {
   Image as ImgIcon,
   Video,
   LayoutGrid,
-  Gem,
-  Plus,
+  Boxes,
   FileText,
   Settings as SettingsIcon,
   Trash2,
@@ -30,7 +30,7 @@ const navItems = [
   { id: "images", label: "Images", icon: ImgIcon },
   { id: "videos", label: "Videos", icon: Video },
   { id: "library", label: "Library", icon: LayoutGrid },
-  { id: "gems", label: "Endpoints", icon: Gem },
+  { id: "providers", label: "Providers", icon: Boxes },
 ];
 
 export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
@@ -43,7 +43,10 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
   const filtered = threads.filter((t) =>
     t.title.toLowerCase().includes(filter.toLowerCase()),
   );
-  const pinned = settings.endpoints.filter((e) => e.pinned);
+  const pinned = settings.pinnedProviderIds
+    .map((id) => PROVIDERS.find((p) => p.id === id))
+    .filter((p): p is (typeof PROVIDERS)[number] => !!p);
+  const activeProvider = getProvider(settings.activeProviderId);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -72,26 +75,12 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
               <button
                 key={it.id}
                 onClick={() => {
-                  if (it.id === "new") {
-                    store.newThread();
-                    onOpenChange(false);
-                  }
-                  if (it.id === "gems") {
-                    onOpenChange(false);
-                    onOpenSettings();
-                  }
-                  if (it.id === "images") {
-                    onOpenChange(false);
-                    navigate({ to: "/images" });
-                  }
-                  if (it.id === "videos") {
-                    onOpenChange(false);
-                    navigate({ to: "/videos" });
-                  }
-                  if (it.id === "library") {
-                    onOpenChange(false);
-                    navigate({ to: "/library" });
-                  }
+                  onOpenChange(false);
+                  if (it.id === "new") store.newThread();
+                  if (it.id === "providers") navigate({ to: "/settings" });
+                  if (it.id === "images") navigate({ to: "/images" });
+                  if (it.id === "videos") navigate({ to: "/videos" });
+                  if (it.id === "library") navigate({ to: "/library" });
                 }}
                 className={`flex w-full items-center gap-5 rounded-full px-5 py-3.5 text-left text-[17px] transition ${
                   isNew ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
@@ -106,26 +95,26 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
 
         {pinned.length > 0 && (
           <div className="px-3 pt-5">
-            <div className="px-5 pb-1 text-sm text-white/45">Pinned endpoints</div>
+            <div className="px-5 pb-1 text-sm text-white/45">Pinned providers</div>
             <div className="flex flex-col gap-1">
-              {pinned.map((e) => {
-                const isDefault = settings.defaultEndpointId === e.id;
+              {pinned.map((p) => {
+                const isActive = settings.activeProviderId === p.id;
                 return (
                   <button
-                    key={e.id}
+                    key={p.id}
                     onClick={() => {
-                      store.updateSettings({ defaultEndpointId: e.id });
+                      store.setActiveProvider(p.id);
                       onOpenChange(false);
                     }}
                     className={`flex w-full items-center gap-3 rounded-full px-5 py-2.5 text-left transition ${
-                      isDefault ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
+                      isActive ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
                     }`}
                   >
-                    <Pin className="size-4 shrink-0 text-amber-300" strokeWidth={1.8} />
-                    <span className="text-[15px] text-white/90">{e.label}</span>
-                    <span className="ml-auto truncate text-xs text-white/40">
-                      {e.method} · {e.path}
+                    <span className={`grid size-7 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${p.accent}`}>
+                      {p.badge}
                     </span>
+                    <span className="text-[15px] text-white/90">{p.name}</span>
+                    <Pin className="ml-auto size-3.5 text-amber-300" strokeWidth={1.8} />
                   </button>
                 );
               })}
@@ -157,6 +146,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
                   onClick={() => {
                     store.selectThread(t.id);
                     onOpenChange(false);
+                    navigate({ to: "/thread/$id", params: { id: t.id } });
                   }}
                   className="flex-1 truncate text-left text-[15px] text-white/85"
                 >
@@ -179,14 +169,12 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
             <ProviderStatus variant="bar" onOpenSettings={() => { onOpenChange(false); onOpenSettings(); }} />
           </div>
           <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-full bg-gradient-to-br from-rose-400 via-amber-400 to-emerald-400 text-sm font-semibold text-black">
-              {(settings.userName || "U").slice(0, 1).toUpperCase()}
+            <div className={`grid size-11 place-items-center rounded-full bg-gradient-to-br text-sm font-semibold text-black ${activeProvider.accent}`}>
+              {activeProvider.badge}
             </div>
             <div className="flex-1">
               <div className="text-[15px] text-white/95">{settings.userName || "User"}</div>
-              <div className="truncate text-xs text-white/45">
-                {settings.baseUrl || "no base url"}
-              </div>
+              <div className="truncate text-xs text-white/45">{activeProvider.name}</div>
             </div>
             <button
               onClick={() => {
@@ -204,5 +192,3 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
     </Sheet>
   );
 }
-
-export const __unused = { Plus };

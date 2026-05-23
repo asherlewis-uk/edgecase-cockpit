@@ -1,57 +1,52 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Database, Trash2, Plus, Pin, PinOff } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { ArrowLeft, Check, Pin, PinOff, Wifi, WifiOff } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   useStore,
   store,
-  clearCache,
-  getEndpointStats,
-  subscribeEndpointStats,
-  resetEndpointStats,
-  type EndpointLabel,
+  PROVIDERS,
+  resolveProvider,
+  isProviderReady,
 } from "@/lib/cockpit-store";
-import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
+import { detectProvider, type ProviderDef, type Capability } from "@/lib/providers";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings — Cockpit" },
-      { name: "description", content: "Provider configuration and endpoint labels." },
+      { title: "Providers — Cockpit" },
+      { name: "description", content: "Choose and configure AI providers." },
     ],
   }),
   component: SettingsPage,
 });
 
 function SettingsPage() {
-  const s = useStore((st) => st.settings);
-  const [tab, setTab] = useState<"conn" | "endpoints">("conn");
-  const [editing, setEditing] = useState<EndpointLabel | null>(null);
-  useSyncExternalStore(
-    subscribeEndpointStats,
-    () => JSON.stringify(getEndpointStats()),
-    () => "{}",
-  );
-  const stats = getEndpointStats();
+  const settings = useStore((s) => s.settings);
+  const active = resolveProvider(settings);
+  const cloud = PROVIDERS.filter((p) => p.type === "cloud");
+  const local = PROVIDERS.filter((p) => p.type === "local");
+  const [detected, setDetected] = useState<Record<string, boolean>>({});
 
-  function newEndpoint() {
-    setEditing({
-      id: crypto.randomUUID(),
-      label: "Custom",
-      path: "/v1/chat/completions",
-      method: "POST",
-      cacheTtlSec: 0,
-      bodyTemplate: JSON.stringify(
-        { model: "{{model}}", messages: "{{messages}}" },
-        null,
-        2,
-      ),
-      responsePath: "choices.0.message.content",
-    });
-  }
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const out: Record<string, boolean> = {};
+      await Promise.all(
+        local
+          .filter((p) => p.detectUrl)
+          .map(async (p) => {
+            out[p.id] = await detectProvider(p);
+          }),
+      );
+      if (!cancelled) setDetected(out);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-[100dvh] bg-black text-white">
@@ -63,171 +58,196 @@ function SettingsPage() {
         >
           <ArrowLeft className="size-5" />
         </Link>
-        <h1 className="flex-1 text-2xl font-light tracking-tight">Settings</h1>
-        <ProviderStatus />
+        <h1 className="flex-1 text-2xl font-light tracking-tight">Providers</h1>
       </header>
 
-      <div className="mx-auto max-w-2xl px-4 py-6">
-        <div className="mb-4 flex gap-1 rounded-full bg-white/5 p-1">
-          {(["conn", "endpoints"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 rounded-full px-4 py-2 text-sm transition ${
-                tab === t ? "bg-white/15 text-white" : "text-white/60"
-              }`}
-            >
-              {t === "conn" ? "Connection" : "Endpoints"}
-            </button>
-          ))}
-        </div>
-
-        {tab === "conn" && (
-          <div className="space-y-4">
-            <Field label="Display name" value={s.userName}
-              onChange={(v) => store.updateSettings({ userName: v })} placeholder="friend" />
-            <Field label="Base URL" value={s.baseUrl}
-              onChange={(v) => store.updateSettings({ baseUrl: v })} placeholder="https://api.openai.com" />
-            <Field label="API key" value={s.apiKey} type="password"
-              onChange={(v) => store.updateSettings({ apiKey: v })} placeholder="sk-…" />
-            <Field label="Model" value={s.model}
-              onChange={(v) => store.updateSettings({ model: v })} placeholder="gpt-4o-mini" />
-
-            <div>
-              <Label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
-                Default endpoint
-              </Label>
-              <select
-                value={s.defaultEndpointId}
-                onChange={(e) => store.updateSettings({ defaultEndpointId: e.target.value })}
-                className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-              >
-                {s.endpoints.map((e) => (
-                  <option key={e.id} value={e.id}>{e.label} — {e.path}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button variant="outline" onClick={() => clearCache()}
-                className="border-white/15 bg-transparent text-white hover:bg-white/10">
-                <Database className="mr-2 size-4" /> Clear cache
-              </Button>
-              <Button variant="outline"
-                onClick={() => { if (confirm("Reset everything?")) store.clearAll(); }}
-                className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10">
-                Reset all
-              </Button>
-            </div>
+      <div className="mx-auto max-w-3xl space-y-8 px-4 py-6">
+        <section>
+          <div className="mb-3">
+            <Label className="text-xs uppercase tracking-wider text-white/50">
+              Display name
+            </Label>
+            <Input
+              value={settings.userName}
+              onChange={(e) => store.updateSettings({ userName: e.target.value })}
+              placeholder="friend"
+              className="mt-1.5 border-white/10 bg-white/5 text-white placeholder:text-white/30"
+            />
           </div>
-        )}
+        </section>
 
-        {tab === "endpoints" && !editing && (
-          <div className="space-y-2">
-            {s.endpoints.map((e) => (
-              <div key={e.id}
-                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-white">{e.label}</span>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase text-white/70">{e.method}</span>
-                    {e.cacheTtlSec > 0 && (
-                      <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] uppercase text-emerald-300">cache {e.cacheTtlSec}s</span>
-                    )}
-                    {(stats[e.id]?.hits || stats[e.id]?.misses) ? (
-                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] tabular-nums text-white/70">
-                        {stats[e.id]?.hits ?? 0}h / {stats[e.id]?.misses ?? 0}m
-                      </span>
-                    ) : null}
-                    {s.defaultEndpointId === e.id && (
-                      <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] uppercase text-indigo-300">default</span>
-                    )}
-                  </div>
-                  <div className="truncate text-xs text-white/50">{e.path}</div>
-                </div>
-                <button onClick={() => store.upsertEndpoint({ ...e, pinned: !e.pinned })}
-                  className="text-white/50 hover:text-amber-300" aria-label={e.pinned ? "Unpin" : "Pin"}>
-                  {e.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-                </button>
-                <button onClick={() => store.updateSettings({ defaultEndpointId: e.id })}
-                  className="text-xs text-white/60 hover:text-white">set default</button>
-                <button onClick={() => setEditing(e)} className="text-xs text-white/60 hover:text-white">edit</button>
-                <button onClick={() => store.removeEndpoint(e.id)} className="text-white/50 hover:text-red-400" aria-label="Delete">
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
+        <Section title="Cloud providers">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {cloud.map((p) => (
+              <ProviderCard
+                key={p.id}
+                p={p}
+                isActive={p.id === active.provider.id}
+              />
             ))}
-            <Button onClick={newEndpoint} className="w-full bg-white/10 text-white hover:bg-white/15">
-              <Plus className="mr-2 size-4" /> New labeled endpoint
-            </Button>
-            <Button variant="outline" onClick={resetEndpointStats}
-              className="w-full border-white/10 bg-transparent text-xs text-white/60 hover:bg-white/5">
-              Reset hit/miss counters
-            </Button>
           </div>
-        )}
+        </Section>
 
-        {tab === "endpoints" && editing && (
-          <EndpointEditor value={editing} onCancel={() => setEditing(null)}
-            onSave={(v) => { store.upsertEndpoint(v); setEditing(null); }} />
-        )}
+        <Section title="Local / Self-hosted">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {local.map((p) => (
+              <ProviderCard
+                key={p.id}
+                p={p}
+                isActive={p.id === active.provider.id}
+                detected={detected[p.id]}
+              />
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Danger">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (confirm("Reset everything?")) store.clearAll();
+            }}
+            className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10"
+          >
+            Reset all
+          </Button>
+        </Section>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, onChange, placeholder, type = "text" }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <Label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} type={type}
-        className="border-white/10 bg-white/5 text-white placeholder:text-white/30" />
-    </div>
+    <section>
+      <h2 className="mb-3 text-xs uppercase tracking-wider text-white/50">{title}</h2>
+      {children}
+    </section>
   );
 }
 
-function EndpointEditor({ value, onSave, onCancel }: {
-  value: EndpointLabel; onSave: (v: EndpointLabel) => void; onCancel: () => void;
+const CAP_LABELS: Record<Capability, string> = {
+  chat: "Chat",
+  embeddings: "Embeddings",
+  vision: "Vision",
+  tools: "Tools",
+};
+
+function ProviderCard({
+  p,
+  isActive,
+  detected,
+}: {
+  p: ProviderDef;
+  isActive: boolean;
+  detected?: boolean;
 }) {
-  const [v, setV] = useState(value);
+  const settings = useStore((s) => s.settings);
+  const cfg = settings.providers[p.id] ?? { apiKey: "" };
+  const ready = isProviderReady(settings, p.id);
+  const pinned = settings.pinnedProviderIds.includes(p.id);
+
   return (
-    <div className="space-y-3">
-      <Field label="Label" value={v.label} onChange={(x) => setV({ ...v, label: x })} />
-      <Field label="Path" value={v.path} onChange={(x) => setV({ ...v, path: x })}
-        placeholder="/v1/chat/completions" />
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">Method</Label>
-          <select value={v.method}
-            onChange={(e) => setV({ ...v, method: e.target.value as "GET" | "POST" })}
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
-            <option>POST</option><option>GET</option>
-          </select>
+    <div
+      className={`flex flex-col gap-3 rounded-2xl border p-4 transition ${
+        isActive ? "border-white/30 bg-white/[0.06]" : "border-white/10 bg-white/[0.02]"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-xs font-semibold text-black ${p.accent}`}
+        >
+          {p.badge}
         </div>
-        <Field label="Cache TTL (s, 0=off)" value={String(v.cacheTtlSec)}
-          onChange={(x) => setV({ ...v, cacheTtlSec: Number(x) || 0 })} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[15px] font-medium text-white">{p.name}</span>
+            {p.type === "local" && p.detectUrl && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
+                  detected
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-white/10 text-white/50"
+                }`}
+                title={detected ? "Detected on localhost" : "Not detected"}
+              >
+                {detected ? <Wifi className="size-2.5" /> : <WifiOff className="size-2.5" />}
+                {detected ? "live" : "off"}
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-xs text-white/55">{p.description}</p>
+        </div>
+        <button
+          onClick={() => store.togglePinned(p.id)}
+          className="text-white/40 hover:text-amber-300"
+          aria-label={pinned ? "Unpin" : "Pin"}
+          title={pinned ? "Unpin" : "Pin"}
+        >
+          {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+        </button>
       </div>
-      <Field label="Response text path" value={v.responsePath || ""}
-        onChange={(x) => setV({ ...v, responsePath: x })} placeholder="choices.0.message.content" />
-      <div>
-        <Label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
-          Body template — {"{{model}} {{prompt}} {{messages}}"}
-        </Label>
-        <Textarea value={v.bodyTemplate || ""} onChange={(e) => setV({ ...v, bodyTemplate: e.target.value })}
-          rows={6} className="border-white/10 bg-white/5 font-mono text-xs text-white" />
+
+      <div className="flex flex-wrap gap-1">
+        {(Object.keys(CAP_LABELS) as Capability[])
+          .filter((k) => p.supports[k])
+          .map((k) => (
+            <span
+              key={k}
+              className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wider text-white/70"
+            >
+              {CAP_LABELS[k]}
+            </span>
+          ))}
       </div>
-      <div>
-        <Label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">Extra headers (JSON)</Label>
-        <Textarea value={v.headers || ""} onChange={(e) => setV({ ...v, headers: e.target.value })}
-          rows={3} placeholder='{"x-org":"team"}'
-          className="border-white/10 bg-white/5 font-mono text-xs text-white" />
+
+      <div className="grid gap-2">
+        {p.needsApiKey && (
+          <Input
+            type="password"
+            value={cfg.apiKey}
+            onChange={(e) => store.updateProviderConfig(p.id, { apiKey: e.target.value })}
+            placeholder={p.setupHint ?? "API key"}
+            className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+          />
+        )}
+        {p.baseUrlEditable && (
+          <Input
+            value={cfg.baseUrl ?? ""}
+            onChange={(e) => store.updateProviderConfig(p.id, { baseUrl: e.target.value })}
+            placeholder={p.defaultBaseUrl}
+            className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+          />
+        )}
+        <Input
+          value={cfg.model ?? ""}
+          onChange={(e) => store.updateProviderConfig(p.id, { model: e.target.value })}
+          placeholder={`Model · default ${p.defaultModel}`}
+          className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+        />
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <Button variant="outline" onClick={onCancel}
-          className="border-white/15 bg-transparent text-white hover:bg-white/10">Cancel</Button>
-        <Button onClick={() => onSave(v)} className="bg-white text-black hover:bg-white/90">Save</Button>
+
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-[11px] ${ready ? "text-emerald-300" : "text-amber-300"}`}>
+          {ready ? "Ready" : p.needsApiKey ? "Needs API key" : "Configure base URL"}
+        </span>
+        <Button
+          size="sm"
+          onClick={() => store.setActiveProvider(p.id)}
+          className={
+            isActive
+              ? "bg-white text-black hover:bg-white/90"
+              : "bg-white/10 text-white hover:bg-white/15"
+          }
+        >
+          {isActive ? (
+            <>
+              <Check className="mr-1 size-3.5" /> Active
+            </>
+          ) : (
+            "Use"
+          )}
+        </Button>
       </div>
     </div>
   );

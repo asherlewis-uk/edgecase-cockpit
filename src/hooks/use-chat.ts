@@ -2,18 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   store,
   useStore,
-  callEndpoint,
-  ApiError,
+  resolveProvider,
+  bumpProviderStat,
   type Message,
-  type EndpointLabel,
 } from "@/lib/cockpit-store";
+import { callProviderChat, ProviderError, type ChatMessage } from "@/lib/providers";
 
 export type UseChatOptions = {
-  endpointId: string;
   onAuthError?: (message: string) => void;
 };
 
-export function useChat({ endpointId, onAuthError }: UseChatOptions) {
+export function useChat({ onAuthError }: UseChatOptions = {}) {
   const settings = useStore((s) => s.settings);
   const threads = useStore((s) => s.threads);
   const activeId = useStore((s) => s.activeThreadId);
@@ -24,25 +23,18 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
   const [error, setError] = useState<string | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownNow, setCooldownNow] = useState(0);
-  // Always init to true so SSR and first client render agree.
-  // Real value is read in the effect below after mount.
   const [isOnline, setIsOnline] = useState(true);
   const [queueSize, setQueueSize] = useState(0);
   const queueRef = useRef<{ text: string; attachments?: string[] }[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-  const lastPromptRef = useRef<{ text: string; attachments?: string[] } | null>(
-    null,
-  );
-  const backoffRef = useRef(0); // count of consecutive 429s
+  const lastPromptRef = useRef<{ text: string; attachments?: string[] } | null>(null);
+  const backoffRef = useRef(0);
 
-  // Online/offline tracking + flush queue
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Sync with actual browser state after hydration.
     setIsOnline(navigator.onLine);
     const on = () => {
       setIsOnline(true);
-      // drain queue
       const q = queueRef.current.splice(0);
       setQueueSize(0);
       (async () => {
@@ -60,7 +52,6 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
     };
   }, []);
 
-  // Cooldown ticker
   useEffect(() => {
     if (!cooldownUntil) return;
     const tick = () => {
@@ -73,29 +64,19 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
     return () => clearInterval(id);
   }, [cooldownUntil]);
 
-  const resolveEndpoint = useCallback((): EndpointLabel | undefined => {
-    return (
-      settings.endpoints.find((e) => e.id === endpointId) ??
-      settings.endpoints[0]
-    );
-  }, [settings.endpoints, endpointId]);
-
   const runAssistant = useCallback(
-    async (threadId: string, prompt: string) => {
-      const endpoint = resolveEndpoint();
-      if (!endpoint) {
-        setError("No endpoint configured");
-        setStatus("error");
-        return;
-      }
+    async (threadId: string, _prompt: string) => {
+      const { provider, apiKey, baseUrl, model } = resolveProvider(
+        store.getState().settings,
+      );
       const placeholderId = crypto.randomUUID();
       const now = Date.now();
       store.addMessage(threadId, {
         id: placeholderId,
         role: "assistant",
         content: "",
-        endpointLabel: endpoint.label,
-        endpointUsed: endpoint.path,
+        providerId: provider.id,
+        providerName: provider.name,
         pending: true,
         ts: now,
         timestamp: now,
@@ -106,50 +87,38 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
       setStatus("streaming");
       setError(null);
 
-      const history = store
+      const history: ChatMessage[] = store
         .getState()
         .threads.find((t) => t.id === threadId)!
         .messages.filter((m) => m.role !== "assistant" || m.content)
-        .map((m) => {
-          if (m.attachments && m.attachments.length) {
-            return {
-              role: m.role,
-              content: [
-                ...(m.content ? [{ type: "text", text: m.content }] : []),
-                ...m.attachments.map((url) => ({
-                  type: "image_url",
-                  image_url: { url },
-                })),
-              ],
-            };
-          }
-          return { role: m.role, content: m.content };
-        });
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+          attachments: m.attachments,
+        }));
 
       let acc = "";
       try {
-        const res = await callEndpoint({
-          endpoint,
-          settings: store.getState().settings,
+        bumpProviderStat(provider.id, "call");
+        const res = await callProviderChat({
+          provider,
+          apiKey,
+          baseUrl,
+          model,
           messages: history,
-          prompt,
           signal: controller.signal,
-          onDelta: (chunk) => {
-            if (endpoint.stream) {
-              acc += chunk;
-              store.patchMessage(threadId, placeholderId, {
-                content: acc,
-                pending: true,
-              });
-            }
+          stream: true,
+          onDelta: (chunk: string) => {
+            acc += chunk;
+            store.patchMessage(threadId, placeholderId, {
+              content: acc,
+              pending: true,
+            });
           },
         });
-        const finalText = (res.text || "").trim();
+        const finalText = (res.text || acc || "").trim();
         store.patchMessage(threadId, placeholderId, {
           content: finalText,
-          cached: res.cached,
-          endpointLabel: res.label,
-          endpointUsed: endpoint.path,
           pending: false,
         });
         backoffRef.current = 0;
@@ -158,7 +127,8 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
         const err = e as Error;
         const aborted = err.name === "AbortError";
         const msg = aborted ? "Stopped" : err.message;
-        const apiErr = e instanceof ApiError ? e : null;
+        const apiErr = e instanceof ProviderError ? e : null;
+        if (!aborted) bumpProviderStat(provider.id, "error");
         store.patchMessage(threadId, placeholderId, {
           content: acc || msg,
           error: !aborted,
@@ -172,17 +142,11 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
           onAuthError?.(msg);
         } else if (apiErr && apiErr.status === 429) {
           backoffRef.current = Math.min(backoffRef.current + 1, 6);
-          const base = apiErr.retryAfter
-            ? apiErr.retryAfter
-            : Math.min(2 ** backoffRef.current, 60);
+          const base = apiErr.retryAfter ?? Math.min(2 ** backoffRef.current, 60);
           setCooldownUntil(Date.now() + base * 1000);
           setError(`Rate limited — retrying in ${base}s`);
           setStatus("error");
-        } else if (
-          typeof navigator !== "undefined" &&
-          !navigator.onLine
-        ) {
-          // queue for when we're back online
+        } else if (typeof navigator !== "undefined" && !navigator.onLine) {
           if (lastPromptRef.current) {
             queueRef.current.push(lastPromptRef.current);
             setQueueSize(queueRef.current.length);
@@ -197,7 +161,7 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
         abortRef.current = null;
       }
     },
-    [resolveEndpoint, onAuthError],
+    [onAuthError],
   );
 
   const sendMessage = useCallback(
@@ -240,15 +204,17 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
     if (!threadId) return;
     const t = store.getState().threads.find((x) => x.id === threadId);
     if (!t) return;
-    // find last user message
     const lastUser = [...t.messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
-    // remove trailing assistant after lastUser
     const idx = t.messages.findIndex((m) => m.id === lastUser.id);
     const trailing = t.messages.slice(idx + 1);
     trailing.forEach((m) => {
       if (m.role === "assistant") {
-        store.patchMessage(threadId, m.id, { content: "", error: false, pending: false });
+        store.patchMessage(threadId, m.id, {
+          content: "",
+          error: false,
+          pending: false,
+        });
       }
     });
     await runAssistant(threadId, lastUser.content);
@@ -261,6 +227,9 @@ export function useChat({ endpointId, onAuthError }: UseChatOptions) {
       if (threadId) await runAssistant(threadId, lastPromptRef.current.text);
     }
   }, [runAssistant]);
+
+  // satisfy eslint unused
+  void settings;
 
   return {
     messages,

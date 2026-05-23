@@ -30,14 +30,14 @@ function VideosPage() {
         <div className="flex flex-col items-center gap-3 py-20 text-white/50">
           <Video className="size-8" />
           <p className="text-sm">
-            No videos yet. Configure a video endpoint in Settings to populate this view.
+            No videos yet. Choose a video-capable provider to populate this view.
           </p>
           <div className="mt-2 flex gap-2">
             <Link
               to="/settings"
               className="rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/20"
             >
-              Configure video endpoint
+              Choose a provider
             </Link>
             <Link
               to="/"
