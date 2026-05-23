@@ -5,6 +5,7 @@ import {
   Menu,
   ChevronDown,
   SquarePen,
+  Mic,
   AudioLines,
   Square,
   MoreHorizontal,
@@ -17,8 +18,6 @@ import {
   Image as ImageIcon,
   MessageSquareDashed,
   Check,
-  Trash2,
-  Settings as SettingsIcon,
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
@@ -274,7 +273,6 @@ export function Cockpit() {
               onClick={() => {
                 store.selectThread(null);
                 setTemporary(false);
-                navigate({ to: "/" });
               }}
               className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
               aria-label="New chat"
@@ -283,50 +281,13 @@ export function Cockpit() {
             </button>
           )}
           {messages.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
-                  aria-label="Thread actions"
-                >
-                  <MoreHorizontal className="size-5 text-white/90" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-56 border-white/10 bg-zinc-950 text-white"
-              >
-                <DropdownMenuItem
-                  onClick={() => regenerate()}
-                  disabled={isStreaming}
-                  className="gap-2 focus:bg-white/10"
-                >
-                  <RefreshCw className="size-4" />
-                  <span className="text-sm">Regenerate last reply</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate({ to: "/settings" })}
-                  className="gap-2 focus:bg-white/10"
-                >
-                  <SettingsIcon className="size-4" />
-                  <span className="text-sm">Provider settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-white/10" />
-                <DropdownMenuItem
-                  onClick={() => {
-                    const tid = store.getState().activeThreadId;
-                    if (!tid) return;
-                    store.deleteThread(tid);
-                    toast.success("Thread deleted");
-                    navigate({ to: "/" });
-                  }}
-                  className="gap-2 text-red-300 focus:bg-red-500/10 focus:text-red-200"
-                >
-                  <Trash2 className="size-4" />
-                  <span className="text-sm">Delete thread</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              onClick={() => navigate({ to: "/settings" })}
+              className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
+              aria-label="More"
+            >
+              <MoreHorizontal className="size-5 text-white/90" />
+            </button>
           )}
         </div>
       </header>
@@ -474,14 +435,21 @@ export function Cockpit() {
                 <AudioLines className="size-5" strokeWidth={1.8} />
               </button>
             ) : (
-              <button
-                disabled
-                className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.04] text-white/30"
-                aria-label="Send (type a message)"
-                title="Type a message or attach an image"
-              >
-                <AudioLines className="size-5" strokeWidth={1.8} />
-              </button>
+              <>
+                <button
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/85 transition hover:bg-white/[0.12]"
+                  aria-label="Voice"
+                >
+                  <Mic className="size-5" strokeWidth={1.6} />
+                </button>
+                <button
+                  className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
+                  style={hueButtonStyle(pulse)}
+                  aria-label="Live"
+                >
+                  <AudioLines className="size-5" strokeWidth={1.8} />
+                </button>
+              </>
             )}
           </div>
         </div>
