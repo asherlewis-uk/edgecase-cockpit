@@ -199,11 +199,15 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     abortRef.current?.abort();
   }, []);
 
-  const regenerate = useCallback(async () => {
-    const threadId = store.getState().activeThreadId;
+  const regenerate = useCallback(async (threadIdArg?: string) => {
+    const threadId = threadIdArg ?? store.getState().activeThreadId;
     if (!threadId) return;
     const t = store.getState().threads.find((x) => x.id === threadId);
     if (!t) return;
+    // Ensure store's active thread matches what we're regenerating against
+    if (store.getState().activeThreadId !== threadId) {
+      store.selectThread(threadId);
+    }
     const lastUser = [...t.messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
     const idx = t.messages.findIndex((m) => m.id === lastUser.id);
