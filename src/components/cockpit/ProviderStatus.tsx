@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2, AlertCircle, Settings as SettingsIcon } from "lucide-react";
-import { useStore } from "@/lib/cockpit-store";
+import { useStore, resolveProvider, isProviderReady } from "@/lib/cockpit-store";
 
 type Props = {
   variant?: "pill" | "bar";
@@ -9,7 +9,8 @@ type Props = {
 
 export function ProviderStatus({ variant = "pill", onOpenSettings }: Props) {
   const settings = useStore((s) => s.settings);
-  const ok = !!settings.apiKey && !!settings.baseUrl;
+  const { provider, model } = resolveProvider(settings);
+  const ok = isProviderReady(settings);
   const Icon = ok ? CheckCircle2 : AlertCircle;
   const tone = ok
     ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
@@ -18,12 +19,14 @@ export function ProviderStatus({ variant = "pill", onOpenSettings }: Props) {
   const inner = (
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${tone}`}
-      title={`${settings.baseUrl || "no base url"} · ${settings.model || "no model"}`}
+      title={`${provider.name} · ${model}`}
     >
       <Icon className="size-3.5" />
-      <span className="font-medium">{ok ? "Connected" : "Set API key"}</span>
+      <span className="font-medium">{provider.name}</span>
       <span className="text-white/50">·</span>
-      <span className="truncate max-w-[14ch] text-white/80">{settings.model || "no model"}</span>
+      <span className="truncate max-w-[18ch] text-white/80">
+        {ok ? model : provider.needsApiKey ? "set API key" : "ready"}
+      </span>
     </span>
   );
 
