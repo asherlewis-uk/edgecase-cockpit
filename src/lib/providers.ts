@@ -533,6 +533,23 @@ export async function detectProvider(p: ProviderDef): Promise<DetectResult> {
   }
 }
 
+/** Send audio to the configured provider for transcription via the server proxy. */
+export async function transcribeAudioViaProxy(
+  providerId: string,
+  blob: Blob,
+  signal?: AbortSignal,
+): Promise<{ text: string }> {
+  const fd = new FormData();
+  fd.append("providerId", providerId);
+  fd.append("file", blob, "speech.webm");
+  const res = await fetch("/api/proxy/transcribe", { method: "POST", body: fd, signal });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Transcription failed (${res.status}): ${txt.slice(0, 200)}`);
+  }
+  return (await res.json()) as { text: string };
+}
+
 /** Stream a chat completion through the server proxy. */
 export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<{
   text: string;
