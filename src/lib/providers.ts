@@ -26,6 +26,12 @@ export type ProviderDef = {
   setupHint?: string;
   /** Hostnames to probe for auto-detection (local providers only). */
   detectUrl?: string;
+  /** Hosts the server proxy is allowed to reach for this provider. */
+  allowedHosts?: string[];
+  /** Speech-to-text path (OpenAI-compat) — undefined means not supported. */
+  transcribePath?: string;
+  /** What media this provider can produce. */
+  mediaCapabilities?: { video?: "generate" | "none"; image?: "generate" | "none" };
   // --- internals ---
   chatPath: string;
   embeddingsPath?: string;
