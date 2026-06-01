@@ -219,6 +219,14 @@ export const store = {
     state = { ...state, activeThreadId: id };
     emit();
   },
+  renameThread(id: string, title: string) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, title } : t)),
+    };
+    persist();
+    emit();
+  },
   deleteThread(id: string) {
     state = {
       ...state,

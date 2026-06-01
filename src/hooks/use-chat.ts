@@ -6,7 +6,7 @@ import {
   bumpProviderStat,
   type Message,
 } from "@/lib/cockpit-store";
-import { callProviderChat, ProviderError, type ChatMessage } from "@/lib/providers";
+import { callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
 
 export type UseChatOptions = {
   onAuthError?: (message: string) => void;
@@ -100,7 +100,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       let acc = "";
       try {
         bumpProviderStat(provider.id, "call");
-        const res = await callProviderChat({
+        const res = await callProviderChatViaProxy({
           provider,
           apiKey,
           baseUrl,

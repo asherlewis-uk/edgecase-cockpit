@@ -16,7 +16,7 @@ import {
   X,
   Pin,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = {
   open: boolean;
@@ -39,6 +39,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
   const active = useStore((s) => s.activeThreadId);
   const [filter, setFilter] = useState("");
   const navigate = useNavigate();
+  const filterRef = useRef<HTMLInputElement>(null);
 
   const filtered = threads.filter((t) =>
     t.title.toLowerCase().includes(filter.toLowerCase()),
@@ -75,12 +76,17 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
               <button
                 key={it.id}
                 onClick={() => {
-                  onOpenChange(false);
                   if (it.id === "new") store.newThread();
                   if (it.id === "providers") navigate({ to: "/settings" });
                   if (it.id === "images") navigate({ to: "/images" });
                   if (it.id === "videos") navigate({ to: "/videos" });
                   if (it.id === "library") navigate({ to: "/library" });
+                  if (it.id === "search") {
+                    filterRef.current?.focus();
+                    filterRef.current?.scrollIntoView({ block: "center" });
+                    return; // keep drawer open
+                  }
+                  onOpenChange(false);
                 }}
                 className={`flex w-full items-center gap-5 rounded-full px-5 py-3.5 text-left text-[17px] transition ${
                   isNew ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
@@ -125,6 +131,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
         <div className="px-3 pt-6">
           <div className="px-5 pb-1 text-sm text-white/45">Recent</div>
           <input
+            ref={filterRef}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Filter recent…"
