@@ -16,9 +16,10 @@ export const Route = createFileRoute("/images")({
 function ImagesPage() {
   const threads = useStore((s) => s.threads);
   const images = threads.flatMap((t) =>
-    t.messages.flatMap((m) =>
-      (m.attachments ?? []).map((src) => ({ src, threadId: t.id })),
-    ),
+    t.messages.flatMap((m) => [
+      ...(m.attachments ?? []).map((src) => ({ src, threadId: t.id, kind: "user" as const })),
+      ...(m.assistantImages ?? []).map((src) => ({ src, threadId: t.id, kind: "assistant" as const })),
+    ]),
   );
   return (
     <div className="min-h-[100dvh] bg-black text-white">
