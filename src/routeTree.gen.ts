@@ -15,6 +15,8 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImagesRouteImport } from './routes/images'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadIdRouteImport } from './routes/thread.$id'
+import { Route as ApiProxyDetectRouteImport } from './routes/api/proxy/detect'
+import { Route as ApiProxyChatRouteImport } from './routes/api/proxy/chat'
 
 const VideosRoute = VideosRouteImport.update({
   id: '/videos',
@@ -46,6 +48,16 @@ const ThreadIdRoute = ThreadIdRouteImport.update({
   path: '/thread/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProxyDetectRoute = ApiProxyDetectRouteImport.update({
+  id: '/api/proxy/detect',
+  path: '/api/proxy/detect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProxyChatRoute = ApiProxyChatRouteImport.update({
+  id: '/api/proxy/chat',
+  path: '/api/proxy/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +66,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/proxy/chat': typeof ApiProxyChatRoute
+  '/api/proxy/detect': typeof ApiProxyDetectRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +76,8 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/proxy/chat': typeof ApiProxyChatRoute
+  '/api/proxy/detect': typeof ApiProxyDetectRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +87,8 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/proxy/chat': typeof ApiProxyChatRoute
+  '/api/proxy/detect': typeof ApiProxyDetectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,8 +99,18 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/thread/$id'
+    | '/api/proxy/chat'
+    | '/api/proxy/detect'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/images' | '/library' | '/settings' | '/videos' | '/thread/$id'
+  to:
+    | '/'
+    | '/images'
+    | '/library'
+    | '/settings'
+    | '/videos'
+    | '/thread/$id'
+    | '/api/proxy/chat'
+    | '/api/proxy/detect'
   id:
     | '__root__'
     | '/'
@@ -91,6 +119,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/thread/$id'
+    | '/api/proxy/chat'
+    | '/api/proxy/detect'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -100,6 +130,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   VideosRoute: typeof VideosRoute
   ThreadIdRoute: typeof ThreadIdRoute
+  ApiProxyChatRoute: typeof ApiProxyChatRoute
+  ApiProxyDetectRoute: typeof ApiProxyDetectRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -146,6 +178,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/proxy/detect': {
+      id: '/api/proxy/detect'
+      path: '/api/proxy/detect'
+      fullPath: '/api/proxy/detect'
+      preLoaderRoute: typeof ApiProxyDetectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/proxy/chat': {
+      id: '/api/proxy/chat'
+      path: '/api/proxy/chat'
+      fullPath: '/api/proxy/chat'
+      preLoaderRoute: typeof ApiProxyChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -156,6 +202,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   VideosRoute: VideosRoute,
   ThreadIdRoute: ThreadIdRoute,
+  ApiProxyChatRoute: ApiProxyChatRoute,
+  ApiProxyDetectRoute: ApiProxyDetectRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
