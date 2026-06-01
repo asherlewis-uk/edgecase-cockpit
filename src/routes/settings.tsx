@@ -88,6 +88,7 @@ function SettingsPage() {
                 key={p.id}
                 p={p}
                 isActive={p.id === active.provider.id}
+                hasServerKey={!!keyStatus[p.id]}
               />
             ))}
           </div>
@@ -145,15 +146,54 @@ function ProviderCard({
   p,
   isActive,
   detected,
+  hasServerKey,
 }: {
   p: ProviderDef;
   isActive: boolean;
   detected?: DetectResult;
+  hasServerKey?: boolean;
 }) {
   const settings = useStore((s) => s.settings);
   const cfg = settings.providers[p.id] ?? { apiKey: "" };
   const ready = isProviderReady(settings, p.id);
   const pinned = settings.pinnedProviderIds.includes(p.id);
+  const [keyDraft, setKeyDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const saveKey = async () => {
+    if (!keyDraft.trim()) return;
+    setSaving(true);
+    try {
+      await fetch("/api/keys/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId: p.id,
+          apiKey: keyDraft.trim(),
+          baseUrl: cfg.baseUrl,
+          model: cfg.model,
+        }),
+      });
+      setKeyDraft("");
+      await refreshProviderKeyStatus();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearKey = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/keys/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: p.id }),
+      });
+      await refreshProviderKeyStatus();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -217,13 +257,47 @@ function ProviderCard({
 
       <div className="grid gap-2">
         {p.needsApiKey && (
-          <Input
-            type="password"
-            value={cfg.apiKey}
-            onChange={(e) => store.updateProviderConfig(p.id, { apiKey: e.target.value })}
-            placeholder={p.setupHint ?? "API key"}
-            className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
-          />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <Input
+                type="password"
+                value={keyDraft}
+                onChange={(e) => setKeyDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void saveKey();
+                }}
+                placeholder={hasServerKey ? "•••••••• (saved server-side)" : p.setupHint ?? "API key"}
+                autoComplete="off"
+                className="h-9 flex-1 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+              />
+              <Button
+                size="sm"
+                onClick={saveKey}
+                disabled={saving || !keyDraft.trim()}
+                className="h-9 bg-white/10 text-white hover:bg-white/20"
+              >
+                Save
+              </Button>
+              {hasServerKey && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={clearKey}
+                  disabled={saving}
+                  className="h-9 border-white/10 bg-transparent text-white/70 hover:bg-white/10"
+                  aria-label="Clear stored key"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
+            </div>
+            <span className="inline-flex items-center gap-1 text-[10px] text-white/50">
+              <KeyRound className="size-3" />
+              {hasServerKey
+                ? "Key stored in encrypted server session — never sent to the browser."
+                : "Keys are stored server-side only."}
+            </span>
+          </div>
         )}
         {p.baseUrlEditable && (
           <Input
