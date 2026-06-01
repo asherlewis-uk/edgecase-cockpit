@@ -117,9 +117,11 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
           },
         });
         const finalText = (res.text || acc || "").trim();
+        const assistantImages = extractImageUrls(finalText);
         store.patchMessage(threadId, placeholderId, {
           content: finalText,
           pending: false,
+          assistantImages: assistantImages.length ? assistantImages : undefined,
         });
         backoffRef.current = 0;
         setStatus("idle");
