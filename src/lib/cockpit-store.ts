@@ -26,6 +26,8 @@ export type Message = {
   timestamp?: number;
   ts: number;
   attachments?: string[];
+  videoAttachments?: string[];
+  assistantImages?: string[];
 };
 
 export type Thread = {
@@ -109,12 +111,15 @@ type State = {
   settings: Settings;
   threads: Thread[];
   activeThreadId: string | null;
+  /** Runtime-only: which provider ids have a key stored server-side. */
+  providerKeyStatus: Record<string, boolean>;
 };
 
 let state: State = {
   settings: defaultSettings,
   threads: [],
   activeThreadId: null,
+  providerKeyStatus: {},
 };
 let hydrated = false;
 
@@ -126,8 +131,14 @@ function hydrate() {
     settings: loadedSettings,
     threads: readArr<Thread>(THREADS_KEY),
     activeThreadId: null,
+    providerKeyStatus: {},
   };
   setupCrossTabSync();
+  // Migrate any legacy apiKeys persisted in localStorage to the server session,
+  // then strip from local state. Fire-and-forget; UI updates via emit().
+  void migrateLocalKeysToServer();
+  // Fetch server-side key status to populate readiness indicators.
+  void refreshProviderKeyStatus();
 }
 
 const listeners = new Set<() => void>();
@@ -137,7 +148,13 @@ function emit() {
 
 function persist() {
   if (typeof window === "undefined") return;
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+  // Strip apiKey before persisting — keys live server-side only.
+  const safeProviders: Record<string, ProviderConfig> = {};
+  for (const [id, cfg] of Object.entries(state.settings.providers)) {
+    safeProviders[id] = { ...cfg, apiKey: "" };
+  }
+  const safeSettings = { ...state.settings, providers: safeProviders };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(safeSettings));
   localStorage.setItem(
     THREADS_KEY,
     JSON.stringify(state.threads.filter((t) => !t.temporary)),
@@ -227,6 +244,14 @@ export const store = {
     persist();
     emit();
   },
+  setThreadTemporary(id: string, temporary: boolean) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, temporary } : t)),
+    };
+    persist();
+    emit();
+  },
   deleteThread(id: string) {
     state = {
       ...state,
@@ -274,11 +299,56 @@ export const store = {
     emit();
   },
   clearAll() {
-    state = { settings: defaultSettings, threads: [], activeThreadId: null };
+    state = { settings: defaultSettings, threads: [], activeThreadId: null, providerKeyStatus: {} };
     persist();
     emit();
+    void fetch("/api/keys/clear", { method: "POST" });
   },
 };
+
+async function migrateLocalKeysToServer() {
+  const entries = Object.entries(state.settings.providers).filter(
+    ([, cfg]) => cfg.apiKey && cfg.apiKey.length > 0,
+  );
+  if (entries.length === 0) return;
+  await Promise.all(
+    entries.map(([providerId, cfg]) =>
+      fetch("/api/keys/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId,
+          apiKey: cfg.apiKey,
+          baseUrl: cfg.baseUrl,
+          model: cfg.model,
+        }),
+      }).catch(() => null),
+    ),
+  );
+  // Strip in-memory + re-persist (already stripped on persist), then refresh status.
+  const cleared: Record<string, ProviderConfig> = {};
+  for (const [id, cfg] of Object.entries(state.settings.providers)) {
+    cleared[id] = { ...cfg, apiKey: "" };
+  }
+  state = { ...state, settings: { ...state.settings, providers: cleared } };
+  persist();
+  emit();
+  await refreshProviderKeyStatus();
+}
+
+export async function refreshProviderKeyStatus() {
+  try {
+    const res = await fetch("/api/keys/status");
+    if (!res.ok) return;
+    const json = (await res.json()) as { providers: Record<string, { hasKey: boolean }> };
+    const map: Record<string, boolean> = {};
+    for (const [id, v] of Object.entries(json.providers ?? {})) map[id] = !!v.hasKey;
+    state = { ...state, providerKeyStatus: map };
+    emit();
+  } catch {
+    /* ignore */
+  }
+}
 
 export function useStore<T>(selector: (s: State) => T): T {
   return useSyncExternalStore(
@@ -307,8 +377,13 @@ export function resolveProvider(settings: Settings, id?: string): {
 
 export function isProviderReady(settings: Settings, id?: string): boolean {
   const r = resolveProvider(settings, id);
-  if (r.provider.needsApiKey && !r.apiKey) return false;
+  const onServer = state.providerKeyStatus[r.provider.id];
+  if (r.provider.needsApiKey && !r.apiKey && !onServer) return false;
   return !!r.baseUrl;
+}
+
+export function providerHasKey(id: string): boolean {
+  return !!state.providerKeyStatus[id];
 }
 
 export { PROVIDERS };

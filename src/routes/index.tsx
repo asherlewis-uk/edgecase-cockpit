@@ -33,6 +33,7 @@ import {
   type Message,
 } from "@/lib/cockpit-store";
 import { useChat } from "@/hooks/use-chat";
+import { transcribeAudioViaProxy } from "@/lib/providers";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +66,10 @@ export function Cockpit() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [temporary, setTemporary] = useState(false);
+  const [recording, setRecording] = useState<"idle" | "recording" | "transcribing">("idle");
+  const [recordMode, setRecordMode] = useState<"mic" | "live">("mic");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -123,7 +128,9 @@ export function Cockpit() {
   }
 
   async function ingestFiles(files: FileList | File[]) {
-    const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    const arr = Array.from(files).filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+    );
     if (!arr.length) return;
     const datas = await Promise.all(
       arr.map(
@@ -137,6 +144,58 @@ export function Cockpit() {
       ),
     );
     setAttachments((prev) => [...prev, ...datas].slice(0, 6));
+  }
+
+  async function startRecording(mode: "mic" | "live") {
+    if (recording !== "idle") return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      toast.error("Microphone not available in this browser");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        chunksRef.current = [];
+        if (blob.size < 500) {
+          setRecording("idle");
+          return;
+        }
+        setRecording("transcribing");
+        try {
+          const { text } = await transcribeAudioViaProxy(provider.id, blob);
+          if (text && text.trim()) {
+            if (mode === "live") {
+              setInput("");
+              await sendMessage(text.trim(), []);
+            } else {
+              setInput((prev) => (prev ? prev + " " + text.trim() : text.trim()));
+            }
+          }
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Transcription failed");
+        } finally {
+          setRecording("idle");
+        }
+      };
+      mediaRecorderRef.current = mr;
+      setRecordMode(mode);
+      setRecording("recording");
+      mr.start();
+    } catch {
+      toast.error("Microphone permission denied");
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
   }
 
   const { provider, apiKey, model } = resolveProvider(settings);
@@ -260,7 +319,13 @@ export function Cockpit() {
         <div className="flex items-center gap-2">
           {messages.length === 0 ? (
             <button
-              onClick={() => setTemporary((v) => !v)}
+              onClick={() => {
+                const next = !temporary;
+                setTemporary(next);
+                const id = store.getState().activeThreadId;
+                if (id) store.setThreadTemporary(id, next);
+                else if (next) store.newThread({ temporary: true });
+              }}
               className={`grid size-11 place-items-center rounded-full backdrop-blur transition ${
                 temporary
                   ? "bg-white/20 text-white ring-1 ring-white/40"
@@ -433,17 +498,23 @@ export function Cockpit() {
             ) : (
               <>
                 <button
+                  onClick={() => (recording === "recording" && recordMode === "mic" ? stopRecording() : startRecording("mic"))}
+                  disabled={recording === "transcribing"}
                   className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/85 transition hover:bg-white/[0.12]"
-                  aria-label="Voice"
+                  aria-label={recording === "recording" && recordMode === "mic" ? "Stop recording" : "Voice to text"}
+                  title={recording === "transcribing" ? "Transcribing…" : recording === "recording" && recordMode === "mic" ? "Stop & transcribe" : "Voice to text"}
                 >
-                  <Mic className="size-5" strokeWidth={1.6} />
+                  <Mic className={`size-5 ${recording === "recording" && recordMode === "mic" ? "text-red-400 animate-pulse" : ""}`} strokeWidth={1.6} />
                 </button>
                 <button
+                  onClick={() => (recording === "recording" && recordMode === "live" ? stopRecording() : startRecording("live"))}
+                  disabled={recording === "transcribing"}
                   className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
                   style={hueButtonStyle(pulse)}
-                  aria-label="Live"
+                  aria-label={recording === "recording" && recordMode === "live" ? "Stop live" : "Live voice — record & send"}
+                  title={recording === "recording" && recordMode === "live" ? "Stop & send" : "Live voice — records & sends on stop"}
                 >
-                  <AudioLines className="size-5" strokeWidth={1.8} />
+                  <AudioLines className={`size-5 ${recording === "recording" && recordMode === "live" ? "animate-pulse" : ""}`} strokeWidth={1.8} />
                 </button>
               </>
             )}

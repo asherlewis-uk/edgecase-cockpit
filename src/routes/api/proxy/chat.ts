@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PROVIDERS, getProvider } from "@/lib/providers";
+import { getCockpitSession, getProviderCreds } from "@/lib/session.server";
+import { rateLimit, urlAllowedForProvider } from "@/lib/proxy-guard.server";
 
 // Proxy chat completions through the server so the browser never talks to
 // third-party / localhost APIs directly. Avoids CORS + mixed-content issues
@@ -10,7 +12,6 @@ import { PROVIDERS, getProvider } from "@/lib/providers";
 
 type ProxyBody = {
   providerId: string;
-  apiKey?: string;
   baseUrlOverride?: string;
   model?: string;
   messages: { role: "user" | "assistant" | "system"; content: unknown; attachments?: string[] }[];
@@ -63,6 +64,25 @@ export const Route = createFileRoute("/api/proxy/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const session = await getCockpitSession();
+        const sessionId = session.data.id ?? "anon";
+        const rl = rateLimit(`chat:${sessionId}`);
+        if (!rl.ok) {
+          return new Response(JSON.stringify({ error: "Rate limited" }), {
+            status: 429,
+            headers: {
+              "Content-Type": "application/json",
+              ...(rl.retryAfter ? { "retry-after": String(rl.retryAfter) } : {}),
+            },
+          });
+        }
+        const contentLength = Number(request.headers.get("content-length") ?? 0);
+        if (contentLength > 1024 * 1024) {
+          return new Response(JSON.stringify({ error: "Body too large" }), {
+            status: 413,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         let body: ProxyBody;
         try {
           body = (await request.json()) as ProxyBody;
@@ -81,23 +101,42 @@ export const Route = createFileRoute("/api/proxy/chat")({
           });
         }
         const baseUrl = (body.baseUrlOverride?.trim() || provider.defaultBaseUrl).replace(/\/+$/, "");
-        const model = body.model?.trim() || provider.defaultModel;
+        if (!urlAllowedForProvider(provider.id, baseUrl)) {
+          return new Response(
+            JSON.stringify({ error: `Base URL host not allowed for ${provider.name}` }),
+            { status: 400, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        const creds = await getProviderCreds(provider.id);
+        const model = body.model?.trim() || creds?.model || provider.defaultModel;
+        const apiKey = creds?.apiKey ?? "";
+        if (provider.needsApiKey && !apiKey) {
+          return new Response(
+            JSON.stringify({ error: `No API key set for ${provider.name}` }),
+            { status: 401, headers: { "Content-Type": "application/json" } },
+          );
+        }
         const stream = body.stream ?? true;
         const url = baseUrl + provider.chatPath;
 
-        const headers = buildHeaders(provider, body.apiKey ?? "");
+        const headers = buildHeaders(provider, apiKey);
         const upstreamBody = buildBody(provider, model, body.messages ?? [], stream);
 
         let upstream: Response;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 60_000);
         try {
-          upstream = await fetch(url, { method: "POST", headers, body: upstreamBody });
+          upstream = await fetch(url, { method: "POST", headers, body: upstreamBody, signal: ctrl.signal });
         } catch (e) {
+          clearTimeout(timer);
           const msg = e instanceof Error ? e.message : "Upstream fetch failed";
           return new Response(JSON.stringify({ error: `${provider.name}: ${msg}` }), {
             status: 502,
             headers: { "Content-Type": "application/json" },
           });
         }
+        // Don't clearTimeout here — keep the abort armed for the streaming body.
+        // The Worker will GC after response is consumed; for non-stream this is short.
 
         // Pass through body + status. For streaming SSE this preserves chunks.
         const respHeaders = new Headers();

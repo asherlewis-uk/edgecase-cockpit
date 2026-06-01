@@ -26,6 +26,12 @@ export type ProviderDef = {
   setupHint?: string;
   /** Hostnames to probe for auto-detection (local providers only). */
   detectUrl?: string;
+  /** Hosts the server proxy is allowed to reach for this provider. */
+  allowedHosts?: string[];
+  /** Speech-to-text path (OpenAI-compat) — undefined means not supported. */
+  transcribePath?: string;
+  /** What media this provider can produce. */
+  mediaCapabilities?: { video?: "generate" | "none"; image?: "generate" | "none" };
   // --- internals ---
   chatPath: string;
   embeddingsPath?: string;
@@ -56,6 +62,9 @@ export const PROVIDERS: ProviderDef[] = [
     defaultModel: "gpt-4o-mini",
     needsApiKey: true,
     setupHint: "Get an API key from platform.openai.com",
+    allowedHosts: ["api.openai.com"],
+    transcribePath: "/v1/audio/transcriptions",
+    mediaCapabilities: { image: "generate", video: "none" },
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -74,6 +83,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultModel: "claude-3-5-sonnet-latest",
     needsApiKey: true,
     setupHint: "Get an API key from console.anthropic.com",
+    allowedHosts: ["api.anthropic.com"],
     chatPath: "/v1/messages",
     authStyle: "x-api-key",
     bodyStyle: "anthropic",
@@ -91,6 +101,8 @@ export const PROVIDERS: ProviderDef[] = [
     defaultModel: "gemini-2.5-flash",
     needsApiKey: true,
     setupHint: "Get an API key from aistudio.google.com",
+    allowedHosts: ["generativelanguage.googleapis.com"],
+    mediaCapabilities: { image: "generate", video: "generate" },
     chatPath: "/chat/completions",
     embeddingsPath: "/embeddings",
     modelsPath: "/models",
@@ -109,6 +121,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultModel: "kimi-k2-0905-preview",
     needsApiKey: true,
     setupHint: "Get an API key from platform.moonshot.ai",
+    allowedHosts: ["api.moonshot.ai", "api.moonshot.cn"],
     chatPath: "/v1/chat/completions",
     modelsPath: "/v1/models",
     authStyle: "bearer",
@@ -126,6 +139,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultModel: "openai/gpt-4o-mini",
     needsApiKey: true,
     setupHint: "Get an API key from openrouter.ai/keys",
+    allowedHosts: ["openrouter.ai"],
     chatPath: "/v1/chat/completions",
     modelsPath: "/v1/models",
     authStyle: "bearer",
@@ -139,10 +153,11 @@ export const PROVIDERS: ProviderDef[] = [
     accent: "from-stone-400 to-stone-700",
     description: "Managed Ollama-hosted open models.",
     supports: cap(true, true, false, false),
-    defaultBaseUrl: "https://ollama.com",
+    defaultBaseUrl: "https://ollama.com/api",
     defaultModel: "llama3.2",
     needsApiKey: true,
     setupHint: "Get an API key from ollama.com",
+    allowedHosts: ["ollama.com", "*.ollama.com"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -161,6 +176,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultModel: "meta/llama-3.1-70b-instruct",
     needsApiKey: true,
     setupHint: "Get an API key from build.nvidia.com",
+    allowedHosts: ["integrate.api.nvidia.com", "*.api.nvidia.com"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -179,6 +195,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultModel: "openai/gpt-4o-mini",
     needsApiKey: true,
     setupHint: "Get a gateway token from vercel.com/ai-gateway",
+    allowedHosts: ["ai-gateway.vercel.sh"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -198,6 +215,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultBaseUrl: "http://localhost:11434",
     defaultModel: "llama3.2",
     baseUrlEditable: true,
+    allowedHosts: ["localhost", "127.0.0.1", "*.local"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/api/tags",
@@ -216,6 +234,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultBaseUrl: "http://localhost:1234",
     defaultModel: "lmstudio-community",
     baseUrlEditable: true,
+    allowedHosts: ["localhost", "127.0.0.1", "*.local"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -234,6 +253,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultBaseUrl: "http://localhost:8080",
     defaultModel: "hermes",
     baseUrlEditable: true,
+    allowedHosts: ["localhost", "127.0.0.1", "*.local"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -252,6 +272,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultBaseUrl: "http://localhost:8787",
     defaultModel: "openclaw",
     baseUrlEditable: true,
+    allowedHosts: ["localhost", "127.0.0.1", "*.local"],
     chatPath: "/v1/chat/completions",
     modelsPath: "/v1/models",
     detectUrl: "http://localhost:8787/v1/models",
@@ -269,6 +290,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultBaseUrl: "http://localhost:8000",
     defaultModel: "meta-llama/Llama-3.1-8B-Instruct",
     baseUrlEditable: true,
+    allowedHosts: ["localhost", "127.0.0.1", "*.local"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -287,6 +309,7 @@ export const PROVIDERS: ProviderDef[] = [
     defaultBaseUrl: "http://localhost:8081",
     defaultModel: "default",
     baseUrlEditable: true,
+    allowedHosts: ["localhost", "127.0.0.1", "*.local"],
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -305,6 +328,8 @@ export const PROVIDERS: ProviderDef[] = [
     defaultBaseUrl: "http://localhost:8000",
     defaultModel: "default",
     baseUrlEditable: true,
+    allowedHosts: ["*"],
+    transcribePath: "/v1/audio/transcriptions",
     chatPath: "/v1/chat/completions",
     embeddingsPath: "/v1/embeddings",
     modelsPath: "/v1/models",
@@ -508,12 +533,29 @@ export async function detectProvider(p: ProviderDef): Promise<DetectResult> {
   }
 }
 
+/** Send audio to the configured provider for transcription via the server proxy. */
+export async function transcribeAudioViaProxy(
+  providerId: string,
+  blob: Blob,
+  signal?: AbortSignal,
+): Promise<{ text: string }> {
+  const fd = new FormData();
+  fd.append("providerId", providerId);
+  fd.append("file", blob, "speech.webm");
+  const res = await fetch("/api/proxy/transcribe", { method: "POST", body: fd, signal });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Transcription failed (${res.status}): ${txt.slice(0, 200)}`);
+  }
+  return (await res.json()) as { text: string };
+}
+
 /** Stream a chat completion through the server proxy. */
 export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<{
   text: string;
   raw: unknown;
 }> {
-  const { provider, apiKey, baseUrl, model, messages, signal, onDelta } = opts;
+  const { provider, baseUrl, model, messages, signal, onDelta } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
 
   const res = await fetch("/api/proxy/chat", {
@@ -521,7 +563,6 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       providerId: provider.id,
-      apiKey,
       baseUrlOverride: baseUrl,
       model,
       messages,

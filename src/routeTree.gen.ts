@@ -15,8 +15,12 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImagesRouteImport } from './routes/images'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadIdRouteImport } from './routes/thread.$id'
+import { Route as ApiProxyTranscribeRouteImport } from './routes/api/proxy/transcribe'
 import { Route as ApiProxyDetectRouteImport } from './routes/api/proxy/detect'
 import { Route as ApiProxyChatRouteImport } from './routes/api/proxy/chat'
+import { Route as ApiKeysStatusRouteImport } from './routes/api/keys/status'
+import { Route as ApiKeysSetRouteImport } from './routes/api/keys/set'
+import { Route as ApiKeysClearRouteImport } from './routes/api/keys/clear'
 
 const VideosRoute = VideosRouteImport.update({
   id: '/videos',
@@ -48,6 +52,11 @@ const ThreadIdRoute = ThreadIdRouteImport.update({
   path: '/thread/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProxyTranscribeRoute = ApiProxyTranscribeRouteImport.update({
+  id: '/api/proxy/transcribe',
+  path: '/api/proxy/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProxyDetectRoute = ApiProxyDetectRouteImport.update({
   id: '/api/proxy/detect',
   path: '/api/proxy/detect',
@@ -58,6 +67,21 @@ const ApiProxyChatRoute = ApiProxyChatRouteImport.update({
   path: '/api/proxy/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKeysStatusRoute = ApiKeysStatusRouteImport.update({
+  id: '/api/keys/status',
+  path: '/api/keys/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKeysSetRoute = ApiKeysSetRouteImport.update({
+  id: '/api/keys/set',
+  path: '/api/keys/set',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKeysClearRoute = ApiKeysClearRouteImport.update({
+  id: '/api/keys/clear',
+  path: '/api/keys/clear',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,8 +90,12 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/keys/clear': typeof ApiKeysClearRoute
+  '/api/keys/set': typeof ApiKeysSetRoute
+  '/api/keys/status': typeof ApiKeysStatusRoute
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -76,8 +104,12 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/keys/clear': typeof ApiKeysClearRoute
+  '/api/keys/set': typeof ApiKeysSetRoute
+  '/api/keys/status': typeof ApiKeysStatusRoute
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -87,8 +119,12 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/keys/clear': typeof ApiKeysClearRoute
+  '/api/keys/set': typeof ApiKeysSetRoute
+  '/api/keys/status': typeof ApiKeysStatusRoute
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -99,8 +135,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/thread/$id'
+    | '/api/keys/clear'
+    | '/api/keys/set'
+    | '/api/keys/status'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/transcribe'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -109,8 +149,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/thread/$id'
+    | '/api/keys/clear'
+    | '/api/keys/set'
+    | '/api/keys/status'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/transcribe'
   id:
     | '__root__'
     | '/'
@@ -119,8 +163,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/thread/$id'
+    | '/api/keys/clear'
+    | '/api/keys/set'
+    | '/api/keys/status'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/transcribe'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -130,8 +178,12 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   VideosRoute: typeof VideosRoute
   ThreadIdRoute: typeof ThreadIdRoute
+  ApiKeysClearRoute: typeof ApiKeysClearRoute
+  ApiKeysSetRoute: typeof ApiKeysSetRoute
+  ApiKeysStatusRoute: typeof ApiKeysStatusRoute
   ApiProxyChatRoute: typeof ApiProxyChatRoute
   ApiProxyDetectRoute: typeof ApiProxyDetectRoute
+  ApiProxyTranscribeRoute: typeof ApiProxyTranscribeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -178,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/proxy/transcribe': {
+      id: '/api/proxy/transcribe'
+      path: '/api/proxy/transcribe'
+      fullPath: '/api/proxy/transcribe'
+      preLoaderRoute: typeof ApiProxyTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/proxy/detect': {
       id: '/api/proxy/detect'
       path: '/api/proxy/detect'
@@ -192,6 +251,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProxyChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/keys/status': {
+      id: '/api/keys/status'
+      path: '/api/keys/status'
+      fullPath: '/api/keys/status'
+      preLoaderRoute: typeof ApiKeysStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/keys/set': {
+      id: '/api/keys/set'
+      path: '/api/keys/set'
+      fullPath: '/api/keys/set'
+      preLoaderRoute: typeof ApiKeysSetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/keys/clear': {
+      id: '/api/keys/clear'
+      path: '/api/keys/clear'
+      fullPath: '/api/keys/clear'
+      preLoaderRoute: typeof ApiKeysClearRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -202,19 +282,13 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   VideosRoute: VideosRoute,
   ThreadIdRoute: ThreadIdRoute,
+  ApiKeysClearRoute: ApiKeysClearRoute,
+  ApiKeysSetRoute: ApiKeysSetRoute,
+  ApiKeysStatusRoute: ApiKeysStatusRoute,
   ApiProxyChatRoute: ApiProxyChatRoute,
   ApiProxyDetectRoute: ApiProxyDetectRoute,
+  ApiProxyTranscribeRoute: ApiProxyTranscribeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
