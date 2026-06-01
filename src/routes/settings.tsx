@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Check, Pin, PinOff, Wifi, WifiOff } from "lucide-react";
+import { ArrowLeft, Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   useStore,
@@ -7,6 +7,10 @@ import {
   PROVIDERS,
   resolveProvider,
   isProviderReady,
+  refreshProviderKeyStatus,
+  getProviderStats,
+  subscribeProviderStats,
+  resetProviderStats,
 } from "@/lib/cockpit-store";
 import { detectProvider, type ProviderDef, type Capability, type DetectResult } from "@/lib/providers";
 import { Input } from "@/components/ui/input";
@@ -25,6 +29,7 @@ export const Route = createFileRoute("/settings")({
 
 function SettingsPage() {
   const settings = useStore((s) => s.settings);
+  const keyStatus = useStore((s) => s.providerKeyStatus);
   const active = resolveProvider(settings);
   const cloud = PROVIDERS.filter((p) => p.type === "cloud");
   const local = PROVIDERS.filter((p) => p.type === "local");
@@ -96,10 +101,13 @@ function SettingsPage() {
                 p={p}
                 isActive={p.id === active.provider.id}
                 detected={detected[p.id]}
+                hasServerKey={!!keyStatus[p.id]}
               />
             ))}
           </div>
         </Section>
+
+        <UsageSection />
 
         <Section title="Danger">
           <Button
