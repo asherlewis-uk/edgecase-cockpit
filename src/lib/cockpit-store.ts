@@ -26,6 +26,8 @@ export type Message = {
   timestamp?: number;
   ts: number;
   attachments?: string[];
+  videoAttachments?: string[];
+  assistantImages?: string[];
 };
 
 export type Thread = {
@@ -137,7 +139,13 @@ function emit() {
 
 function persist() {
   if (typeof window === "undefined") return;
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+  // Strip apiKey before persisting — keys live server-side only.
+  const safeProviders: Record<string, ProviderConfig> = {};
+  for (const [id, cfg] of Object.entries(state.settings.providers)) {
+    safeProviders[id] = { ...cfg, apiKey: "" };
+  }
+  const safeSettings = { ...state.settings, providers: safeProviders };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(safeSettings));
   localStorage.setItem(
     THREADS_KEY,
     JSON.stringify(state.threads.filter((t) => !t.temporary)),
@@ -223,6 +231,14 @@ export const store = {
     state = {
       ...state,
       threads: state.threads.map((t) => (t.id === id ? { ...t, title } : t)),
+    };
+    persist();
+    emit();
+  },
+  setThreadTemporary(id: string, temporary: boolean) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, temporary } : t)),
     };
     persist();
     emit();
