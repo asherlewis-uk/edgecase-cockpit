@@ -538,7 +538,7 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
   text: string;
   raw: unknown;
 }> {
-  const { provider, apiKey, baseUrl, model, messages, signal, onDelta } = opts;
+  const { provider, baseUrl, model, messages, signal, onDelta } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
 
   const res = await fetch("/api/proxy/chat", {
@@ -546,7 +546,6 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       providerId: provider.id,
-      apiKey,
       baseUrlOverride: baseUrl,
       model,
       messages,
