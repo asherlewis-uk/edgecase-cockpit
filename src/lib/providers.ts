@@ -490,15 +490,90 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
 }
 
 /** Best-effort ping for local providers. */
-export async function detectProvider(p: ProviderDef): Promise<boolean> {
-  if (!p.detectUrl) return false;
+export type DetectResult = { ok: boolean; status?: number; error?: string };
+
+/** Server-side reachability probe via the same-origin proxy route. */
+export async function detectProvider(p: ProviderDef): Promise<DetectResult> {
+  if (!p.detectUrl) return { ok: false, error: "No detect URL" };
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 1200);
-    const res = await fetch(p.detectUrl, { signal: ctrl.signal });
-    clearTimeout(t);
-    return res.ok || res.status === 401 || res.status === 403;
-  } catch {
-    return false;
+    const res = await fetch("/api/proxy/detect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: p.detectUrl }),
+    });
+    if (!res.ok) return { ok: false, error: `Proxy ${res.status}` };
+    return (await res.json()) as DetectResult;
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }
+}
+
+/** Stream a chat completion through the server proxy. */
+export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<{
+  text: string;
+  raw: unknown;
+}> {
+  const { provider, apiKey, baseUrl, model, messages, signal, onDelta } = opts;
+  const stream = !!onDelta && (opts.stream ?? true);
+
+  const res = await fetch("/api/proxy/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      providerId: provider.id,
+      apiKey,
+      baseUrlOverride: baseUrl,
+      model,
+      messages,
+      stream,
+    }),
+    signal,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let parsed: unknown = text;
+    try { parsed = JSON.parse(text); } catch { /* keep */ }
+    const ra = res.headers.get("retry-after");
+    const retryAfter = ra ? Number(ra) : undefined;
+    const errMsg =
+      typeof parsed === "object" && parsed && "error" in parsed
+        ? String((parsed as { error: unknown }).error)
+        : typeof parsed === "string" ? parsed : `HTTP ${res.status}`;
+    throw new ProviderError(`${provider.name} → ${res.status}: ${errMsg}`, res.status, Number.isFinite(retryAfter) ? retryAfter : undefined);
+  }
+
+  if (stream && res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let acc = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        try {
+          const j = JSON.parse(payload);
+          const delta =
+            provider.bodyStyle === "anthropic" ? pickAnthropicDelta(j) : pickOpenAIDelta(j);
+          if (delta) { acc += delta; onDelta?.(delta); }
+        } catch { /* ignore partial */ }
+      }
+    }
+    return { text: acc, raw: acc };
+  }
+
+  const text = await res.text();
+  let raw: unknown = text;
+  try { raw = JSON.parse(text); } catch { /* keep text */ }
+  const out = pickFinal(provider, raw);
+  onDelta?.(out);
+  return { text: out, raw };
 }
