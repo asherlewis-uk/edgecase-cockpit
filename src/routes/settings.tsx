@@ -137,7 +137,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function UsageSection() {
   const [stats, setStats] = useState(() => getProviderStats());
-  useEffect(() => subscribeProviderStats(() => setStats(getProviderStats())), []);
+  useEffect(() => {
+    const unsub = subscribeProviderStats(() => setStats(getProviderStats()));
+    return () => {
+      unsub();
+    };
+  }, []);
   const rows = PROVIDERS.map((p) => ({ p, s: stats[p.id] ?? { calls: 0, errors: 0 } }))
     .filter((r) => r.s.calls > 0 || r.s.errors > 0);
   return (
