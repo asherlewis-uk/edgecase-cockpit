@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getCockpitSession } from "@/lib/session.server";
+import { rateLimit, urlAllowedAnyProvider } from "@/lib/proxy-guard.server";
 
 // Server-side reachability probe. The browser can't reliably ping localhost
 // (mixed-content + CORS) or arbitrary cloud hosts. This runs from the server
@@ -12,6 +14,11 @@ export const Route = createFileRoute("/api/proxy/detect")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const session = await getCockpitSession();
+        const rl = rateLimit(`detect:${session.data.id ?? "anon"}`);
+        if (!rl.ok) {
+          return Response.json({ ok: false, error: "Rate limited" }, { status: 429 });
+        }
         let url = "";
         try {
           const body = (await request.json()) as { url?: string };
@@ -21,6 +28,9 @@ export const Route = createFileRoute("/api/proxy/detect")({
         }
         if (!url || !/^https?:\/\//i.test(url)) {
           return Response.json({ ok: false, error: "Bad url" }, { status: 400 });
+        }
+        if (!urlAllowedAnyProvider(url)) {
+          return Response.json({ ok: false, error: "Host not in any provider allowlist" }, { status: 400 });
         }
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 2000);
