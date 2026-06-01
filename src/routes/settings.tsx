@@ -135,6 +135,51 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function UsageSection() {
+  const [stats, setStats] = useState(() => getProviderStats());
+  useEffect(() => subscribeProviderStats(() => setStats(getProviderStats())), []);
+  const rows = PROVIDERS.map((p) => ({ p, s: stats[p.id] ?? { calls: 0, errors: 0 } }))
+    .filter((r) => r.s.calls > 0 || r.s.errors > 0);
+  return (
+    <Section title="Usage">
+      {rows.length === 0 ? (
+        <p className="text-xs text-white/40">No provider calls yet.</p>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-white/10">
+          <table className="w-full text-sm">
+            <thead className="bg-white/[0.04] text-[10px] uppercase tracking-wider text-white/50">
+              <tr>
+                <th className="px-3 py-2 text-left font-normal">Provider</th>
+                <th className="px-3 py-2 text-right font-normal">Calls</th>
+                <th className="px-3 py-2 text-right font-normal">Errors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ p, s }) => (
+                <tr key={p.id} className="border-t border-white/5">
+                  <td className="px-3 py-2 text-white/80">{p.name}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-white">{s.calls}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${s.errors ? "text-amber-300" : "text-white/40"}`}>{s.errors}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="mt-3">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => resetProviderStats()}
+          className="border-white/10 bg-transparent text-white/70 hover:bg-white/10"
+        >
+          Reset stats
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
 const CAP_LABELS: Record<Capability, string> = {
   chat: "Chat",
   embeddings: "Embeddings",
