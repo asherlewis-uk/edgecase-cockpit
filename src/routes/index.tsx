@@ -319,7 +319,13 @@ export function Cockpit() {
         <div className="flex items-center gap-2">
           {messages.length === 0 ? (
             <button
-              onClick={() => setTemporary((v) => !v)}
+              onClick={() => {
+                const next = !temporary;
+                setTemporary(next);
+                const id = store.getState().activeThreadId;
+                if (id) store.setThreadTemporary(id, next);
+                else if (next) store.newThread({ temporary: true });
+              }}
               className={`grid size-11 place-items-center rounded-full backdrop-blur transition ${
                 temporary
                   ? "bg-white/20 text-white ring-1 ring-white/40"
@@ -492,17 +498,23 @@ export function Cockpit() {
             ) : (
               <>
                 <button
+                  onClick={() => (recording === "recording" && recordMode === "mic" ? stopRecording() : startRecording("mic"))}
+                  disabled={recording === "transcribing"}
                   className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/85 transition hover:bg-white/[0.12]"
-                  aria-label="Voice"
+                  aria-label={recording === "recording" && recordMode === "mic" ? "Stop recording" : "Voice to text"}
+                  title={recording === "transcribing" ? "Transcribing…" : recording === "recording" && recordMode === "mic" ? "Stop & transcribe" : "Voice to text"}
                 >
-                  <Mic className="size-5" strokeWidth={1.6} />
+                  <Mic className={`size-5 ${recording === "recording" && recordMode === "mic" ? "text-red-400 animate-pulse" : ""}`} strokeWidth={1.6} />
                 </button>
                 <button
+                  onClick={() => (recording === "recording" && recordMode === "live" ? stopRecording() : startRecording("live"))}
+                  disabled={recording === "transcribing"}
                   className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
                   style={hueButtonStyle(pulse)}
-                  aria-label="Live"
+                  aria-label={recording === "recording" && recordMode === "live" ? "Stop live" : "Live voice — record & send"}
+                  title={recording === "recording" && recordMode === "live" ? "Stop & send" : "Live voice — records & sends on stop"}
                 >
-                  <AudioLines className="size-5" strokeWidth={1.8} />
+                  <AudioLines className={`size-5 ${recording === "recording" && recordMode === "live" ? "animate-pulse" : ""}`} strokeWidth={1.8} />
                 </button>
               </>
             )}
