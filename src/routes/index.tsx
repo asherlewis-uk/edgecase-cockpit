@@ -18,6 +18,10 @@ import {
   Image as ImageIcon,
   MessageSquareDashed,
   Check,
+  Pencil,
+  Trash2,
+  Link as LinkIcon,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
@@ -280,15 +284,7 @@ export function Cockpit() {
               <SquarePen className="size-5 text-white/90" strokeWidth={1.6} />
             </button>
           )}
-          {messages.length > 0 && (
-            <button
-              onClick={() => navigate({ to: "/settings" })}
-              className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
-              aria-label="More"
-            >
-              <MoreHorizontal className="size-5 text-white/90" />
-            </button>
-          )}
+          {messages.length > 0 && <ThreadOverflowMenu />}
         </div>
       </header>
 
@@ -626,5 +622,78 @@ function PulsingDot() {
       <span className="size-2.5 animate-pulse rounded-full bg-white/80" />
       <span className="text-xs text-white/40">thinking…</span>
     </div>
+  );
+}
+
+function ThreadOverflowMenu() {
+  const navigate = useNavigate();
+  const activeId = useStore((s) => s.activeThreadId);
+  const threads = useStore((s) => s.threads);
+  const thread = threads.find((t) => t.id === activeId) ?? null;
+
+  function handleRename() {
+    if (!thread) return;
+    const next = window.prompt("Rename chat", thread.title);
+    if (next && next.trim()) store.renameThread(thread.id, next.trim());
+  }
+  function handleDelete() {
+    if (!thread) return;
+    if (!window.confirm("Delete this chat?")) return;
+    store.deleteThread(thread.id);
+    navigate({ to: "/" });
+  }
+  async function handleCopyLink() {
+    if (!thread) return;
+    const url = `${window.location.origin}/thread/${thread.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  }
+  async function handleCopyTranscript() {
+    if (!thread) return;
+    const text = thread.messages
+      .map((m) => `${m.role.toUpperCase()}:\n${m.content ?? ""}`)
+      .join("\n\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Transcript copied");
+    } catch {
+      toast.error("Couldn't copy transcript");
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
+          aria-label="Chat options"
+        >
+          <MoreHorizontal className="size-5 text-white/90" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 border-white/10 bg-zinc-950 text-white">
+        <DropdownMenuItem onClick={handleRename} className="focus:bg-white/10">
+          <Pencil className="mr-2 size-4" /> Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleCopyLink} className="focus:bg-white/10">
+          <LinkIcon className="mr-2 size-4" /> Copy link
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleCopyTranscript} className="focus:bg-white/10">
+          <Copy className="mr-2 size-4" /> Copy transcript
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="bg-white/10" />
+        <DropdownMenuItem onClick={() => navigate({ to: "/settings" })} className="focus:bg-white/10">
+          <SettingsIcon className="mr-2 size-4" /> Settings
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="bg-white/10" />
+        <DropdownMenuItem onClick={handleDelete} className="text-red-300 focus:bg-red-500/10 focus:text-red-200">
+          <Trash2 className="mr-2 size-4" /> Delete chat
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
