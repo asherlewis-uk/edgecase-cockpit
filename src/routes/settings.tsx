@@ -8,7 +8,7 @@ import {
   resolveProvider,
   isProviderReady,
 } from "@/lib/cockpit-store";
-import { detectProvider, type ProviderDef, type Capability } from "@/lib/providers";
+import { detectProvider, type ProviderDef, type Capability, type DetectResult } from "@/lib/providers";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -28,12 +28,12 @@ function SettingsPage() {
   const active = resolveProvider(settings);
   const cloud = PROVIDERS.filter((p) => p.type === "cloud");
   const local = PROVIDERS.filter((p) => p.type === "local");
-  const [detected, setDetected] = useState<Record<string, boolean>>({});
+  const [detected, setDetected] = useState<Record<string, DetectResult>>({});
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const out: Record<string, boolean> = {};
+      const out: Record<string, DetectResult> = {};
       await Promise.all(
         local
           .filter((p) => p.detectUrl)
@@ -140,7 +140,7 @@ function ProviderCard({
 }: {
   p: ProviderDef;
   isActive: boolean;
-  detected?: boolean;
+  detected?: DetectResult;
 }) {
   const settings = useStore((s) => s.settings);
   const cfg = settings.providers[p.id] ?? { apiKey: "" };
@@ -165,14 +165,20 @@ function ProviderCard({
             {p.type === "local" && p.detectUrl && (
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
-                  detected
+                  detected?.ok
                     ? "bg-emerald-500/15 text-emerald-300"
                     : "bg-white/10 text-white/50"
                 }`}
-                title={detected ? "Detected on localhost" : "Not detected"}
+                title={
+                  detected?.ok
+                    ? `Reachable from server (status ${detected.status ?? "ok"})`
+                    : detected
+                      ? `Unreachable from server: ${detected.error ?? `status ${detected.status}`}. Local daemons on your machine aren't reachable from the hosted server — keys/URL still work when this app runs on the same host.`
+                      : "Checking…"
+                }
               >
-                {detected ? <Wifi className="size-2.5" /> : <WifiOff className="size-2.5" />}
-                {detected ? "live" : "off"}
+                {detected?.ok ? <Wifi className="size-2.5" /> : <WifiOff className="size-2.5" />}
+                {detected?.ok ? "live" : detected ? "unreachable" : "checking"}
               </span>
             )}
           </div>
