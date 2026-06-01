@@ -8,6 +8,23 @@ import {
 } from "@/lib/cockpit-store";
 import { callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
 
+function extractImageUrls(text: string): string[] {
+  if (!text) return [];
+  const out = new Set<string>();
+  // Markdown images: ![alt](url)
+  const md = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = md.exec(text))) {
+    const u = m[1];
+    if (u.startsWith("data:image/") || /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i.test(u))
+      out.add(u);
+  }
+  // Bare data URIs
+  const data = /data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/g;
+  while ((m = data.exec(text))) out.add(m[0]);
+  return Array.from(out);
+}
+
 export type UseChatOptions = {
   onAuthError?: (message: string) => void;
 };
@@ -117,9 +134,11 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
           },
         });
         const finalText = (res.text || acc || "").trim();
+        const assistantImages = extractImageUrls(finalText);
         store.patchMessage(threadId, placeholderId, {
           content: finalText,
           pending: false,
+          assistantImages: assistantImages.length ? assistantImages : undefined,
         });
         backoffRef.current = 0;
         setStatus("idle");
