@@ -1,0 +1,729 @@
+{
+  "video": {
+    "filename": "A4BB9E7E-8C7D-44F7-B9E0-20577042921D_FullSizeRender.mov",
+    "duration_seconds": 38.8,
+    "resolution": "400x688",
+    "fps": 47.7,
+    "total_frames": 1851,
+    "frames_extracted": 21,
+    "app_name": "Cockpit",
+    "theme": "dark"
+  },
+  "frames": [
+    {
+      "timestamp_seconds": 0,
+      "file": "frames/0000_00s_dashboard-overview.png",
+      "state": "dashboard overview",
+      "components": [
+        "starburst-logo",
+        "headline-text",
+        "routing-subtext",
+        "warning-pill",
+        "input-bar",
+        "image-upload-btn",
+        "mic-btn",
+        "voice-wave-btn",
+        "hamburger-menu",
+        "provider-selector",
+        "screenshot-btn",
+        "disclaimer-text"
+      ],
+      "design_observations": [
+        "Deep black (#0A0A0A) void background",
+        "Dynamic teal-to-amber gradient glow at top",
+        "4-point starburst logo with teal core and amber tips",
+        "Yellow (#F5A623) warning pill with transparent background",
+        "Pill-shaped input bar with dark gray surface",
+        "Voice button cycles colors (cyan → green → amber)",
+        "Hamburger menu shows blue notification dot"
+      ],
+      "recommended_token_tags": [
+        "bg-void",
+        "gradient-ambient",
+        "accent-starburst",
+        "warning-pill",
+        "input-bar",
+        "voice-cycle"
+      ]
+    },
+    {
+      "timestamp_seconds": 1,
+      "file": "frames/0001_01s_hamburger-hover.png",
+      "state": "hamburger hover",
+      "components": [
+        "hamburger-menu",
+        "cursor"
+      ],
+      "design_observations": [
+        "Subtle lighter background on hamburger hover",
+        "Cursor visible indicating interaction"
+      ],
+      "recommended_token_tags": [
+        "hover-feedback",
+        "interaction-state"
+      ]
+    },
+    {
+      "timestamp_seconds": 2,
+      "file": "frames/0002_02s_sidebar-opening.png",
+      "state": "sidebar opening",
+      "components": [
+        "sidebar-panel",
+        "backdrop-overlay",
+        "cockpit-header"
+      ],
+      "design_observations": [
+        "Sidebar slides in from left with smooth easing",
+        "Main content dims with semi-transparent overlay",
+        "~300ms slide transition"
+      ],
+      "recommended_token_tags": [
+        "sidebar-transition",
+        "backdrop-dim",
+        "animation-slide"
+      ]
+    },
+    {
+      "timestamp_seconds": 3,
+      "file": "frames/0003_03s_sidebar-cockpit-menu.png",
+      "state": "sidebar navigation",
+      "components": [
+        "cockpit-title",
+        "close-btn",
+        "new-chat-btn",
+        "search-chats",
+        "images-menu",
+        "videos-menu",
+        "library-menu",
+        "providers-menu",
+        "recent-section",
+        "filter-input",
+        "empty-state",
+        "bottom-bar",
+        "api-key-warning",
+        "settings-gear",
+        "agent-card"
+      ],
+      "design_observations": [
+        "Pure black (#000000) sidebar background",
+        "White text with muted gray icons",
+        "Dark gray (#1C1C1E) pill button for 'New chat'",
+        "Section headers in muted gray uppercase",
+        "Bottom bar with hairline separator",
+        "Teal circle avatar with 'AI' text"
+      ],
+      "recommended_token_tags": [
+        "bg-sidebar",
+        "nav-menu",
+        "agent-card",
+        "bottom-bar",
+        "hairline-border"
+      ]
+    },
+    {
+      "timestamp_seconds": 5,
+      "file": "frames/0004_05s_sidebar-stable.png",
+      "state": "sidebar navigation stable",
+      "components": [
+        "sidebar-panel",
+        "menu-items",
+        "cursor"
+      ],
+      "design_observations": [
+        "Flat design with no visible hover highlight in this frame",
+        "Menu items remain static until clicked"
+      ],
+      "recommended_token_tags": [
+        "nav-stable"
+      ]
+    },
+    {
+      "timestamp_seconds": 9,
+      "file": "frames/0005_09s_main-view-closing.png",
+      "state": "sidebar closing",
+      "components": [
+        "sidebar-panel",
+        "main-dashboard"
+      ],
+      "design_observations": [
+        "Sidebar slides left, main content brightens",
+        "Reverse of opening transition"
+      ],
+      "recommended_token_tags": [
+        "sidebar-close",
+        "transition-reverse"
+      ]
+    },
+    {
+      "timestamp_seconds": 10,
+      "file": "frames/0006_10s_images-empty-state.png",
+      "state": "images empty",
+      "components": [
+        "images-header",
+        "back-arrow",
+        "empty-icon",
+        "empty-message",
+        "vision-provider-cta"
+      ],
+      "design_observations": [
+        "Muted gray crossed-eye icon for empty state",
+        "CTA button with dark gray pill background",
+        "Back arrow navigation pattern"
+      ],
+      "recommended_token_tags": [
+        "empty-state",
+        "cta-button",
+        "back-navigation"
+      ]
+    },
+    {
+      "timestamp_seconds": 11,
+      "file": "frames/0007_11s_hamburger-hover-return.png",
+      "state": "hamburger hover return",
+      "components": [
+        "hamburger-menu",
+        "main-dashboard"
+      ],
+      "design_observations": [
+        "Background gradient shifted to green/warm tone",
+        "Same hover feedback as previous"
+      ],
+      "recommended_token_tags": [
+        "hover-feedback",
+        "gradient-shift"
+      ]
+    },
+    {
+      "timestamp_seconds": 13,
+      "file": "frames/0008_13s_sidebar-open-bottombar.png",
+      "state": "sidebar with bottom bar",
+      "components": [
+        "sidebar-panel",
+        "providers-menu-item",
+        "bottom-bar",
+        "api-key-warning",
+        "settings-gear",
+        "agent-card"
+      ],
+      "design_observations": [
+        "Bottom bar is distinct surface with hairline separator",
+        "Warning pill in yellow/amber tones",
+        "Settings gear in muted gray"
+      ],
+      "recommended_token_tags": [
+        "bottom-bar",
+        "warning-pill",
+        "hairline-border"
+      ]
+    },
+    {
+      "timestamp_seconds": 15,
+      "file": "frames/0009_15s_providers-page.png",
+      "state": "providers configuration",
+      "components": [
+        "providers-header",
+        "back-arrow",
+        "display-name-field",
+        "openai-card",
+        "anthropic-card",
+        "provider-avatar",
+        "capability-tags",
+        "api-key-input",
+        "save-button",
+        "model-selector",
+        "active-toggle"
+      ],
+      "design_observations": [
+        "Provider cards use dark gray (#1C1C1E) with rounded corners",
+        "Distinct brand colors: teal for OpenAI, orange for Anthropic",
+        "Capability tags as small dark pills",
+        "White toggle with checkmark for 'Active'",
+        "Section headers in uppercase muted gray"
+      ],
+      "recommended_token_tags": [
+        "provider-card",
+        "capability-tags",
+        "toggle-switch",
+        "input-field",
+        "section-header"
+      ]
+    },
+    {
+      "timestamp_seconds": 17,
+      "file": "frames/0010_17s_dashboard-return.png",
+      "state": "dashboard return",
+      "components": [
+        "main-dashboard",
+        "hamburger-menu"
+      ],
+      "design_observations": [
+        "Top gradient glow shifted to red/magenta — dynamic ambient lighting",
+        "Shows color is state-reactive"
+      ],
+      "recommended_token_tags": [
+        "gradient-ambient",
+        "dynamic-color"
+      ]
+    },
+    {
+      "timestamp_seconds": 20,
+      "file": "frames/0011_20s_screenshot-btn-hover.png",
+      "state": "screenshot button hover",
+      "components": [
+        "screenshot-btn",
+        "cursor"
+      ],
+      "design_observations": [
+        "Dashed square icon for screenshot/fullscreen",
+        "Subtle highlight on hover with lighter circular background"
+      ],
+      "recommended_token_tags": [
+        "hover-feedback",
+        "icon-btn"
+      ]
+    },
+    {
+      "timestamp_seconds": 24,
+      "file": "frames/0012_24s_image-upload-active.png",
+      "state": "image upload active",
+      "components": [
+        "image-upload-btn",
+        "voice-wave-btn",
+        "input-bar"
+      ],
+      "design_observations": [
+        "Image icon shows active/highlighted state",
+        "Voice button in cyan/green phase"
+      ],
+      "recommended_token_tags": [
+        "active-state",
+        "voice-cycle"
+      ]
+    },
+    {
+      "timestamp_seconds": 25,
+      "file": "frames/0013_25s_file-picker-dialog.png",
+      "state": "file picker dialog",
+      "components": [
+        "file-picker-modal",
+        "finder-sidebar",
+        "file-list",
+        "show-options-btn"
+      ],
+      "design_observations": [
+        "Native macOS dark mode file picker",
+        "System translucency/blur",
+        "Blends with app dark theme"
+      ],
+      "recommended_token_tags": [
+        "modal-overlay",
+        "system-dialog"
+      ]
+    },
+    {
+      "timestamp_seconds": 27,
+      "file": "frames/0014_27s_file-picker-stable.png",
+      "state": "file picker stable",
+      "components": [
+        "file-picker-modal",
+        "file-list",
+        "cursor"
+      ],
+      "design_observations": [
+        "Stable state of file dialog for reference"
+      ],
+      "recommended_token_tags": [
+        "modal-stable"
+      ]
+    },
+    {
+      "timestamp_seconds": 29,
+      "file": "frames/0015_29s_voice-btn-pink.png",
+      "state": "voice button pink",
+      "components": [
+        "voice-wave-btn"
+      ],
+      "design_observations": [
+        "Voice button: pink/magenta (#FF2D92) with white waveform icon",
+        "Part of 5-phase color cycle"
+      ],
+      "recommended_token_tags": [
+        "voice-pink",
+        "accent-pink",
+        "color-cycle"
+      ]
+    },
+    {
+      "timestamp_seconds": 31,
+      "file": "frames/0016_31s_voice-btn-red.png",
+      "state": "voice button red",
+      "components": [
+        "voice-wave-btn"
+      ],
+      "design_observations": [
+        "Voice button: red/orange (#FF3B30) with white waveform icon"
+      ],
+      "recommended_token_tags": [
+        "voice-red",
+        "accent-red"
+      ]
+    },
+    {
+      "timestamp_seconds": 33,
+      "file": "frames/0017_33s_voice-btn-yellow.png",
+      "state": "voice button yellow",
+      "components": [
+        "voice-wave-btn",
+        "main-dashboard"
+      ],
+      "design_observations": [
+        "Voice button: yellow/lime (#C8E600)",
+        "Background gradient glow shifted to green — glow follows button color"
+      ],
+      "recommended_token_tags": [
+        "voice-yellow",
+        "accent-yellow",
+        "gradient-sync"
+      ]
+    },
+    {
+      "timestamp_seconds": 35,
+      "file": "frames/0018_35s_image-icon-focus-ring.png",
+      "state": "image icon focus",
+      "components": [
+        "image-upload-btn",
+        "focus-ring"
+      ],
+      "design_observations": [
+        "Orange (#FF9500) circular focus ring outline",
+        "Indicates keyboard focus or screenshot tool targeting"
+      ],
+      "recommended_token_tags": [
+        "focus-ring",
+        "accent-orange",
+        "accessibility"
+      ]
+    },
+    {
+      "timestamp_seconds": 36,
+      "file": "frames/0019_36s_screenshot-selection-mode.png",
+      "state": "screenshot selection",
+      "components": [
+        "screenshot-border",
+        "image-upload-btn",
+        "focus-ring"
+      ],
+      "design_observations": [
+        "Dashed animated border (marching ants) around viewport",
+        "Technical selection indicator pattern"
+      ],
+      "recommended_token_tags": [
+        "marching-ants",
+        "selection-mode",
+        "dashed-border"
+      ]
+    },
+    {
+      "timestamp_seconds": 38,
+      "file": "frames/0020_38s_final-frame.png",
+      "state": "dashboard final",
+      "components": [
+        "main-dashboard",
+        "all-components"
+      ],
+      "design_observations": [
+        "Return to baseline state",
+        "Voice button in default cyan"
+      ],
+      "recommended_token_tags": [
+        "baseline",
+        "default-state"
+      ]
+    }
+  ],
+  "state_groups": [
+    {
+      "folder": "01-first-load",
+      "state": "first load",
+      "frame_count": 1,
+      "best_frame": "frames/0000_00s_dashboard-overview.png"
+    },
+    {
+      "folder": "02-dashboard-overview",
+      "state": "dashboard overview",
+      "frame_count": 4,
+      "best_frame": "frames/0000_00s_dashboard-overview.png"
+    },
+    {
+      "folder": "03-sidebar-navigation",
+      "state": "sidebar navigation",
+      "frame_count": 6,
+      "best_frame": "frames/0003_03s_sidebar-cockpit-menu.png"
+    },
+    {
+      "folder": "04-images-section",
+      "state": "images section",
+      "frame_count": 2,
+      "best_frame": "frames/0006_10s_images-empty-state.png"
+    },
+    {
+      "folder": "05-providers-page",
+      "state": "providers configuration",
+      "frame_count": 1,
+      "best_frame": "frames/0009_15s_providers-page.png"
+    },
+    {
+      "folder": "06-interaction-states",
+      "state": "interaction states",
+      "frame_count": 5,
+      "best_frame": "frames/0018_35s_image-icon-focus-ring.png"
+    },
+    {
+      "folder": "07-voice-input",
+      "state": "voice input",
+      "frame_count": 3,
+      "best_frame": "frames/0017_33s_voice-btn-yellow.png"
+    },
+    {
+      "folder": "08-modal-dialog",
+      "state": "modal dialog",
+      "frame_count": 2,
+      "best_frame": "frames/0013_25s_file-picker-dialog.png"
+    },
+    {
+      "folder": "09-screenshot-tool",
+      "state": "screenshot tool",
+      "frame_count": 1,
+      "best_frame": "frames/0019_36s_screenshot-selection-mode.png"
+    }
+  ],
+  "token_candidates": {
+    "colors": [
+      {
+        "name": "bg-void",
+        "value": "#0A0A0A",
+        "usage": "Primary app background"
+      },
+      {
+        "name": "bg-sidebar",
+        "value": "#000000",
+        "usage": "Navigation panel background"
+      },
+      {
+        "name": "bg-surface",
+        "value": "#1C1C1E",
+        "usage": "Cards, input bar, elevated surfaces"
+      },
+      {
+        "name": "bg-input",
+        "value": "#2C2C2E",
+        "usage": "Text input backgrounds"
+      },
+      {
+        "name": "accent-teal",
+        "value": "#00D4AA",
+        "usage": "Provider avatar, logo, voice default"
+      },
+      {
+        "name": "accent-cyan",
+        "value": "#00D4AA",
+        "usage": "Voice button phase 1"
+      },
+      {
+        "name": "accent-green",
+        "value": "#30D158",
+        "usage": "Voice button phase 2, success"
+      },
+      {
+        "name": "accent-yellow",
+        "value": "#C8E600",
+        "usage": "Voice button phase 3, warning"
+      },
+      {
+        "name": "accent-pink",
+        "value": "#FF2D92",
+        "usage": "Voice button phase 4"
+      },
+      {
+        "name": "accent-red",
+        "value": "#FF3B30",
+        "usage": "Voice button phase 5, error"
+      },
+      {
+        "name": "accent-orange",
+        "value": "#FF9500",
+        "usage": "Focus ring"
+      },
+      {
+        "name": "accent-amber",
+        "value": "#F5A623",
+        "usage": "Warning pill text/border"
+      },
+      {
+        "name": "text-primary",
+        "value": "#FFFFFF",
+        "usage": "Headlines, primary text"
+      },
+      {
+        "name": "text-secondary",
+        "value": "#8E8E93",
+        "usage": "Subtext, descriptions"
+      },
+      {
+        "name": "text-tertiary",
+        "value": "#636366",
+        "usage": "Placeholder text, disclaimers"
+      }
+    ],
+    "surfaces": [
+      {
+        "name": "card-provider",
+        "bg": "#1C1C1E",
+        "radius": "12px",
+        "border": "#2C2C2E"
+      },
+      {
+        "name": "input-bar",
+        "bg": "#1C1C1E",
+        "radius": "9999px",
+        "shadow": "none"
+      },
+      {
+        "name": "pill-button",
+        "bg": "#1C1C1E",
+        "radius": "9999px",
+        "text": "#FFFFFF"
+      },
+      {
+        "name": "warning-pill",
+        "bg": "transparent",
+        "radius": "9999px",
+        "border": "#F5A62340",
+        "text": "#F5A623"
+      }
+    ],
+    "borders": [
+      {
+        "name": "hairline",
+        "value": "#38383A",
+        "usage": "Section dividers"
+      },
+      {
+        "name": "card-edge",
+        "value": "#2C2C2E",
+        "usage": "Card borders"
+      },
+      {
+        "name": "focus-ring",
+        "value": "#FF9500",
+        "usage": "Accessibility focus"
+      },
+      {
+        "name": "warning-border",
+        "value": "#F5A62340",
+        "usage": "Warning pill outline"
+      }
+    ],
+    "typography": [
+      {
+        "role": "headline",
+        "size": "24px",
+        "weight": "600",
+        "color": "#FFFFFF"
+      },
+      {
+        "role": "body",
+        "size": "14px",
+        "weight": "400",
+        "color": "#8E8E93"
+      },
+      {
+        "role": "caption",
+        "size": "12px",
+        "weight": "400",
+        "color": "#636366"
+      },
+      {
+        "role": "warning",
+        "size": "13px",
+        "weight": "500",
+        "color": "#F5A623"
+      },
+      {
+        "role": "section-header",
+        "size": "11px",
+        "weight": "600",
+        "color": "#8E8E93",
+        "transform": "uppercase",
+        "letter-spacing": "0.5px"
+      }
+    ],
+    "motion": [
+      {
+        "name": "sidebar-slide",
+        "duration": "300ms",
+        "easing": "ease-out",
+        "property": "transform"
+      },
+      {
+        "name": "backdrop-fade",
+        "duration": "200ms",
+        "easing": "ease",
+        "property": "opacity"
+      },
+      {
+        "name": "voice-color-cycle",
+        "duration": "8000ms",
+        "easing": "linear",
+        "phases": [
+          "#00D4AA",
+          "#30D158",
+          "#C8E600",
+          "#FF2D92",
+          "#FF3B30"
+        ]
+      },
+      {
+        "name": "gradient-sync",
+        "duration": "8000ms",
+        "easing": "ease-in-out",
+        "property": "background",
+        "note": "Ambient top glow follows voice button color"
+      },
+      {
+        "name": "hover-feedback",
+        "duration": "150ms",
+        "easing": "ease",
+        "property": "background-color"
+      }
+    ],
+    "effects": [
+      {
+        "name": "ambient-glow",
+        "type": "radial-gradient",
+        "position": "top-center",
+        "description": "Dynamic colored glow that shifts with interaction state",
+        "colors": [
+          "teal (#00D4AA)",
+          "amber (#F5A623)",
+          "green (#30D158)",
+          "red (#FF3B30)",
+          "pink (#FF2D92)"
+        ]
+      },
+      {
+        "name": "marching-ants",
+        "type": "animated-border",
+        "description": "Dashed animated border for screenshot selection mode",
+        "style": "2px dashed #FFFFFF",
+        "animation": "dash-offset 500ms linear infinite"
+      },
+      {
+        "name": "focus-glow",
+        "type": "box-shadow",
+        "description": "Orange glow ring on focused elements",
+        "value": "0 0 0 2px #FF9500"
+      }
+    ]
+  }
+}
