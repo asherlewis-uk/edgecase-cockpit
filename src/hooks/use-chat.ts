@@ -5,6 +5,7 @@ import {
   resolveProvider,
   bumpProviderStat,
   type Message,
+  type Settings,
 } from "@/lib/cockpit-store";
 import { callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
 
@@ -16,7 +17,10 @@ function extractImageUrls(text: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = md.exec(text))) {
     const u = m[1];
-    if (u.startsWith("data:image/") || /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i.test(u))
+    if (
+      u.startsWith("data:image/") ||
+      /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i.test(u)
+    )
       out.add(u);
   }
   // Bare data URIs
@@ -28,6 +32,40 @@ function extractImageUrls(text: string): string[] {
 export type UseChatOptions = {
   onAuthError?: (message: string) => void;
 };
+
+type PromptDraft = {
+  text: string;
+  imageAttachments?: string[];
+  videoAttachments?: string[];
+};
+
+export function buildPersonalizationSystemMessage(settings: Settings): ChatMessage | null {
+  const { profile, personalization } = settings;
+  const assistantName = personalization.assistantName.trim() || "Cockpit";
+  const displayName = profile.displayName.trim();
+  const lines = [
+    `You are ${assistantName}, a calm personal AI cockpit assistant.`,
+    `Use a ${personalization.preferredTone} response tone unless the user's request clearly calls for another style.`,
+  ];
+
+  if (displayName) lines.push(`The user's display name is ${displayName}.`);
+  if (profile.roleLabel?.trim())
+    lines.push(`The user's role label is ${profile.roleLabel.trim()}.`);
+  if (profile.pronouns?.trim()) lines.push(`The user's pronouns are ${profile.pronouns.trim()}.`);
+  if (profile.handle?.trim()) lines.push(`The user's handle is ${profile.handle.trim()}.`);
+
+  return {
+    role: "system",
+    content: lines.join(" "),
+  };
+}
+
+function contentForProvider(message: Message): string {
+  if (!message.videoAttachments?.length) return message.content;
+  const count = message.videoAttachments.length;
+  const note = `[${count} video attachment${count === 1 ? "" : "s"} saved in this chat for review; this provider call receives video as text context only.]`;
+  return [message.content, note].filter(Boolean).join("\n\n");
+}
 
 export function useChat({ onAuthError }: UseChatOptions = {}) {
   const settings = useStore((s) => s.settings);
@@ -42,9 +80,9 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
   const [cooldownNow, setCooldownNow] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const [queueSize, setQueueSize] = useState(0);
-  const queueRef = useRef<{ text: string; attachments?: string[] }[]>([]);
+  const queueRef = useRef<PromptDraft[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-  const lastPromptRef = useRef<{ text: string; attachments?: string[] } | null>(null);
+  const lastPromptRef = useRef<PromptDraft | null>(null);
   const backoffRef = useRef(0);
 
   useEffect(() => {
@@ -56,7 +94,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       setQueueSize(0);
       (async () => {
         for (const item of q) {
-          await sendMessageRef.current?.(item.text, item.attachments);
+          await sendMessageRef.current?.(item.text, item.imageAttachments, item.videoAttachments);
         }
       })();
     };
@@ -83,9 +121,8 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
 
   const runAssistant = useCallback(
     async (threadId: string, _prompt: string) => {
-      const { provider, apiKey, baseUrl, model } = resolveProvider(
-        store.getState().settings,
-      );
+      const currentSettings = store.getState().settings;
+      const { provider, apiKey, baseUrl, model } = resolveProvider(currentSettings);
       const placeholderId = crypto.randomUUID();
       const now = Date.now();
       store.addMessage(threadId, {
@@ -104,15 +141,19 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       setStatus("streaming");
       setError(null);
 
-      const history: ChatMessage[] = store
-        .getState()
-        .threads.find((t) => t.id === threadId)!
-        .messages.filter((m) => m.role !== "assistant" || m.content)
-        .map((m) => ({
-          role: m.role,
-          content: m.content,
-          attachments: m.attachments,
-        }));
+      const personalizationSystem = buildPersonalizationSystemMessage(currentSettings);
+      const history: ChatMessage[] = [
+        ...(personalizationSystem ? [personalizationSystem] : []),
+        ...store
+          .getState()
+          .threads.find((t) => t.id === threadId)!
+          .messages.filter((m) => m.role !== "assistant" || m.content)
+          .map((m) => ({
+            role: m.role,
+            content: contentForProvider(m),
+            attachments: m.attachments,
+          })),
+      ];
 
       let acc = "";
       try {
@@ -184,9 +225,16 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
   );
 
   const sendMessage = useCallback(
-    async (text: string, attachments?: string[]) => {
+    async (text: string, imageAttachments?: string[], videoAttachments?: string[]) => {
       const content = text.trim();
-      if ((!content && !attachments?.length) || status === "streaming") return;
+      if (
+        (!content && !imageAttachments?.length && !videoAttachments?.length) ||
+        status === "streaming"
+      ) {
+        return;
+      }
+      const storedContent =
+        content || (videoAttachments?.length ? "Attached video for review." : "");
       if (cooldownUntil && cooldownUntil > Date.now()) return;
       let threadId = store.getState().activeThreadId;
       if (!threadId) threadId = store.newThread();
@@ -194,20 +242,21 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       store.addMessage(threadId, {
         id: crypto.randomUUID(),
         role: "user",
-        content,
-        attachments: attachments?.length ? attachments : undefined,
+        content: storedContent,
+        attachments: imageAttachments?.length ? imageAttachments : undefined,
+        videoAttachments: videoAttachments?.length ? videoAttachments : undefined,
         ts: now,
         timestamp: now,
       });
-      lastPromptRef.current = { text: content, attachments };
+      lastPromptRef.current = { text: storedContent, imageAttachments, videoAttachments };
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        queueRef.current.push({ text: content, attachments });
+        queueRef.current.push({ text: storedContent, imageAttachments, videoAttachments });
         setQueueSize(queueRef.current.length);
         setError("Offline — queued for retry");
         setStatus("error");
         return;
       }
-      await runAssistant(threadId, content);
+      await runAssistant(threadId, storedContent);
     },
     [runAssistant, status, cooldownUntil],
   );

@@ -1,4 +1,4 @@
-import { useStore, store, PROVIDERS } from "@/lib/cockpit-store";
+import { deriveInitials, useStore, store, PROVIDERS } from "@/lib/cockpit-store";
 import { getProvider } from "@/lib/providers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "@tanstack/react-router";
@@ -38,16 +38,21 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
   const settings = useStore((s) => s.settings);
   const active = useStore((s) => s.activeThreadId);
   const [filter, setFilter] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
   const navigate = useNavigate();
   const filterRef = useRef<HTMLInputElement>(null);
 
-  const filtered = threads.filter((t) =>
-    t.title.toLowerCase().includes(filter.toLowerCase()),
-  );
+  const filtered = threads.filter((t) => t.title.toLowerCase().includes(filter.toLowerCase()));
   const pinned = settings.pinnedProviderIds
     .map((id) => PROVIDERS.find((p) => p.id === id))
     .filter((p): p is (typeof PROVIDERS)[number] => !!p);
   const activeProvider = getProvider(settings.activeProviderId);
+  const assistantName = settings.personalization.assistantName.trim() || "Cockpit";
+  const displayName = settings.profile.displayName || "User";
+  const initials = settings.profile.initials || deriveInitials(displayName);
+  const profileContext = settings.profile.roleLabel
+    ? `${settings.profile.roleLabel} · ${activeProvider.name}`
+    : activeProvider.name;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -57,7 +62,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
       >
         <SheetHeader className="flex flex-row items-center justify-between px-6 pb-2 pt-6">
           <SheetTitle className="text-2xl font-normal tracking-tight text-white">
-            Cockpit
+            {assistantName}
           </SheetTitle>
           <button
             onClick={() => onOpenChange(false)}
@@ -76,14 +81,21 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
               <button
                 key={it.id}
                 onClick={() => {
-                  if (it.id === "new") store.newThread();
+                  if (it.id === "new") {
+                    store.newThread();
+                    setSearchActive(false);
+                    setFilter("");
+                  }
                   if (it.id === "providers") navigate({ to: "/settings" });
                   if (it.id === "images") navigate({ to: "/images" });
                   if (it.id === "videos") navigate({ to: "/videos" });
                   if (it.id === "library") navigate({ to: "/library" });
                   if (it.id === "search") {
-                    filterRef.current?.focus();
-                    filterRef.current?.scrollIntoView({ block: "center" });
+                    setSearchActive(true);
+                    window.requestAnimationFrame(() => {
+                      filterRef.current?.focus();
+                      filterRef.current?.scrollIntoView({ block: "center" });
+                    });
                     return; // keep drawer open
                   }
                   onOpenChange(false);
@@ -116,7 +128,9 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
                       isActive ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
                     }`}
                   >
-                    <span className={`grid size-7 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${p.accent}`}>
+                    <span
+                      className={`grid size-7 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${p.accent}`}
+                    >
                       {p.badge}
                     </span>
                     <span className="text-[15px] text-white/90">{p.name}</span>
@@ -129,17 +143,34 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
         )}
 
         <div className="px-3 pt-6">
-          <div className="px-5 pb-1 text-sm text-white/45">Recent</div>
+          <div className="flex items-center justify-between px-5 pb-1">
+            <div className="text-sm text-white/45">{searchActive ? "Search chats" : "Recent"}</div>
+            {searchActive && filter && (
+              <button
+                onClick={() => setFilter("")}
+                className="text-xs text-white/45 hover:text-white/80"
+                aria-label="Clear chat search"
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <input
             ref={filterRef}
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter recent…"
+            onFocus={() => setSearchActive(true)}
+            onChange={(e) => {
+              setSearchActive(true);
+              setFilter(e.target.value);
+            }}
+            placeholder={searchActive ? "Search chats…" : "Filter recent…"}
             className="mb-2 w-full rounded-full bg-white/[0.04] px-5 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none"
           />
           <div className="max-h-[40vh] overflow-y-auto">
             {filtered.length === 0 && (
-              <div className="px-5 py-3 text-sm text-white/40">No chats yet.</div>
+              <div className="px-5 py-3 text-sm text-white/40">
+                {threads.length === 0 ? "No chats yet." : "No matching chats."}
+              </div>
             )}
             {filtered.map((t) => (
               <div
@@ -173,15 +204,29 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
 
         <div className="absolute inset-x-0 bottom-0 border-t border-white/5 bg-black px-5 py-4">
           <div className="mb-3">
-            <ProviderStatus variant="bar" onOpenSettings={() => { onOpenChange(false); onOpenSettings(); }} />
+            <ProviderStatus
+              variant="bar"
+              onOpenSettings={() => {
+                onOpenChange(false);
+                onOpenSettings();
+              }}
+            />
           </div>
           <div className="flex items-center gap-3">
-            <div className={`grid size-11 place-items-center rounded-full bg-gradient-to-br text-sm font-semibold text-black ${activeProvider.accent}`}>
-              {activeProvider.badge}
+            <div className="grid size-11 place-items-center overflow-hidden rounded-full bg-white/[0.08] text-sm font-semibold text-white ring-1 ring-white/15">
+              {settings.profile.avatarDataUrl ? (
+                <img
+                  src={settings.profile.avatarDataUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                initials
+              )}
             </div>
             <div className="flex-1">
-              <div className="text-[15px] text-white/95">{settings.userName || "User"}</div>
-              <div className="truncate text-xs text-white/45">{activeProvider.name}</div>
+              <div className="text-[15px] text-white/95">{displayName}</div>
+              <div className="truncate text-xs text-white/45">{profileContext}</div>
             </div>
             <button
               onClick={() => {

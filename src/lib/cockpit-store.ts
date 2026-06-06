@@ -7,8 +7,32 @@ export type ProviderConfig = {
   model?: string; // override; falls back to provider.defaultModel
 };
 
+export type UserProfile = {
+  displayName: string;
+  handle?: string;
+  avatarDataUrl?: string;
+  initials?: string;
+  pronouns?: string;
+  roleLabel?: string;
+};
+
+export type Personalization = {
+  assistantName: string;
+  preferredTone: "direct" | "warm" | "technical" | "minimal";
+  defaultPromptPlaceholder: string;
+  visualMode: "dark" | "glass" | "solid";
+  ambientIntensity: "low" | "medium" | "high";
+  reduceMotion: boolean;
+  showProviderInGreeting: boolean;
+  showModelInGreeting: boolean;
+  rememberLastProvider: boolean;
+};
+
 export type Settings = {
+  /** Legacy field retained for saved-settings migration compatibility. */
   userName: string;
+  profile: UserProfile;
+  personalization: Personalization;
   activeProviderId: string;
   providers: Record<string, ProviderConfig>;
   pinnedProviderIds: string[];
@@ -37,6 +61,14 @@ export type Thread = {
   updatedAt: number;
   temporary?: boolean;
 };
+
+function titleForFirstUserMessage(msg: Message) {
+  const text = msg.content.trim();
+  if (text) return text.slice(0, 48);
+  if (msg.videoAttachments?.length) return "Video chat";
+  if (msg.attachments?.length) return "Image chat";
+  return "New chat";
+}
 
 const SETTINGS_KEY = "cockpit.settings.v2";
 const THREADS_KEY = "cockpit.threads.v1";
@@ -79,22 +111,187 @@ export function subscribeProviderStats(l: () => void) {
   return () => statsListeners.delete(l);
 }
 
+export function deriveInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "AI";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
+
+export const defaultProfile: UserProfile = {
+  displayName: "friend",
+  initials: "AI",
+};
+
+export const defaultPersonalization: Personalization = {
+  assistantName: "Cockpit",
+  preferredTone: "warm",
+  defaultPromptPlaceholder: "Message",
+  visualMode: "glass",
+  ambientIntensity: "medium",
+  reduceMotion: false,
+  showProviderInGreeting: true,
+  showModelInGreeting: true,
+  rememberLastProvider: true,
+};
+
 export const defaultSettings: Settings = {
-  userName: "friend",
+  userName: defaultProfile.displayName,
+  profile: defaultProfile,
+  personalization: defaultPersonalization,
   activeProviderId: "openai",
   providers: {},
   pinnedProviderIds: [],
 };
 
-function read<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function normalizeProfile(raw: unknown, legacyUserName?: string): UserProfile {
+  const source = isRecord(raw) ? raw : {};
+  const displayName =
+    nonEmptyString(source.displayName) ??
+    nonEmptyString(legacyUserName) ??
+    defaultProfile.displayName;
+  const fallbackInitials =
+    displayName === defaultProfile.displayName
+      ? defaultProfile.initials
+      : deriveInitials(displayName);
+  const avatarDataUrl = optionalString(source.avatarDataUrl);
+
+  return {
+    displayName,
+    handle: optionalString(source.handle),
+    avatarDataUrl: avatarDataUrl?.startsWith("data:image/") ? avatarDataUrl : undefined,
+    initials: nonEmptyString(source.initials) ?? fallbackInitials,
+    pronouns: optionalString(source.pronouns),
+    roleLabel: optionalString(source.roleLabel),
+  };
+}
+
+function normalizePersonalization(raw: unknown): Personalization {
+  const source = isRecord(raw) ? raw : {};
+  return {
+    assistantName: nonEmptyString(source.assistantName) ?? defaultPersonalization.assistantName,
+    preferredTone: oneOf(
+      source.preferredTone,
+      ["direct", "warm", "technical", "minimal"] as const,
+      defaultPersonalization.preferredTone,
+    ),
+    defaultPromptPlaceholder:
+      nonEmptyString(source.defaultPromptPlaceholder) ??
+      defaultPersonalization.defaultPromptPlaceholder,
+    visualMode: oneOf(
+      source.visualMode,
+      ["dark", "glass", "solid"] as const,
+      defaultPersonalization.visualMode,
+    ),
+    ambientIntensity: oneOf(
+      source.ambientIntensity,
+      ["low", "medium", "high"] as const,
+      defaultPersonalization.ambientIntensity,
+    ),
+    reduceMotion:
+      typeof source.reduceMotion === "boolean"
+        ? source.reduceMotion
+        : defaultPersonalization.reduceMotion,
+    showProviderInGreeting:
+      typeof source.showProviderInGreeting === "boolean"
+        ? source.showProviderInGreeting
+        : defaultPersonalization.showProviderInGreeting,
+    showModelInGreeting:
+      typeof source.showModelInGreeting === "boolean"
+        ? source.showModelInGreeting
+        : defaultPersonalization.showModelInGreeting,
+    rememberLastProvider:
+      typeof source.rememberLastProvider === "boolean"
+        ? source.rememberLastProvider
+        : defaultPersonalization.rememberLastProvider,
+  };
+}
+
+function normalizeProviders(raw: unknown): Record<string, ProviderConfig> {
+  if (!isRecord(raw)) return {};
+  const providers: Record<string, ProviderConfig> = {};
+  for (const [id, cfg] of Object.entries(raw)) {
+    if (!isRecord(cfg)) continue;
+    const next: ProviderConfig = { apiKey: "" };
+    const baseUrl = optionalString(cfg.baseUrl);
+    const model = optionalString(cfg.model);
+    if (baseUrl !== undefined) next.baseUrl = baseUrl;
+    if (model !== undefined) next.model = model;
+    providers[id] = next;
+  }
+  return providers;
+}
+
+function normalizePinnedProviderIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(new Set(raw.filter((id): id is string => typeof id === "string")));
+}
+
+export function normalizeSettings(raw: Partial<Settings> | unknown): Settings {
+  const source = isRecord(raw) ? raw : {};
+  const profile = normalizeProfile(source.profile, optionalString(source.userName));
+  const activeProviderCandidate = optionalString(source.activeProviderId);
+  const activeProviderId =
+    activeProviderCandidate && PROVIDERS.some((p) => p.id === activeProviderCandidate)
+      ? activeProviderCandidate
+      : defaultSettings.activeProviderId;
+
+  return {
+    userName: profile.displayName,
+    profile,
+    personalization: normalizePersonalization(source.personalization),
+    activeProviderId,
+    providers: normalizeProviders(source.providers),
+    pinnedProviderIds: normalizePinnedProviderIds(source.pinnedProviderIds),
+  };
+}
+
+function readJson(key: string): unknown {
+  if (typeof window === "undefined") return undefined;
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return { ...(fallback as object), ...JSON.parse(raw) } as T;
+    return raw ? JSON.parse(raw) : undefined;
   } catch {
-    return fallback;
+    return undefined;
   }
+}
+
+type LegacyProviderKey = {
+  providerId: string;
+  apiKey: string;
+  baseUrl?: string;
+  model?: string;
+};
+
+function extractLegacyProviderKeys(raw: unknown): LegacyProviderKey[] {
+  if (!isRecord(raw) || !isRecord(raw.providers)) return [];
+  return Object.entries(raw.providers).flatMap(([providerId, cfg]) => {
+    if (!isRecord(cfg) || !nonEmptyString(cfg.apiKey)) return [];
+    return [
+      {
+        providerId,
+        apiKey: nonEmptyString(cfg.apiKey) ?? "",
+        baseUrl: optionalString(cfg.baseUrl),
+        model: optionalString(cfg.model),
+      },
+    ];
+  });
 }
 
 function readArr<T>(key: string): T[] {
@@ -126,17 +323,19 @@ let hydrated = false;
 function hydrate() {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
-  const loadedSettings = read<Settings>(SETTINGS_KEY, defaultSettings);
+  const rawSettings = readJson(SETTINGS_KEY);
+  const legacyProviderKeys = extractLegacyProviderKeys(rawSettings);
   state = {
-    settings: loadedSettings,
+    settings: normalizeSettings(rawSettings),
     threads: readArr<Thread>(THREADS_KEY),
     activeThreadId: null,
     providerKeyStatus: {},
   };
   setupCrossTabSync();
+  persist();
   // Migrate any legacy apiKeys persisted in localStorage to the server session,
-  // then strip from local state. Fire-and-forget; UI updates via emit().
-  void migrateLocalKeysToServer();
+  // then keep local settings stripped. Fire-and-forget; UI updates via emit().
+  void migrateLocalKeysToServer(legacyProviderKeys);
   // Fetch server-side key status to populate readiness indicators.
   void refreshProviderKeyStatus();
 }
@@ -153,12 +352,16 @@ function persist() {
   for (const [id, cfg] of Object.entries(state.settings.providers)) {
     safeProviders[id] = { ...cfg, apiKey: "" };
   }
-  const safeSettings = { ...state.settings, providers: safeProviders };
+  const safeSettings = {
+    ...state.settings,
+    userName: state.settings.profile.displayName,
+    activeProviderId: state.settings.personalization.rememberLastProvider
+      ? state.settings.activeProviderId
+      : defaultSettings.activeProviderId,
+    providers: safeProviders,
+  };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(safeSettings));
-  localStorage.setItem(
-    THREADS_KEY,
-    JSON.stringify(state.threads.filter((t) => !t.temporary)),
-  );
+  localStorage.setItem(THREADS_KEY, JSON.stringify(state.threads.filter((t) => !t.temporary)));
 }
 
 function setupCrossTabSync() {
@@ -168,7 +371,7 @@ function setupCrossTabSync() {
       try {
         state = {
           ...state,
-          settings: { ...defaultSettings, ...JSON.parse(e.newValue) },
+          settings: normalizeSettings(JSON.parse(e.newValue)),
         };
         emit();
       } catch {
@@ -196,9 +399,44 @@ export const store = {
     return () => listeners.delete(l);
   },
   updateSettings(patch: Partial<Settings>) {
-    state = { ...state, settings: { ...state.settings, ...patch } };
+    state = {
+      ...state,
+      settings: normalizeSettings({
+        ...state.settings,
+        ...patch,
+        profile: patch.profile
+          ? { ...state.settings.profile, ...patch.profile }
+          : state.settings.profile,
+        personalization: patch.personalization
+          ? { ...state.settings.personalization, ...patch.personalization }
+          : state.settings.personalization,
+        providers: patch.providers
+          ? { ...state.settings.providers, ...patch.providers }
+          : state.settings.providers,
+        pinnedProviderIds: patch.pinnedProviderIds ?? state.settings.pinnedProviderIds,
+      }),
+    };
     persist();
     emit();
+  },
+  updateProfile(patch: Partial<UserProfile>) {
+    this.updateSettings({
+      profile: { ...state.settings.profile, ...patch },
+    });
+  },
+  updatePersonalization(patch: Partial<Personalization>) {
+    this.updateSettings({
+      personalization: { ...state.settings.personalization, ...patch },
+    });
+  },
+  resetProfile() {
+    this.updateSettings({
+      profile: defaultProfile,
+      userName: defaultProfile.displayName,
+    });
+  },
+  resetPersonalization() {
+    this.updateSettings({ personalization: defaultPersonalization });
   },
   setActiveProvider(id: string) {
     this.updateSettings({ activeProviderId: id });
@@ -272,7 +510,7 @@ export const store = {
               updatedAt: Date.now(),
               title:
                 t.messages.length === 0 && msg.role === "user"
-                  ? msg.content.slice(0, 48)
+                  ? titleForFirstUserMessage(msg)
                   : t.title,
             }
           : t,
@@ -288,9 +526,7 @@ export const store = {
         t.id === threadId
           ? {
               ...t,
-              messages: t.messages.map((m) =>
-                m.id === id ? { ...m, ...patch } : m,
-              ),
+              messages: t.messages.map((m) => (m.id === id ? { ...m, ...patch } : m)),
             }
           : t,
       ),
@@ -299,25 +535,27 @@ export const store = {
     emit();
   },
   clearAll() {
-    state = { settings: defaultSettings, threads: [], activeThreadId: null, providerKeyStatus: {} };
+    state = {
+      settings: normalizeSettings(defaultSettings),
+      threads: [],
+      activeThreadId: null,
+      providerKeyStatus: {},
+    };
     persist();
     emit();
     void fetch("/api/keys/clear", { method: "POST" });
   },
 };
 
-async function migrateLocalKeysToServer() {
-  const entries = Object.entries(state.settings.providers).filter(
-    ([, cfg]) => cfg.apiKey && cfg.apiKey.length > 0,
-  );
+async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
   if (entries.length === 0) return;
   await Promise.all(
-    entries.map(([providerId, cfg]) =>
+    entries.map((cfg) =>
       fetch("/api/keys/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          providerId,
+          providerId: cfg.providerId,
           apiKey: cfg.apiKey,
           baseUrl: cfg.baseUrl,
           model: cfg.model,
@@ -325,12 +563,6 @@ async function migrateLocalKeysToServer() {
       }).catch(() => null),
     ),
   );
-  // Strip in-memory + re-persist (already stripped on persist), then refresh status.
-  const cleared: Record<string, ProviderConfig> = {};
-  for (const [id, cfg] of Object.entries(state.settings.providers)) {
-    cleared[id] = { ...cfg, apiKey: "" };
-  }
-  state = { ...state, settings: { ...state.settings, providers: cleared } };
   persist();
   emit();
   await refreshProviderKeyStatus();
@@ -359,7 +591,10 @@ export function useStore<T>(selector: (s: State) => T): T {
 }
 
 // Resolve effective config for a provider.
-export function resolveProvider(settings: Settings, id?: string): {
+export function resolveProvider(
+  settings: Settings,
+  id?: string,
+): {
   provider: ProviderDef;
   baseUrl: string;
   apiKey: string;

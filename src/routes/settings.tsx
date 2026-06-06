@@ -1,6 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  Check,
+  Pin,
+  PinOff,
+  Wifi,
+  WifiOff,
+  KeyRound,
+  Trash2,
+  Upload,
+  RotateCcw,
+} from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useStore,
   store,
@@ -11,17 +22,31 @@ import {
   getProviderStats,
   subscribeProviderStats,
   resetProviderStats,
+  deriveInitials,
 } from "@/lib/cockpit-store";
-import { detectProvider, type ProviderDef, type Capability, type DetectResult } from "@/lib/providers";
+import {
+  detectProvider,
+  type ProviderDef,
+  type Capability,
+  type DetectResult,
+} from "@/lib/providers";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Providers — Cockpit" },
-      { name: "description", content: "Choose and configure AI providers." },
+      { title: "Settings — Cockpit" },
+      { name: "description", content: "Personalize Cockpit and configure AI providers." },
     ],
   }),
   component: SettingsPage,
@@ -63,23 +88,13 @@ function SettingsPage() {
         >
           <ArrowLeft className="size-5" />
         </Link>
-        <h1 className="flex-1 text-2xl font-light tracking-tight">Providers</h1>
+        <h1 className="flex-1 text-2xl font-light tracking-tight">Settings</h1>
       </header>
 
       <div className="mx-auto max-w-3xl space-y-8 px-4 py-6">
-        <section>
-          <div className="mb-3">
-            <Label className="text-xs uppercase tracking-wider text-white/50">
-              Display name
-            </Label>
-            <Input
-              value={settings.userName}
-              onChange={(e) => store.updateSettings({ userName: e.target.value })}
-              placeholder="friend"
-              className="mt-1.5 border-white/10 bg-white/5 text-white placeholder:text-white/30"
-            />
-          </div>
-        </section>
+        <ProfileSection />
+
+        <PersonalizationSection />
 
         <Section title="Cloud providers">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -126,7 +141,339 @@ function SettingsPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function ProfileSection() {
+  const settings = useStore((s) => s.settings);
+  const profile = settings.profile;
+  const personalization = settings.personalization;
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const initials = profile.initials || deriveInitials(profile.displayName);
+
+  const handleDisplayNameChange = (value: string) => {
+    const currentInitials = profile.initials ?? "";
+    const shouldAutoUpdateInitials =
+      !currentInitials ||
+      currentInitials === deriveInitials(profile.displayName) ||
+      (profile.displayName === "friend" && currentInitials === "AI");
+
+    store.updateProfile({
+      displayName: value,
+      initials: shouldAutoUpdateInitials ? deriveInitials(value) : currentInitials,
+    });
+  };
+
+  const handleAvatarUpload = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      store.updateProfile({ avatarDataUrl: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <Section title="Profile">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="flex items-center gap-4">
+          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full border border-white/15 bg-white/[0.08] text-lg font-medium text-white">
+            {profile.avatarDataUrl ? (
+              <img src={profile.avatarDataUrl} alt="" className="size-full object-cover" />
+            ) : (
+              <span>{initials}</span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                handleAvatarUpload(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => avatarInputRef.current?.click()}
+              className="bg-white/10 text-white hover:bg-white/15"
+            >
+              <Upload className="mr-2 size-3.5" />
+              Upload avatar
+            </Button>
+            {profile.avatarDataUrl && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => store.updateProfile({ avatarDataUrl: undefined })}
+                className="border-white/10 bg-transparent text-white/70 hover:bg-white/10"
+              >
+                Clear avatar
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <TextField
+            id="display-name"
+            label="Display name"
+            value={profile.displayName}
+            onChange={handleDisplayNameChange}
+            placeholder="friend"
+          />
+          <TextField
+            id="assistant-name"
+            label="Assistant name"
+            value={personalization.assistantName}
+            onChange={(value) => store.updatePersonalization({ assistantName: value })}
+            placeholder="Cockpit"
+          />
+          <TextField
+            id="handle"
+            label="Handle"
+            value={profile.handle ?? ""}
+            onChange={(value) => store.updateProfile({ handle: value })}
+            placeholder="@friend"
+          />
+          <TextField
+            id="role-label"
+            label="Role label"
+            value={profile.roleLabel ?? ""}
+            onChange={(value) => store.updateProfile({ roleLabel: value })}
+            placeholder="Builder"
+          />
+          <TextField
+            id="pronouns"
+            label="Pronouns"
+            value={profile.pronouns ?? ""}
+            onChange={(value) => store.updateProfile({ pronouns: value })}
+            placeholder="Optional"
+          />
+          <TextField
+            id="initials"
+            label="Initials"
+            value={initials}
+            onChange={(value) =>
+              store.updateProfile({
+                initials: value
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9]/g, "")
+                  .slice(0, 3),
+              })
+            }
+            placeholder={deriveInitials(profile.displayName)}
+          />
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => store.resetProfile()}
+            className="border-white/10 bg-transparent text-white/60 hover:bg-white/10 hover:text-white"
+          >
+            <RotateCcw className="mr-2 size-3.5" />
+            Reset profile
+          </Button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function PersonalizationSection() {
+  const personalization = useStore((s) => s.settings.personalization);
+
+  return (
+    <Section title="Personalization">
+      <div className="grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
+        <SelectField
+          id="preferred-tone"
+          label="Preferred tone"
+          value={personalization.preferredTone}
+          options={[
+            { value: "direct", label: "Direct" },
+            { value: "warm", label: "Warm" },
+            { value: "technical", label: "Technical" },
+            { value: "minimal", label: "Minimal" },
+          ]}
+          onChange={(preferredTone) => store.updatePersonalization({ preferredTone })}
+        />
+        <SelectField
+          id="visual-mode"
+          label="Visual mode"
+          value={personalization.visualMode}
+          options={[
+            { value: "dark", label: "Dark" },
+            { value: "glass", label: "Glass" },
+            { value: "solid", label: "Solid" },
+          ]}
+          onChange={(visualMode) => store.updatePersonalization({ visualMode })}
+        />
+        <SelectField
+          id="ambient-intensity"
+          label="Ambient intensity"
+          value={personalization.ambientIntensity}
+          options={[
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High" },
+          ]}
+          onChange={(ambientIntensity) => store.updatePersonalization({ ambientIntensity })}
+        />
+        <TextField
+          id="prompt-placeholder"
+          label="Default prompt placeholder"
+          value={personalization.defaultPromptPlaceholder}
+          onChange={(value) => store.updatePersonalization({ defaultPromptPlaceholder: value })}
+          placeholder="Message"
+        />
+        <div className="space-y-3 sm:col-span-2">
+          <SwitchRow
+            id="reduce-motion"
+            label="Reduce motion"
+            checked={personalization.reduceMotion}
+            onChange={(reduceMotion) => store.updatePersonalization({ reduceMotion })}
+          />
+          <SwitchRow
+            id="show-provider"
+            label="Show provider in greeting"
+            checked={personalization.showProviderInGreeting}
+            onChange={(showProviderInGreeting) =>
+              store.updatePersonalization({ showProviderInGreeting })
+            }
+          />
+          <SwitchRow
+            id="show-model"
+            label="Show model in greeting"
+            checked={personalization.showModelInGreeting}
+            onChange={(showModelInGreeting) => store.updatePersonalization({ showModelInGreeting })}
+          />
+          <SwitchRow
+            id="remember-provider"
+            label="Remember last provider"
+            checked={personalization.rememberLastProvider}
+            onChange={(rememberLastProvider) =>
+              store.updatePersonalization({ rememberLastProvider })
+            }
+          />
+        </div>
+        <div className="flex justify-end sm:col-span-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => store.resetPersonalization()}
+            className="border-white/10 bg-transparent text-white/60 hover:bg-white/10 hover:text-white"
+          >
+            <RotateCcw className="mr-2 size-3.5" />
+            Reset personalization
+          </Button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function TextField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <Label htmlFor={id} className="text-xs uppercase tracking-wider text-white/50">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1.5 border-white/10 bg-white/5 text-white placeholder:text-white/30"
+      />
+    </div>
+  );
+}
+
+type SelectOption<T extends string> = {
+  value: T;
+  label: string;
+};
+
+function SelectField<T extends string>({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: T;
+  options: SelectOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div>
+      <Label htmlFor={id} className="text-xs uppercase tracking-wider text-white/50">
+        {label}
+      </Label>
+      <Select value={value} onValueChange={(next) => onChange(next as T)}>
+        <SelectTrigger id={id} className="mt-1.5 border-white/10 bg-white/5 text-white">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="border-white/10 bg-zinc-950 text-white">
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value} className="focus:bg-white/10">
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function SwitchRow({
+  id,
+  label,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+      <Label htmlFor={id} className="text-sm text-white/80">
+        {label}
+      </Label>
+      <Switch
+        id={id}
+        checked={checked}
+        onCheckedChange={onChange}
+        className="data-[state=checked]:bg-emerald-400 data-[state=unchecked]:bg-white/15"
+      />
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
       <h2 className="mb-3 text-xs uppercase tracking-wider text-white/50">{title}</h2>
@@ -143,8 +490,9 @@ function UsageSection() {
       unsub();
     };
   }, []);
-  const rows = PROVIDERS.map((p) => ({ p, s: stats[p.id] ?? { calls: 0, errors: 0 } }))
-    .filter((r) => r.s.calls > 0 || r.s.errors > 0);
+  const rows = PROVIDERS.map((p) => ({ p, s: stats[p.id] ?? { calls: 0, errors: 0 } })).filter(
+    (r) => r.s.calls > 0 || r.s.errors > 0,
+  );
   return (
     <Section title="Usage">
       {rows.length === 0 ? (
@@ -164,7 +512,11 @@ function UsageSection() {
                 <tr key={p.id} className="border-t border-white/5">
                   <td className="px-3 py-2 text-white/80">{p.name}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-white">{s.calls}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${s.errors ? "text-amber-300" : "text-white/40"}`}>{s.errors}</td>
+                  <td
+                    className={`px-3 py-2 text-right tabular-nums ${s.errors ? "text-amber-300" : "text-white/40"}`}
+                  >
+                    {s.errors}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -263,9 +615,7 @@ function ProviderCard({
             {p.type === "local" && p.detectUrl && (
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
-                  detected?.ok
-                    ? "bg-emerald-500/15 text-emerald-300"
-                    : "bg-white/10 text-white/50"
+                  detected?.ok ? "bg-emerald-500/15 text-emerald-300" : "bg-white/10 text-white/50"
                 }`}
                 title={
                   detected?.ok
@@ -303,6 +653,16 @@ function ProviderCard({
               {CAP_LABELS[k]}
             </span>
           ))}
+        {p.mediaCapabilities?.image === "generate" && (
+          <span className="rounded-full bg-cyan-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-200">
+            Image gen
+          </span>
+        )}
+        {p.mediaCapabilities?.video === "generate" && (
+          <span className="rounded-full bg-fuchsia-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-fuchsia-200">
+            Video gen
+          </span>
+        )}
       </div>
 
       <div className="grid gap-2">
@@ -316,7 +676,9 @@ function ProviderCard({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void saveKey();
                 }}
-                placeholder={hasServerKey ? "•••••••• (saved server-side)" : p.setupHint ?? "API key"}
+                placeholder={
+                  hasServerKey ? "•••••••• (saved server-side)" : (p.setupHint ?? "API key")
+                }
                 autoComplete="off"
                 className="h-9 flex-1 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
               />

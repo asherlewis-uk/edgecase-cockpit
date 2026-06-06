@@ -14,7 +14,8 @@ export const Route = createFileRoute("/library")({
 });
 
 function LibraryPage() {
-  const threads = useStore((s) => s.threads);
+  const allThreads = useStore((s) => s.threads);
+  const threads = allThreads.filter((thread) => !thread.temporary);
   return (
     <div className="min-h-[100dvh] bg-black text-white">
       <header className="flex items-center gap-3 px-4 pt-5">
@@ -30,7 +31,25 @@ function LibraryPage() {
       </header>
       <div className="mx-auto max-w-3xl px-4 py-6">
         {threads.length === 0 ? (
-          <p className="text-sm text-white/50">Nothing saved yet.</p>
+          <div className="flex flex-col items-start gap-3 py-12 text-white/50">
+            <p className="text-sm">
+              Nothing saved yet. Temporary chats stay out of the library until you save them.
+            </p>
+            <div className="flex gap-2">
+              <Link
+                to="/"
+                className="rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/20"
+              >
+                Back to chat
+              </Link>
+              <Link
+                to="/settings"
+                className="rounded-full bg-white/[0.04] px-4 py-2 text-xs text-white/80 hover:bg-white/[0.1]"
+              >
+                Settings
+              </Link>
+            </div>
+          </div>
         ) : (
           <ul className="flex flex-col gap-1">
             {threads.map((t) => (
@@ -45,9 +64,7 @@ function LibraryPage() {
                   <span className="flex-1 truncate text-[15px] text-white/90">
                     {t.title || "Untitled"}
                   </span>
-                  <span className="text-xs text-white/40">
-                    {t.messages.length} msg
-                  </span>
+                  <span className="text-xs text-white/40">{t.messages.length} msg</span>
                 </Link>
               </li>
             ))}

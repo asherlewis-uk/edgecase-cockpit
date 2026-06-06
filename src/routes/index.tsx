@@ -14,6 +14,7 @@ import {
   RefreshCw,
   WifiOff,
   Clock,
+  Camera,
   X,
   Image as ImageIcon,
   MessageSquareDashed,
@@ -25,13 +26,7 @@ import {
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
-import {
-  useStore,
-  store,
-  PROVIDERS,
-  resolveProvider,
-  type Message,
-} from "@/lib/cockpit-store";
+import { useStore, store, PROVIDERS, resolveProvider, type Message } from "@/lib/cockpit-store";
 import { useChat } from "@/hooks/use-chat";
 import { transcribeAudioViaProxy } from "@/lib/providers";
 import {
@@ -49,26 +44,40 @@ export const Route = createFileRoute("/")({
       { title: "Cockpit — provider-native AI console" },
       {
         name: "description",
-        content:
-          "Provider-native cockpit for cloud and local AI. Switch providers, not endpoints.",
+        content: "Provider-native cockpit for cloud and local AI. Switch providers, not endpoints.",
       },
     ],
   }),
   component: Cockpit,
 });
 
+type DraftAttachment = {
+  id: string;
+  src: string;
+  kind: "image" | "video" | "screenshot";
+};
+
+function draftKindFromMime(mime: string): DraftAttachment["kind"] {
+  return mime.startsWith("video/") ? "video" : "image";
+}
+
 export function Cockpit() {
   const settings = useStore((s) => s.settings);
+  const activeThreadId = useStore((s) => s.activeThreadId);
+  const activeThread = useStore((s) => s.threads.find((t) => t.id === activeThreadId) ?? null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [screenshotMode, setScreenshotMode] = useState(false);
+  const [screenCaptureAvailable, setScreenCaptureAvailable] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [temporary, setTemporary] = useState(false);
   const [recording, setRecording] = useState<"idle" | "recording" | "transcribing">("idle");
   const [recordMode, setRecordMode] = useState<"mic" | "live">("mic");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const transcribeAbortRef = useRef<AbortController | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -96,9 +105,15 @@ export function Cockpit() {
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+      behavior: settings.personalization.reduceMotion ? "auto" : "smooth",
     });
-  }, [messages.length, isStreaming]);
+  }, [messages.length, isStreaming, settings.personalization.reduceMotion]);
+
+  useEffect(() => {
+    setScreenCaptureAvailable(
+      typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia,
+    );
+  }, []);
 
   const uiState: keyof typeof PULSE = !isOnline
     ? "offline"
@@ -109,41 +124,106 @@ export function Cockpit() {
         : isStreaming
           ? "streaming"
           : "idle";
-  const pulse = PULSE[uiState];
+  const pulse = applyPulsePreferences(PULSE[uiState], settings.personalization.ambientIntensity);
+  const reduceMotion = settings.personalization.reduceMotion;
   const hueStyle = {
-    animation: `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite`,
+    animation: reduceMotion ? "none" : `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite`,
   } as React.CSSProperties;
 
   async function handleSend() {
     const text = input.trim();
     if ((!text && attachments.length === 0) || isStreaming) return;
     if (isCoolingDown) return;
-    if (temporary && !store.getState().activeThreadId) {
+    if (currentTemporary && !store.getState().activeThreadId) {
       store.newThread({ temporary: true });
     }
+    const imageAttachments = attachments
+      .filter((item) => item.kind !== "video")
+      .map((item) => item.src);
+    const videoAttachments = attachments
+      .filter((item) => item.kind === "video")
+      .map((item) => item.src);
     setInput("");
-    const a = attachments;
     setAttachments([]);
-    await sendMessage(text, a);
+    await sendMessage(text, imageAttachments, videoAttachments);
   }
 
   async function ingestFiles(files: FileList | File[]) {
-    const arr = Array.from(files).filter(
-      (f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+    const candidates = Array.from(files).filter(
+      (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
     );
-    if (!arr.length) return;
+    const arr = candidates.filter(
+      (file) =>
+        (file.type.startsWith("image/") && canAttachImages) ||
+        (file.type.startsWith("video/") && canAttachVideo),
+    );
+    if (!arr.length) {
+      if (candidates.length) {
+        toast.error(`${provider.name} does not support that media type`);
+      }
+      return;
+    }
+    if (arr.length < candidates.length) {
+      toast.error(`Some media was skipped because ${provider.name} cannot review it`);
+    }
     const datas = await Promise.all(
       arr.map(
         (f) =>
-          new Promise<string>((resolve, reject) => {
+          new Promise<DraftAttachment>((resolve, reject) => {
             const fr = new FileReader();
-            fr.onload = () => resolve(fr.result as string);
+            fr.onload = () =>
+              resolve({
+                id: crypto.randomUUID(),
+                src: fr.result as string,
+                kind: draftKindFromMime(f.type),
+              });
             fr.onerror = reject;
             fr.readAsDataURL(f);
           }),
       ),
     );
     setAttachments((prev) => [...prev, ...datas].slice(0, 6));
+  }
+
+  async function captureScreenshot() {
+    if (screenshotMode) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
+      toast.error("Screenshot capture is not available in this browser");
+      return;
+    }
+    let stream: MediaStream | null = null;
+    setScreenshotMode(true);
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
+      await video.play();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not capture screenshot");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const src = canvas.toDataURL("image/png");
+      const attachment: DraftAttachment = {
+        id: crypto.randomUUID(),
+        src,
+        kind: "screenshot",
+      };
+      setAttachments((prev) => [...prev, attachment].slice(0, 6));
+      toast.success("Screenshot attached");
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === "NotAllowedError")) {
+        toast.error(e instanceof Error ? e.message : "Screenshot capture failed");
+      }
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
+      setScreenshotMode(false);
+    }
   }
 
   async function startRecording(mode: "mic" | "live") {
@@ -168,8 +248,10 @@ export function Cockpit() {
           return;
         }
         setRecording("transcribing");
+        const controller = new AbortController();
+        transcribeAbortRef.current = controller;
         try {
-          const { text } = await transcribeAudioViaProxy(provider.id, blob);
+          const { text } = await transcribeAudioViaProxy(provider.id, blob, controller.signal);
           if (text && text.trim()) {
             if (mode === "live") {
               setInput("");
@@ -179,8 +261,11 @@ export function Cockpit() {
             }
           }
         } catch (e) {
-          toast.error(e instanceof Error ? e.message : "Transcription failed");
+          if (!(e instanceof DOMException && e.name === "AbortError")) {
+            toast.error(e instanceof Error ? e.message : "Transcription failed");
+          }
         } finally {
+          transcribeAbortRef.current = null;
           setRecording("idle");
         }
       };
@@ -198,9 +283,34 @@ export function Cockpit() {
     mediaRecorderRef.current = null;
   }
 
+  function cancelTranscribing() {
+    transcribeAbortRef.current?.abort();
+    transcribeAbortRef.current = null;
+    setRecording("idle");
+  }
+
   const { provider, apiKey, model } = resolveProvider(settings);
+  const canAttachImages = provider.supports.vision;
+  const canCaptureScreenshots = canAttachImages && screenCaptureAvailable;
+  const canAttachVideo = provider.mediaCapabilities?.video === "generate";
+  const canAttachMedia = canAttachImages || canAttachVideo;
   const cloudProviders = PROVIDERS.filter((p) => p.type === "cloud");
   const localProviders = PROVIDERS.filter((p) => p.type === "local");
+  const displayName = settings.profile.displayName || "friend";
+  const assistantName = settings.personalization.assistantName.trim() || "Cockpit";
+  const promptPlaceholder = settings.personalization.defaultPromptPlaceholder.trim() || "Message";
+  const greetingParts = [
+    settings.personalization.showProviderInGreeting ? provider.name : null,
+    settings.personalization.showModelInGreeting ? model : null,
+  ].filter((part): part is string => !!part);
+  const greetingStatus =
+    greetingParts.length === 0
+      ? null
+      : settings.personalization.showProviderInGreeting
+        ? `Routing through ${greetingParts.join(" · ")}`
+        : `Model ${greetingParts.join(" · ")}`;
+  const currentTemporary = activeThread?.temporary ?? temporary;
+  const visualSurface = VISUAL_SURFACES[settings.personalization.visualMode];
 
   return (
     <div
@@ -216,11 +326,7 @@ export function Cockpit() {
         if (e.dataTransfer?.files?.length) ingestFiles(e.dataTransfer.files);
       }}
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-0"
-        style={hueStyle}
-      >
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-0" style={hueStyle}>
         <div
           className="absolute inset-0"
           style={{
@@ -228,7 +334,9 @@ export function Cockpit() {
               hsl(var(--cockpit-hue) 90% 60% / ${pulse.bright}) 0%,
               hsl(var(--cockpit-hue) 60% 18% / ${pulse.mid}) 38%,
               rgba(0,0,0,1) 75%)`,
-            animation: `cockpit-breathe ${pulse.breatheMs}ms ease-in-out infinite`,
+            animation: reduceMotion
+              ? "none"
+              : `cockpit-breathe ${pulse.breatheMs}ms ease-in-out infinite`,
           }}
         />
         <div
@@ -236,13 +344,28 @@ export function Cockpit() {
           style={{
             background: `radial-gradient(ellipse 60% 40% at 50% 0%,
               hsl(var(--cockpit-hue) 95% 65% / ${pulse.glow}) 0%, transparent 70%)`,
-            animation: `cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
+            animation: reduceMotion
+              ? "none"
+              : `cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
           }}
         />
       </div>
       {dragOver && (
         <div className="pointer-events-none absolute inset-3 z-50 grid place-items-center rounded-3xl border-2 border-dashed border-white/40 bg-black/40 backdrop-blur">
-          <p className="text-sm text-white/80">Drop images to attach</p>
+          <p className="text-sm text-white/80">
+            Drop{" "}
+            {canAttachImages && canAttachVideo
+              ? "images or videos"
+              : canAttachVideo
+                ? "videos"
+                : "images"}{" "}
+            to attach
+          </p>
+        </div>
+      )}
+      {screenshotMode && (
+        <div className="pointer-events-none absolute inset-3 z-50 grid place-items-center rounded-3xl border-2 border-dashed border-white/40 bg-black/50 backdrop-blur">
+          <p className="text-sm text-white/80">Choose a screen or window to attach</p>
         </div>
       )}
       {(!isOnline || queueSize > 0) && (
@@ -267,7 +390,9 @@ export function Cockpit() {
             style={{
               backgroundColor: `hsl(var(--cockpit-hue) 95% 65%)`,
               boxShadow: `0 0 8px hsl(var(--cockpit-hue) 95% 65% / 0.8)`,
-              animation: `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite, cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
+              animation: reduceMotion
+                ? "none"
+                : `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite, cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
             }}
           />
         </button>
@@ -275,7 +400,9 @@ export function Cockpit() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-2 text-[15px] backdrop-blur transition hover:bg-white/[0.08]">
-              <span className={`grid size-6 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${provider.accent}`}>
+              <span
+                className={`grid size-6 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${provider.accent}`}
+              >
                 {provider.badge}
               </span>
               <span className="font-medium text-white">{provider.name}</span>
@@ -317,23 +444,38 @@ export function Cockpit() {
         </DropdownMenu>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={captureScreenshot}
+            className={`grid size-11 place-items-center rounded-full transition ${visualSurface.button}`}
+            aria-label="Capture screenshot"
+            disabled={!canCaptureScreenshots || screenshotMode}
+            title={
+              canCaptureScreenshots
+                ? "Capture screenshot"
+                : provider.supports.vision
+                  ? "Screenshot capture is not available in this browser"
+                  : `${provider.name} does not support image review`
+            }
+          >
+            <Camera className="size-5 text-white/90" strokeWidth={1.6} />
+          </button>
           {messages.length === 0 ? (
             <button
               onClick={() => {
-                const next = !temporary;
+                const next = !currentTemporary;
                 setTemporary(next);
                 const id = store.getState().activeThreadId;
                 if (id) store.setThreadTemporary(id, next);
                 else if (next) store.newThread({ temporary: true });
               }}
               className={`grid size-11 place-items-center rounded-full backdrop-blur transition ${
-                temporary
+                currentTemporary
                   ? "bg-white/20 text-white ring-1 ring-white/40"
-                  : "bg-white/[0.06] text-white/90 hover:bg-white/[0.12]"
+                  : visualSurface.button
               }`}
               aria-label="Temporary chat"
-              aria-pressed={temporary}
-              title={temporary ? "Temporary chat on — won't be saved" : "Temporary chat"}
+              aria-pressed={currentTemporary}
+              title={currentTemporary ? "Temporary chat on — won't be saved" : "Temporary chat"}
             >
               <MessageSquareDashed className="size-5" strokeWidth={1.6} />
             </button>
@@ -343,7 +485,7 @@ export function Cockpit() {
                 store.selectThread(null);
                 setTemporary(false);
               }}
-              className="grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
+              className={`grid size-11 place-items-center rounded-full transition ${visualSurface.button}`}
               aria-label="New chat"
             >
               <SquarePen className="size-5 text-white/90" strokeWidth={1.6} />
@@ -358,14 +500,11 @@ export function Cockpit() {
           <div className="flex h-full flex-col items-center justify-center pb-32">
             <Sparkle size={56} />
             <h1 className="mt-6 text-3xl font-light tracking-tight text-white/90">
-              Ask away, {settings.userName || "friend"}!
+              Ask away, {displayName}!
             </h1>
-            <p className="mt-3 max-w-xs text-center text-sm text-white/45">
-              Routing through{" "}
-              <span className="text-white/80">{provider.name}</span>
-              {" · "}
-              <span className="text-white/70">{model}</span>
-            </p>
+            {greetingStatus && (
+              <p className="mt-3 max-w-xs text-center text-sm text-white/45">{greetingStatus}</p>
+            )}
             {provider.needsApiKey && !apiKey && (
               <button
                 onClick={() => navigate({ to: "/settings" })}
@@ -378,20 +517,11 @@ export function Cockpit() {
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 py-8">
             {messages.map((m) => (
-              <MessageRow
-                key={m.id}
-                m={m}
-                streaming={isStreaming}
-                onRegenerate={regenerate}
-              />
+              <MessageRow key={m.id} m={m} streaming={isStreaming} onRegenerate={regenerate} />
             ))}
             {error && (
               <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
-                {isCoolingDown ? (
-                  <Clock className="size-4" />
-                ) : (
-                  <AlertCircle className="size-4" />
-                )}
+                {isCoolingDown ? <Clock className="size-4" /> : <AlertCircle className="size-4" />}
                 <span className="flex-1 truncate">{error}</span>
                 {isCoolingDown ? (
                   <span className="rounded-full bg-white/10 px-3 py-1 text-xs tabular-nums text-white">
@@ -412,18 +542,34 @@ export function Cockpit() {
       </div>
 
       <div className="relative z-10 px-3 pb-6 pt-2">
-        <div className="mx-auto flex max-w-3xl flex-col gap-2 rounded-3xl border border-white/10 bg-white/[0.04] px-2 py-2 backdrop-blur">
+        <div
+          className={`mx-auto flex max-w-3xl flex-col gap-2 rounded-3xl px-2 py-2 ${visualSurface.input}`}
+        >
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 px-2 pt-1">
-              {attachments.map((src, i) => (
-                <div key={i} className="relative">
-                  <img
-                    src={src}
-                    alt="attachment"
-                    className="size-14 rounded-lg object-cover ring-1 ring-white/15"
-                  />
+              {attachments.map((item) => (
+                <div key={item.id} className="relative">
+                  {item.kind === "video" ? (
+                    <video
+                      src={item.src}
+                      muted
+                      playsInline
+                      className="size-14 rounded-lg bg-black object-cover ring-1 ring-white/15"
+                    />
+                  ) : (
+                    <img
+                      src={item.src}
+                      alt="attachment"
+                      className="size-14 rounded-lg object-cover ring-1 ring-white/15"
+                    />
+                  )}
+                  {item.kind === "screenshot" && (
+                    <span className="absolute bottom-1 left-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/70">
+                      Shot
+                    </span>
+                  )}
                   <button
-                    onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))}
+                    onClick={() => setAttachments((p) => p.filter((next) => next.id !== item.id))}
                     className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-black/80 text-white ring-1 ring-white/20"
                     aria-label="Remove attachment"
                   >
@@ -437,7 +583,9 @@ export function Cockpit() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={[canAttachImages ? "image/*" : null, canAttachVideo ? "video/*" : null]
+                .filter(Boolean)
+                .join(",")}
               multiple
               hidden
               onChange={(e) => {
@@ -447,10 +595,18 @@ export function Cockpit() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/85 transition hover:bg-white/[0.12]"
-              aria-label="Attach image"
-              disabled={!provider.supports.vision}
-              title={provider.supports.vision ? "Attach image" : `${provider.name} does not support vision`}
+              className={`grid size-10 shrink-0 place-items-center rounded-full text-white/85 transition ${visualSurface.button}`}
+              aria-label="Attach media"
+              disabled={!canAttachMedia}
+              title={
+                canAttachMedia
+                  ? canAttachImages && canAttachVideo
+                    ? "Attach image or video"
+                    : canAttachVideo
+                      ? "Attach video"
+                      : "Attach image"
+                  : `${provider.name} does not support media review`
+              }
             >
               <ImageIcon className="size-5" strokeWidth={1.6} />
             </button>
@@ -470,7 +626,7 @@ export function Cockpit() {
                   ingestFiles(files);
                 }
               }}
-              placeholder={`Message ${provider.name}…`}
+              placeholder={`${promptPlaceholder} ${provider.name}…`}
               className="flex-1 bg-transparent px-2 py-2 text-[17px] text-white placeholder:text-white/40 focus:outline-none"
             />
             {isCoolingDown ? (
@@ -480,7 +636,7 @@ export function Cockpit() {
             ) : isStreaming ? (
               <button
                 className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
-                style={hueButtonStyle(pulse)}
+                style={hueButtonStyle(pulse, reduceMotion)}
                 aria-label="Stop"
                 onClick={stop}
               >
@@ -490,38 +646,75 @@ export function Cockpit() {
               <button
                 onClick={handleSend}
                 className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
-                style={hueButtonStyle(pulse)}
+                style={hueButtonStyle(pulse, reduceMotion)}
                 aria-label="Send"
               >
                 <AudioLines className="size-5" strokeWidth={1.8} />
               </button>
+            ) : recording === "transcribing" ? (
+              <button
+                onClick={cancelTranscribing}
+                className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-white/[0.08] px-3 text-sm text-white/85 transition hover:bg-white/[0.14]"
+                aria-label="Cancel transcription"
+              >
+                <X className="size-4" strokeWidth={1.8} />
+                Cancel
+              </button>
             ) : (
               <>
                 <button
-                  onClick={() => (recording === "recording" && recordMode === "mic" ? stopRecording() : startRecording("mic"))}
-                  disabled={recording === "transcribing"}
+                  onClick={() =>
+                    recording === "recording" && recordMode === "mic"
+                      ? stopRecording()
+                      : startRecording("mic")
+                  }
                   className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/85 transition hover:bg-white/[0.12]"
-                  aria-label={recording === "recording" && recordMode === "mic" ? "Stop recording" : "Voice to text"}
-                  title={recording === "transcribing" ? "Transcribing…" : recording === "recording" && recordMode === "mic" ? "Stop & transcribe" : "Voice to text"}
+                  aria-label={
+                    recording === "recording" && recordMode === "mic"
+                      ? "Stop recording"
+                      : "Voice to text"
+                  }
+                  title={
+                    recording === "recording" && recordMode === "mic"
+                      ? "Stop & transcribe"
+                      : "Voice to text"
+                  }
                 >
-                  <Mic className={`size-5 ${recording === "recording" && recordMode === "mic" ? "text-red-400 animate-pulse" : ""}`} strokeWidth={1.6} />
+                  <Mic
+                    className={`size-5 ${recording === "recording" && recordMode === "mic" ? "text-red-400 animate-pulse" : ""}`}
+                    strokeWidth={1.6}
+                  />
                 </button>
                 <button
-                  onClick={() => (recording === "recording" && recordMode === "live" ? stopRecording() : startRecording("live"))}
-                  disabled={recording === "transcribing"}
+                  onClick={() =>
+                    recording === "recording" && recordMode === "live"
+                      ? stopRecording()
+                      : startRecording("live")
+                  }
                   className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
-                  style={hueButtonStyle(pulse)}
-                  aria-label={recording === "recording" && recordMode === "live" ? "Stop live" : "Live voice — record & send"}
-                  title={recording === "recording" && recordMode === "live" ? "Stop & send" : "Live voice — records & sends on stop"}
+                  style={hueButtonStyle(pulse, reduceMotion)}
+                  aria-label={
+                    recording === "recording" && recordMode === "live"
+                      ? "Stop live"
+                      : "Live voice — record & send"
+                  }
+                  title={
+                    recording === "recording" && recordMode === "live"
+                      ? "Stop & send"
+                      : "Live voice — records & sends on stop"
+                  }
                 >
-                  <AudioLines className={`size-5 ${recording === "recording" && recordMode === "live" ? "animate-pulse" : ""}`} strokeWidth={1.8} />
+                  <AudioLines
+                    className={`size-5 ${recording === "recording" && recordMode === "live" ? "animate-pulse" : ""}`}
+                    strokeWidth={1.8}
+                  />
                 </button>
               </>
             )}
           </div>
         </div>
         <p className="mt-2 text-center text-[11px] text-white/35">
-          Cockpit may hallucinate. Verify critical info.
+          {assistantName} may hallucinate. Verify critical info.
         </p>
       </div>
 
@@ -545,7 +738,9 @@ function ProviderRow({
 }) {
   return (
     <DropdownMenuItem onClick={onSelect} className="gap-2 focus:bg-white/10">
-      <span className={`grid size-6 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${p.accent}`}>
+      <span
+        className={`grid size-6 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${p.accent}`}
+      >
         {p.badge}
       </span>
       <span className="flex-1 truncate text-sm">{p.name}</span>
@@ -555,18 +750,64 @@ function ProviderRow({
 }
 
 const PULSE = {
-  idle:      { cycleMs: 14000, breatheMs: 4200, bright: 0.45, mid: 0.45, glow: 0.28 },
-  streaming: { cycleMs:  2200, breatheMs: 1100, bright: 0.75, mid: 0.55, glow: 0.65 },
-  cooldown:  { cycleMs:  9000, breatheMs: 2600, bright: 0.55, mid: 0.5,  glow: 0.4  },
-  error:     { cycleMs:  3200, breatheMs: 1600, bright: 0.7,  mid: 0.55, glow: 0.55 },
-  offline:   { cycleMs: 22000, breatheMs: 5200, bright: 0.25, mid: 0.55, glow: 0.15 },
+  idle: { cycleMs: 14000, breatheMs: 4200, bright: 0.45, mid: 0.45, glow: 0.28 },
+  streaming: { cycleMs: 2200, breatheMs: 1100, bright: 0.75, mid: 0.55, glow: 0.65 },
+  cooldown: { cycleMs: 9000, breatheMs: 2600, bright: 0.55, mid: 0.5, glow: 0.4 },
+  error: { cycleMs: 3200, breatheMs: 1600, bright: 0.7, mid: 0.55, glow: 0.55 },
+  offline: { cycleMs: 22000, breatheMs: 5200, bright: 0.25, mid: 0.55, glow: 0.15 },
 } as const;
 
-function hueButtonStyle(p: (typeof PULSE)[keyof typeof PULSE]): React.CSSProperties {
+type PulseProfile = {
+  cycleMs: number;
+  breatheMs: number;
+  bright: number;
+  mid: number;
+  glow: number;
+};
+
+const AMBIENT_SCALE = {
+  low: 0.68,
+  medium: 1,
+  high: 1.22,
+} as const;
+
+const VISUAL_SURFACES = {
+  glass: {
+    input: "border border-white/10 bg-white/[0.04] backdrop-blur",
+    button: "bg-white/[0.06] backdrop-blur text-white/90 hover:bg-white/[0.12]",
+  },
+  dark: {
+    input: "border border-zinc-800 bg-zinc-950/95 shadow-2xl shadow-black/50",
+    button: "bg-zinc-900 text-white/90 ring-1 ring-white/10 hover:bg-zinc-800",
+  },
+  solid: {
+    input: "border border-white/15 bg-zinc-900 shadow-2xl shadow-black/35",
+    button: "bg-zinc-800 text-white/90 hover:bg-zinc-700",
+  },
+} as const;
+
+function clampOpacity(value: number) {
+  return Math.max(0.08, Math.min(value, 0.9));
+}
+
+function applyPulsePreferences(
+  p: (typeof PULSE)[keyof typeof PULSE],
+  intensity: keyof typeof AMBIENT_SCALE,
+): PulseProfile {
+  const scale = AMBIENT_SCALE[intensity] ?? AMBIENT_SCALE.medium;
   return {
-    animation: `cockpit-hue-cycle ${p.cycleMs}ms linear infinite`,
+    ...p,
+    bright: clampOpacity(p.bright * scale),
+    mid: clampOpacity(p.mid * scale),
+    glow: clampOpacity(p.glow * scale),
+  };
+}
+
+function hueButtonStyle(p: PulseProfile, reduceMotion: boolean): React.CSSProperties {
+  return {
+    animation: reduceMotion ? "none" : `cockpit-hue-cycle ${p.cycleMs}ms linear infinite`,
     backgroundColor: `hsl(var(--cockpit-hue) 80% 55%)`,
-    boxShadow: `0 0 24px hsl(var(--cockpit-hue) 95% 60% / 0.55)`,
+    boxShadow: `0 0 ${reduceMotion ? 14 : 24}px hsl(var(--cockpit-hue) 95% 60% / ${reduceMotion ? 0.32 : 0.55})`,
   };
 }
 
@@ -592,6 +833,19 @@ function MessageRow({
                   src={src}
                   alt=""
                   className="size-24 rounded-2xl object-cover ring-1 ring-white/10"
+                />
+              ))}
+            </div>
+          )}
+          {m.videoAttachments && m.videoAttachments.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-2">
+              {m.videoAttachments.map((src, i) => (
+                <video
+                  key={i}
+                  src={src}
+                  controls
+                  playsInline
+                  className="aspect-video w-40 rounded-2xl bg-black object-cover ring-1 ring-white/10"
                 />
               ))}
             </div>
@@ -713,8 +967,17 @@ function ThreadOverflowMenu() {
     store.deleteThread(thread.id);
     navigate({ to: "/" });
   }
+  function handleSaveTemporary() {
+    if (!thread) return;
+    store.setThreadTemporary(thread.id, false);
+    toast.success("Chat saved to library");
+  }
   async function handleCopyLink() {
     if (!thread) return;
+    if (thread.temporary) {
+      toast.error("Temporary chats cannot be shared until saved");
+      return;
+    }
     const url = `${window.location.origin}/thread/${thread.id}`;
     try {
       await navigator.clipboard.writeText(url);
@@ -747,21 +1010,42 @@ function ThreadOverflowMenu() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 border-white/10 bg-zinc-950 text-white">
+        {thread?.temporary && (
+          <>
+            <DropdownMenuLabel className="text-xs uppercase tracking-wider text-white/40">
+              Temporary chat
+            </DropdownMenuLabel>
+            <DropdownMenuItem onClick={handleSaveTemporary} className="focus:bg-white/10">
+              <Check className="mr-2 size-4" /> Save chat
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-white/10" />
+          </>
+        )}
         <DropdownMenuItem onClick={handleRename} className="focus:bg-white/10">
           <Pencil className="mr-2 size-4" /> Rename
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleCopyLink} className="focus:bg-white/10">
+        <DropdownMenuItem
+          onClick={handleCopyLink}
+          disabled={!!thread?.temporary}
+          className="focus:bg-white/10 disabled:opacity-40"
+        >
           <LinkIcon className="mr-2 size-4" /> Copy link
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleCopyTranscript} className="focus:bg-white/10">
           <Copy className="mr-2 size-4" /> Copy transcript
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-white/10" />
-        <DropdownMenuItem onClick={() => navigate({ to: "/settings" })} className="focus:bg-white/10">
+        <DropdownMenuItem
+          onClick={() => navigate({ to: "/settings" })}
+          className="focus:bg-white/10"
+        >
           <SettingsIcon className="mr-2 size-4" /> Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-white/10" />
-        <DropdownMenuItem onClick={handleDelete} className="text-red-300 focus:bg-red-500/10 focus:text-red-200">
+        <DropdownMenuItem
+          onClick={handleDelete}
+          className="text-red-300 focus:bg-red-500/10 focus:text-red-200"
+        >
           <Trash2 className="mr-2 size-4" /> Delete chat
         </DropdownMenuItem>
       </DropdownMenuContent>
