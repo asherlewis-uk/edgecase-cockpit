@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PROVIDERS, getProvider } from "@/lib/providers";
 import { getCockpitSession, getProviderCreds } from "@/lib/session.server";
 import { rateLimit, urlAllowedForProvider } from "@/lib/proxy-guard.server";
+import { validateCsrfToken } from "@/lib/csrf.server";
 
 // Proxy chat completions through the server so the browser never talks to
 // third-party / localhost APIs directly. Avoids CORS + mixed-content issues
@@ -16,6 +17,7 @@ type ProxyBody = {
   model?: string;
   messages: { role: "user" | "assistant" | "system"; content: unknown; attachments?: string[] }[];
   stream?: boolean;
+  tools?: { name: string; description: string; parameters?: unknown }[];
 };
 
 function buildHeaders(p: ReturnType<typeof getProvider>, apiKey: string) {
@@ -43,12 +45,37 @@ function normalizeMessages(messages: ProxyBody["messages"]) {
   });
 }
 
+function toOpenAIToolPayload(tools: NonNullable<ProxyBody["tools"]>): unknown[] {
+  return tools.map((t) => ({
+    type: "function",
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters ?? { type: "object" },
+    },
+  }));
+}
+
+function toAnthropicToolPayload(tools: NonNullable<ProxyBody["tools"]>): unknown[] {
+  return tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.parameters ?? { type: "object" },
+  }));
+}
+
 function buildBody(
   p: ReturnType<typeof getProvider>,
   model: string,
   messages: ProxyBody["messages"],
   stream: boolean,
+  tools?: ProxyBody["tools"],
 ) {
+  const toolPayload = tools?.length
+    ? p.bodyStyle === "anthropic"
+      ? { tools: toAnthropicToolPayload(tools) }
+      : { tools: toOpenAIToolPayload(tools) }
+    : {};
   if (p.bodyStyle === "anthropic") {
     const sys = messages
       .filter((m) => m.role === "system")
@@ -63,15 +90,19 @@ function buildBody(
       ...(sys ? { system: sys } : {}),
       messages: msgs,
       stream,
+      ...toolPayload,
     });
   }
-  return JSON.stringify({ model, messages: normalizeMessages(messages), stream });
+  return JSON.stringify({ model, messages: normalizeMessages(messages), stream, ...toolPayload });
 }
 
 export const Route = createFileRoute("/api/proxy/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const csrfCheck = validateCsrfToken(request);
+        if (csrfCheck !== true) return csrfCheck;
+
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
         const rl = rateLimit(`chat:${sessionId}`);
@@ -131,7 +162,7 @@ export const Route = createFileRoute("/api/proxy/chat")({
         const url = baseUrl + provider.chatPath;
 
         const headers = buildHeaders(provider, apiKey);
-        const upstreamBody = buildBody(provider, model, body.messages ?? [], stream);
+        const upstreamBody = buildBody(provider, model, body.messages ?? [], stream, body.tools);
 
         let upstream: Response;
         const ctrl = new AbortController();

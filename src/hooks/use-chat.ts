@@ -4,11 +4,25 @@ import {
   useStore,
   resolveProvider,
   bumpProviderStat,
+  recordTokenUsage,
+  syncTokenUsageToServer,
+  syncThreadToServer,
   type Message,
   type Settings,
 } from "@/lib/cockpit-store";
 import { callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
 import { retryWithBackoff } from "@/lib/retry";
+import { estimateTokens } from "@/lib/tokens";
+import {
+  type ToolDef,
+  type ToolCall,
+  parseOpenAIToolCalls,
+  parseAnthropicToolCalls,
+  executeBuiltInTool,
+  BUILT_IN_TOOLS,
+} from "@/lib/tools";
+import { embedTexts } from "@/lib/embeddings";
+import { addVectorDocs, searchVectorStore } from "@/lib/vector-store";
 
 // ── Offline queue localStorage persistence ──────────────────────────────────
 const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";
@@ -167,7 +181,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
   }, [cooldownUntil]);
 
   const runAssistant = useCallback(
-    async (threadId: string, _prompt: string) => {
+    async (threadId: string, _prompt: string, toolDefs?: ToolDef[]) => {
       const currentSettings = store.getState().settings;
       const { provider, apiKey, baseUrl, model } = resolveProvider(currentSettings);
       const placeholderId = crypto.randomUUID();
@@ -188,9 +202,39 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       setStatus("streaming");
       setError(null);
 
+      let ragContext = "";
+      if (currentSettings.rag?.enabled && _prompt) {
+        try {
+          const embeddings = await embedTexts(
+            [_prompt],
+            currentSettings.rag.providerId,
+            currentSettings.rag.model,
+          );
+          const results = searchVectorStore(embeddings[0], 3);
+          if (results.length) {
+            ragContext =
+              "Relevant context from previous messages:\n" +
+              results.map((r) => `- ${r.text}`).join("\n");
+          }
+        } catch {
+          /* ignore retrieval failures; chat continues without context */
+        }
+      }
+
       const personalizationSystem = buildPersonalizationSystemMessage(currentSettings);
       const history: ChatMessage[] = [
-        ...(personalizationSystem ? [personalizationSystem] : []),
+        ...(personalizationSystem
+          ? [
+              {
+                ...personalizationSystem,
+                content: ragContext
+                  ? `${personalizationSystem.content}\n\n${ragContext}`
+                  : personalizationSystem.content,
+              },
+            ]
+          : ragContext
+            ? [{ role: "system" as const, content: ragContext }]
+            : []),
         ...store
           .getState()
           .threads.find((t) => t.id === threadId)!
@@ -201,6 +245,9 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
             attachments: m.attachments,
           })),
       ];
+
+      // When tools are present, use non-streaming so we can parse tool_calls
+      const useStream = !toolDefs || toolDefs.length === 0;
 
       let acc = "";
       try {
@@ -214,24 +261,46 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
               model,
               messages: history,
               signal: controller.signal,
-              stream: true,
-              onDelta: (chunk: string) => {
-                acc += chunk;
-                store.patchMessage(threadId, placeholderId, {
-                  content: acc,
-                  pending: true,
-                });
-              },
+              stream: useStream,
+              tools: toolDefs,
+              onDelta: useStream
+                ? (chunk: string) => {
+                    acc += chunk;
+                    store.patchMessage(threadId, placeholderId, {
+                      content: acc,
+                      pending: true,
+                    });
+                  }
+                : undefined,
             }),
           { maxRetries: 3 },
         );
         const finalText = (res.text || acc || "").trim();
         const assistantImages = extractImageUrls(finalText);
+
+        // Detect tool calls from non-streaming response
+        let toolCalls: ToolCall[] | undefined;
+        if (!useStream && typeof res.raw === "object" && res.raw !== null) {
+          toolCalls =
+            provider.bodyStyle === "anthropic"
+              ? parseAnthropicToolCalls(res.raw)
+              : parseOpenAIToolCalls(res.raw);
+        }
+
         store.patchMessage(threadId, placeholderId, {
           content: finalText,
           pending: false,
           assistantImages: assistantImages.length ? assistantImages : undefined,
+          toolCalls: toolCalls?.length ? toolCalls : undefined,
         });
+        // Estimate and record token usage
+        const inputTokens = history.reduce(
+          (sum, m) => sum + estimateTokens(typeof m.content === "string" ? m.content : ""),
+          0,
+        );
+        const outputTokens = estimateTokens(finalText);
+        recordTokenUsage(provider.id, inputTokens, outputTokens);
+        void syncTokenUsageToServer(provider.id, inputTokens, outputTokens, model, threadId);
         backoffRef.current = 0;
         setStatus("idle");
       } catch (e) {
@@ -310,6 +379,23 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         ts: now,
         timestamp: now,
       });
+      // RAG ingestion: embed user message for future retrieval
+      const rag = store.getState().settings.rag ?? { enabled: false };
+      if (rag.enabled && storedContent) {
+        try {
+          const embeddings = await embedTexts([storedContent], rag.providerId, rag.model);
+          addVectorDocs([
+            {
+              id: `msg-${threadId}-${now}`,
+              text: storedContent,
+              embedding: embeddings[0],
+              metadata: { threadId, role: "user" },
+            },
+          ]);
+        } catch {
+          /* ignore embedding failures; RAG is best-effort */
+        }
+      }
       lastPromptRef.current = { text: storedContent, imageAttachments, videoAttachments };
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         queueRef.current.push({ text: storedContent, imageAttachments, videoAttachments });
@@ -393,8 +479,28 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         timestamp: now,
       };
       store.setThreadMessages(threadId, [...t.messages.slice(0, idx), edited]);
+      void syncThreadToServer(threadId);
       lastPromptRef.current = { text: newContent };
       await runAssistant(threadId, newContent);
+    },
+    [runAssistant],
+  );
+
+  const executeTool = useCallback(
+    async (messageId: string, call: ToolCall) => {
+      const threadId = store.getState().activeThreadId;
+      if (!threadId) return;
+      const result = await executeBuiltInTool(call.name, call.arguments);
+      store.addMessage(threadId, {
+        id: crypto.randomUUID(),
+        role: "tool",
+        content: result,
+        ts: Date.now(),
+        timestamp: Date.now(),
+        toolResults: [{ callId: call.id, name: call.name, content: result }],
+      });
+      // Re-run assistant with the tool result in context
+      await runAssistant(threadId, "", BUILT_IN_TOOLS);
     },
     [runAssistant],
   );
@@ -420,6 +526,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     regenerate,
     regenerateFrom,
     editMessage,
+    executeTool,
     retry,
     isOnline,
     queueSize,

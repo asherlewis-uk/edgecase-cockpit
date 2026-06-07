@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getCockpitSession } from "@/lib/session.server";
-import { getProviderStats, getMessageCount } from "@/lib/db";
+import { getAggregateUsage, getMessageCount } from "@/lib/db";
 import { usageRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 
 export const Route = createFileRoute("/api/usage")({
@@ -17,22 +17,18 @@ export const Route = createFileRoute("/api/usage")({
           return rateLimitResponse(rl.retryAfter);
         }
 
-        const providerStats = await getProviderStats(session.data.id);
+        const aggregate = await getAggregateUsage(session.data.id);
         const messageCount = await getMessageCount(session.data.id);
-
-        let totalCalls = 0;
-        let totalErrors = 0;
-        for (const stat of Object.values(providerStats)) {
-          totalCalls += stat.calls;
-          totalErrors += stat.errors;
-        }
 
         return Response.json({
           usage: {
-            totalCalls,
-            totalErrors,
+            totalCalls: aggregate.totalCalls,
+            totalErrors: aggregate.totalErrors,
             totalMessages: messageCount,
-            perProvider: providerStats,
+            totalInputTokens: aggregate.totalInputTokens,
+            totalOutputTokens: aggregate.totalOutputTokens,
+            totalEstimatedCost: aggregate.totalEstimatedCost,
+            perProvider: aggregate.perProvider,
           },
         });
       },

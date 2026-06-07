@@ -37,6 +37,7 @@ const { mockCallProxy, mockState, mockStore, mockSettings } = vi.hoisted(() => {
     activeProviderId: "openai",
     providers: { openai: { apiKey: "sk-test" } },
     pinnedProviderIds: [],
+    rag: { enabled: false, providerId: "openai" },
   };
 
   const mockStore = {

@@ -35,7 +35,14 @@ import { ModelPicker } from "@/components/cockpit/ModelPicker";
 import { ShortcutHelp } from "@/components/cockpit/ShortcutHelp";
 import { StatusBar } from "@/components/cockpit/StatusBar";
 import { ThreadOverflowMenu as ExtractedThreadOverflowMenu } from "@/components/cockpit/ThreadOverflowMenu";
-import { useStore, store, PROVIDERS, resolveProvider, type Message } from "@/lib/cockpit-store";
+import {
+  useStore,
+  store,
+  PROVIDERS,
+  resolveProvider,
+  syncThreadToServer,
+  type Message,
+} from "@/lib/cockpit-store";
 import { useChat } from "@/hooks/use-chat";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { transcribeAudioViaProxy } from "@/lib/providers";
@@ -100,6 +107,7 @@ export function Cockpit() {
     regenerate,
     regenerateFrom,
     editMessage,
+    executeTool,
     retry,
     isOnline,
     queueSize,
@@ -547,6 +555,14 @@ export function Cockpit() {
             onRegenerate={regenerate}
             onRegenerateFrom={regenerateFrom}
             onEditMessage={editMessage}
+            onDeleteMessage={(messageId) => {
+              const activeId = store.getState().activeThreadId;
+              if (activeId) {
+                store.deleteMessage(activeId, messageId);
+                void syncThreadToServer(activeId);
+              }
+            }}
+            onExecuteTool={executeTool}
             onRetry={retry}
             error={error}
             isCoolingDown={isCoolingDown}

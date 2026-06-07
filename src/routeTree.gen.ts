@@ -25,6 +25,7 @@ import { Route as ApiThreadsImportRouteImport } from './routes/api/threads.impor
 import { Route as ApiThreadsIdRouteImport } from './routes/api/threads.$id'
 import { Route as ApiProxyTranscribeRouteImport } from './routes/api/proxy/transcribe'
 import { Route as ApiProxyModelsRouteImport } from './routes/api/proxy/models'
+import { Route as ApiProxyEmbeddingsRouteImport } from './routes/api/proxy/embeddings'
 import { Route as ApiProxyDetectRouteImport } from './routes/api/proxy/detect'
 import { Route as ApiProxyChatRouteImport } from './routes/api/proxy/chat'
 import { Route as ApiKeysValidateRouteImport } from './routes/api/keys/validate'
@@ -116,6 +117,11 @@ const ApiProxyModelsRoute = ApiProxyModelsRouteImport.update({
   path: '/api/proxy/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProxyEmbeddingsRoute = ApiProxyEmbeddingsRouteImport.update({
+  id: '/api/proxy/embeddings',
+  path: '/api/proxy/embeddings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProxyDetectRoute = ApiProxyDetectRouteImport.update({
   id: '/api/proxy/detect',
   path: '/api/proxy/detect',
@@ -186,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/api/keys/validate': typeof ApiKeysValidateRouteWithChildren
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/embeddings': typeof ApiProxyEmbeddingsRoute
   '/api/proxy/models': typeof ApiProxyModelsRoute
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
@@ -214,6 +221,7 @@ export interface FileRoutesByTo {
   '/api/keys/validate': typeof ApiKeysValidateRouteWithChildren
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/embeddings': typeof ApiProxyEmbeddingsRoute
   '/api/proxy/models': typeof ApiProxyModelsRoute
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
@@ -243,6 +251,7 @@ export interface FileRoutesById {
   '/api/keys/validate': typeof ApiKeysValidateRouteWithChildren
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/embeddings': typeof ApiProxyEmbeddingsRoute
   '/api/proxy/models': typeof ApiProxyModelsRoute
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/api/keys/validate'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/embeddings'
     | '/api/proxy/models'
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
@@ -301,6 +311,7 @@ export interface FileRouteTypes {
     | '/api/keys/validate'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/embeddings'
     | '/api/proxy/models'
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
@@ -329,6 +340,7 @@ export interface FileRouteTypes {
     | '/api/keys/validate'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/embeddings'
     | '/api/proxy/models'
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
@@ -358,6 +370,7 @@ export interface RootRouteChildren {
   ApiKeysValidateRoute: typeof ApiKeysValidateRouteWithChildren
   ApiProxyChatRoute: typeof ApiProxyChatRoute
   ApiProxyDetectRoute: typeof ApiProxyDetectRoute
+  ApiProxyEmbeddingsRoute: typeof ApiProxyEmbeddingsRoute
   ApiProxyModelsRoute: typeof ApiProxyModelsRoute
   ApiProxyTranscribeRoute: typeof ApiProxyTranscribeRoute
 }
@@ -474,6 +487,13 @@ declare module '@tanstack/react-router' {
       path: '/api/proxy/models'
       fullPath: '/api/proxy/models'
       preLoaderRoute: typeof ApiProxyModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/proxy/embeddings': {
+      id: '/api/proxy/embeddings'
+      path: '/api/proxy/embeddings'
+      fullPath: '/api/proxy/embeddings'
+      preLoaderRoute: typeof ApiProxyEmbeddingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/proxy/detect': {
@@ -621,6 +641,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiKeysValidateRoute: ApiKeysValidateRouteWithChildren,
   ApiProxyChatRoute: ApiProxyChatRoute,
   ApiProxyDetectRoute: ApiProxyDetectRoute,
+  ApiProxyEmbeddingsRoute: ApiProxyEmbeddingsRoute,
   ApiProxyModelsRoute: ApiProxyModelsRoute,
   ApiProxyTranscribeRoute: ApiProxyTranscribeRoute,
 }

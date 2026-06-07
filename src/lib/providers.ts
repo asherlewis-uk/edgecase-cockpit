@@ -345,7 +345,7 @@ export function getProvider(id: string | undefined | null): ProviderDef {
 export type Model = { id: string; label?: string };
 
 export type ChatMessage = {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string | unknown;
   attachments?: string[];
 };
@@ -359,6 +359,7 @@ export type ProviderCallOpts = {
   signal?: AbortSignal;
   onDelta?: (chunk: string) => void;
   stream?: boolean;
+  tools?: { name: string; description: string; parameters?: unknown }[];
 };
 
 export class ProviderError extends Error {
@@ -400,12 +401,41 @@ function normalizeMessages(messages: ChatMessage[]): unknown[] {
   });
 }
 
+function toOpenAIToolPayload(
+  tools: { name: string; description: string; parameters?: unknown }[],
+): unknown[] {
+  return tools.map((t) => ({
+    type: "function",
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters ?? { type: "object" },
+    },
+  }));
+}
+
+function toAnthropicToolPayload(
+  tools: { name: string; description: string; parameters?: unknown }[],
+): unknown[] {
+  return tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.parameters ?? { type: "object" },
+  }));
+}
+
 function buildBody(
   p: ProviderDef,
   model: string,
   messages: ChatMessage[],
   stream: boolean,
+  tools?: { name: string; description: string; parameters?: unknown }[],
 ): string {
+  const toolPayload = tools?.length
+    ? p.bodyStyle === "anthropic"
+      ? { tools: toAnthropicToolPayload(tools) }
+      : { tools: toOpenAIToolPayload(tools) }
+    : {};
   if (p.bodyStyle === "anthropic") {
     const sys = messages
       .filter((m) => m.role === "system")
@@ -420,6 +450,7 @@ function buildBody(
       ...(sys ? { system: sys } : {}),
       messages: msgs,
       stream,
+      ...toolPayload,
     });
   }
   // gemini openai-compat & openai default
@@ -427,6 +458,7 @@ function buildBody(
     model,
     messages: normalizeMessages(messages),
     stream,
+    ...toolPayload,
   });
 }
 
@@ -460,7 +492,7 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
   const stream = !!onDelta && (opts.stream ?? true);
   const url = baseUrl.replace(/\/+$/, "") + provider.chatPath;
   const headers = buildHeaders(provider, apiKey);
-  const body = buildBody(provider, model, messages, stream);
+  const body = buildBody(provider, model, messages, stream, opts.tools);
 
   const res = await fetch(url, { method: "POST", headers, body, signal });
 
@@ -526,13 +558,15 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
 /** Best-effort ping for local providers. */
 export type DetectResult = { ok: boolean; status?: number; error?: string };
 
+import { csrfHeaders } from "@/lib/cockpit-store";
+
 /** Server-side reachability probe via the same-origin proxy route. */
 export async function detectProvider(p: ProviderDef): Promise<DetectResult> {
   if (!p.detectUrl) return { ok: false, error: "No detect URL" };
   try {
     const res = await fetch("/api/proxy/detect", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
       body: JSON.stringify({ url: p.detectUrl }),
     });
     if (!res.ok) return { ok: false, error: `Proxy ${res.status}` };
@@ -551,7 +585,12 @@ export async function transcribeAudioViaProxy(
   const fd = new FormData();
   fd.append("providerId", providerId);
   fd.append("file", blob, "speech.webm");
-  const res = await fetch("/api/proxy/transcribe", { method: "POST", body: fd, signal });
+  const res = await fetch("/api/proxy/transcribe", {
+    method: "POST",
+    headers: csrfHeaders(),
+    body: fd,
+    signal,
+  });
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`Transcription failed (${res.status}): ${txt.slice(0, 200)}`);
@@ -564,18 +603,19 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
   text: string;
   raw: unknown;
 }> {
-  const { provider, baseUrl, model, messages, signal, onDelta } = opts;
+  const { provider, baseUrl, model, messages, signal, onDelta, tools } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
 
   const res = await fetch("/api/proxy/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({
       providerId: provider.id,
       baseUrlOverride: baseUrl,
       model,
       messages,
       stream,
+      tools,
     }),
     signal,
   });

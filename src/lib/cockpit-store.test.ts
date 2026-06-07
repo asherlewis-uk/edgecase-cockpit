@@ -7,6 +7,8 @@ import {
   defaultPersonalization,
   resolveProvider,
   bumpProviderStat,
+  recordTokenUsage,
+  syncThreadToServer,
   getProviderStats,
   store,
 } from "@/lib/cockpit-store";
@@ -509,5 +511,66 @@ describe("bumpProviderStat", () => {
     const stats = getProviderStats();
     expect(stats.openai).toEqual({ calls: 1, errors: 0 });
     expect(stats.anthropic).toEqual({ calls: 0, errors: 1 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// recordTokenUsage
+// ---------------------------------------------------------------------------
+describe("recordTokenUsage", () => {
+  it("records input and output tokens for a provider", () => {
+    recordTokenUsage("openai", 100, 50);
+    const stats = getProviderStats();
+    expect(stats.openai).toEqual({ calls: 0, errors: 0, inputTokens: 100, outputTokens: 50 });
+  });
+
+  it("accumulates tokens across multiple records", () => {
+    recordTokenUsage("openai", 100, 50);
+    recordTokenUsage("openai", 200, 100);
+    const stats = getProviderStats();
+    expect(stats.openai).toEqual({ calls: 0, errors: 0, inputTokens: 300, outputTokens: 150 });
+  });
+
+  it("tracks tokens independently per provider", () => {
+    recordTokenUsage("openai", 100, 50);
+    recordTokenUsage("anthropic", 300, 150);
+    const stats = getProviderStats();
+    expect(stats.openai).toEqual({ calls: 0, errors: 0, inputTokens: 100, outputTokens: 50 });
+    expect(stats.anthropic).toEqual({ calls: 0, errors: 0, inputTokens: 300, outputTokens: 150 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// syncThreadToServer
+// ---------------------------------------------------------------------------
+describe("syncThreadToServer", () => {
+  it("sends a PATCH request with thread messages", async () => {
+    const threadId = store.newThread();
+    store.addMessage(threadId, { id: "msg-1", role: "user", content: "Hello", ts: 1 });
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockClear();
+    await syncThreadToServer(threadId);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const call = fetchMock.mock.calls[0];
+    expect(call[0]).toBe(`/api/threads/${threadId}`);
+    expect(call[1]).toMatchObject({ method: "PATCH" });
+    const body = JSON.parse(call[1]!.body as string);
+    expect(body.messages).toHaveLength(1);
+    expect(body.messages[0].content).toBe("Hello");
+  });
+
+  it("does not sync temporary threads", async () => {
+    const threadId = store.newThread({ temporary: true });
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockClear();
+    await syncThreadToServer(threadId);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("swallows network errors gracefully", async () => {
+    const threadId = store.newThread();
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockRejectedValueOnce(new Error("network down"));
+    await expect(syncThreadToServer(threadId)).resolves.toBeUndefined();
   });
 });

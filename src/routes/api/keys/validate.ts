@@ -3,11 +3,15 @@ import { getCockpitSession } from "@/lib/session.server";
 import { PROVIDERS } from "@/lib/providers";
 import { validateProviderKey } from "@/lib/validate-key.server";
 import { keysRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
+import { validateCsrfToken } from "@/lib/csrf.server";
 
 export const Route = createFileRoute("/api/keys/validate")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const csrfCheck = validateCsrfToken(request);
+        if (csrfCheck !== true) return csrfCheck;
+
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
         const rl = keysRateLimit(sessionId);

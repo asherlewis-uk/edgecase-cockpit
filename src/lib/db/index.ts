@@ -240,19 +240,31 @@ interface StatRow {
   provider_id: string;
   calls: number;
   errors: number;
+  input_tokens: number;
+  output_tokens: number;
 }
 
 export async function getProviderStats(
   sessionId: string,
-): Promise<Record<string, { calls: number; errors: number }>> {
+): Promise<
+  Record<string, { calls: number; errors: number; inputTokens: number; outputTokens: number }>
+> {
   const db = getDB();
   const result = await db
     .prepare("SELECT * FROM provider_stats WHERE session_id = ?1")
     .bind(sessionId)
     .all();
-  const stats: Record<string, { calls: number; errors: number }> = {};
+  const stats: Record<
+    string,
+    { calls: number; errors: number; inputTokens: number; outputTokens: number }
+  > = {};
   for (const row of result.results as unknown as StatRow[]) {
-    stats[row.provider_id] = { calls: row.calls, errors: row.errors };
+    stats[row.provider_id] = {
+      calls: row.calls,
+      errors: row.errors,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+    };
   }
   return stats;
 }
@@ -261,19 +273,118 @@ export async function upsertProviderStat(
   sessionId: string,
   providerId: string,
   kind: "call" | "error",
+  inputTokens?: number,
+  outputTokens?: number,
 ): Promise<void> {
   const db = getDB();
   const column = kind === "call" ? "calls" : "errors";
+  const inputClause = typeof inputTokens === "number" ? ", input_tokens = input_tokens + ?" : "";
+  const outputClause =
+    typeof outputTokens === "number" ? ", output_tokens = output_tokens + ?" : "";
+  const params: unknown[] = [sessionId, providerId];
+  if (typeof inputTokens === "number") params.push(inputTokens);
+  if (typeof outputTokens === "number") params.push(outputTokens);
   await db
     .prepare(
-      `INSERT INTO provider_stats (session_id, provider_id, calls, errors) VALUES (?1, ?2, 0, 0)
-       ON CONFLICT(session_id, provider_id) DO UPDATE SET ${column} = ${column} + 1`,
+      `INSERT INTO provider_stats (session_id, provider_id, calls, errors, input_tokens, output_tokens) VALUES (?1, ?2, 0, 0, 0, 0)
+       ON CONFLICT(session_id, provider_id) DO UPDATE SET ${column} = ${column} + 1${inputClause}${outputClause}`,
     )
-    .bind(sessionId, providerId)
+    .bind(...params)
     .run();
 }
 
 export async function resetProviderStats(sessionId: string): Promise<void> {
   const db = getDB();
   await db.prepare("DELETE FROM provider_stats WHERE session_id = ?1").bind(sessionId).run();
+}
+
+export async function createUsageRecord(record: {
+  id: string;
+  sessionId: string;
+  providerId: string;
+  model?: string;
+  threadId?: string;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCost: number;
+  createdAt: number;
+}): Promise<void> {
+  const db = getDB();
+  await db
+    .prepare(
+      "INSERT INTO usage_records (id, session_id, provider_id, model, thread_id, input_tokens, output_tokens, estimated_cost, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+    )
+    .bind(
+      record.id,
+      record.sessionId,
+      record.providerId,
+      record.model ?? null,
+      record.threadId ?? null,
+      record.inputTokens,
+      record.outputTokens,
+      record.estimatedCost,
+      record.createdAt,
+    )
+    .run();
+}
+
+export async function getUsageForThread(
+  sessionId: string,
+  threadId: string,
+): Promise<{ inputTokens: number; outputTokens: number; estimatedCost: number; count: number }> {
+  const db = getDB();
+  const result = await db
+    .prepare(
+      "SELECT SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, SUM(estimated_cost) as estimated_cost, COUNT(*) as cnt FROM usage_records WHERE session_id = ?1 AND thread_id = ?2",
+    )
+    .bind(sessionId, threadId)
+    .first<{
+      input_tokens: number | null;
+      output_tokens: number | null;
+      estimated_cost: number | null;
+      cnt: number | null;
+    }>();
+  return {
+    inputTokens: result?.input_tokens ?? 0,
+    outputTokens: result?.output_tokens ?? 0,
+    estimatedCost: result?.estimated_cost ?? 0,
+    count: result?.cnt ?? 0,
+  };
+}
+
+export async function getAggregateUsage(sessionId: string): Promise<{
+  totalCalls: number;
+  totalErrors: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalEstimatedCost: number;
+  perProvider: Record<
+    string,
+    { calls: number; errors: number; inputTokens: number; outputTokens: number }
+  >;
+}> {
+  const providerStats = await getProviderStats(sessionId);
+  let totalCalls = 0;
+  let totalErrors = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  for (const stat of Object.values(providerStats)) {
+    totalCalls += stat.calls;
+    totalErrors += stat.errors;
+    totalInputTokens += stat.inputTokens;
+    totalOutputTokens += stat.outputTokens;
+  }
+  const db = getDB();
+  const costResult = await db
+    .prepare("SELECT SUM(estimated_cost) as total FROM usage_records WHERE session_id = ?1")
+    .bind(sessionId)
+    .first<{ total: number | null }>();
+  return {
+    totalCalls,
+    totalErrors,
+    totalInputTokens,
+    totalOutputTokens,
+    totalEstimatedCost: costResult?.total ?? 0,
+    perProvider: providerStats,
+  };
 }

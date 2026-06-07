@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, Loader2, Check } from "lucide-react";
-import { store, useStore, resolveProvider, PROVIDERS } from "@/lib/cockpit-store";
+import { store, useStore, resolveProvider, PROVIDERS, csrfHeaders } from "@/lib/cockpit-store";
 import type { ProviderDef } from "@/lib/providers";
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ type ModelInfo = { id: string; label?: string; name?: string };
 
 async function fetchModels(): Promise<Record<string, ModelInfo[]>> {
   try {
-    const res = await fetch("/api/proxy/models");
+    const res = await fetch("/api/proxy/models", { headers: csrfHeaders() });
     if (!res.ok) return {};
     const json = (await res.json()) as { models: Record<string, ModelInfo[]> };
     return json.models ?? {};
