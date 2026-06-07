@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getCockpitSession } from "@/lib/session.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
-import { sessionRateLimiter } from "@/lib/proxy-guard.server";
+import { sessionRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 import { createSession } from "@/lib/db";
 
 export const Route = createFileRoute("/api/session")({
@@ -11,9 +11,9 @@ export const Route = createFileRoute("/api/session")({
         const csrfCheck = validateCsrfToken(request);
         if (csrfCheck !== true) return csrfCheck;
 
-        const rl = sessionRateLimiter("session:global");
+        const rl = sessionRateLimit("session:global");
         if (!rl.ok) {
-          return Response.json({ error: "Rate limited" }, { status: 429 });
+          return rateLimitResponse(rl.retryAfter);
         }
 
         const session = await getCockpitSession();

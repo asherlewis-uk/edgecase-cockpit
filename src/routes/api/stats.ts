@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getCockpitSession } from "@/lib/session.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
-import { statsRateLimiter } from "@/lib/proxy-guard.server";
+import { statsRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 import {
   getProviderStats as dbGetProviderStats,
   upsertProviderStat,
@@ -36,9 +36,9 @@ export const Route = createFileRoute("/api/stats")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = statsRateLimiter(`stats:${session.data.id}`);
+        const rl = statsRateLimit(`stats:${session.data.id}`);
         if (!rl.ok) {
-          return Response.json({ error: "Rate limited" }, { status: 429 });
+          return rateLimitResponse(rl.retryAfter);
         }
 
         let raw: unknown;
@@ -66,9 +66,9 @@ export const Route = createFileRoute("/api/stats")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = statsRateLimiter(`stats:${session.data.id}`);
+        const rl = statsRateLimit(`stats:${session.data.id}`);
         if (!rl.ok) {
-          return Response.json({ error: "Rate limited" }, { status: 429 });
+          return rateLimitResponse(rl.retryAfter);
         }
         await dbResetProviderStats(session.data.id);
         return Response.json({ ok: true });

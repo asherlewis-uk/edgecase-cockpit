@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getCockpitSession } from "@/lib/session.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
-import { threadRateLimiter } from "@/lib/proxy-guard.server";
+import { threadsRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 import { updateThread, deleteThread, getThread } from "@/lib/db";
 import type { Thread } from "@/lib/cockpit-store";
 import {
@@ -69,9 +69,9 @@ export const Route = createFileRoute("/api/threads/$id")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = threadRateLimiter(`threads:${session.data.id}`);
+        const rl = threadsRateLimit(session.data.id);
         if (!rl.ok) {
-          return Response.json({ error: "Rate limited" }, { status: 429 });
+          return rateLimitResponse(rl.retryAfter);
         }
 
         const id = params.id;
@@ -133,9 +133,9 @@ export const Route = createFileRoute("/api/threads/$id")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = threadRateLimiter(`threads:${session.data.id}`);
+        const rl = threadsRateLimit(session.data.id);
         if (!rl.ok) {
-          return Response.json({ error: "Rate limited" }, { status: 429 });
+          return rateLimitResponse(rl.retryAfter);
         }
 
         const id = params.id;

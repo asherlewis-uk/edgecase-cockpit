@@ -6,6 +6,9 @@ import {
   keysRateLimit,
   usageRateLimit,
   healthRateLimit,
+  threadsRateLimit,
+  sessionRateLimit,
+  statsRateLimit,
 } from "@/lib/rate-limit.server";
 
 describe("rate-limit.server", () => {
@@ -72,5 +75,29 @@ describe("rate-limit.server", () => {
       expect(healthRateLimit(clientId).ok).toBe(true);
     }
     expect(healthRateLimit(clientId).ok).toBe(false);
+  });
+
+  it("threadsRateLimit allows 60 requests per minute", () => {
+    const sessionId = "session-threads";
+    for (let i = 0; i < 60; i++) {
+      expect(threadsRateLimit(sessionId).ok).toBe(true);
+    }
+    expect(threadsRateLimit(sessionId).ok).toBe(false);
+  });
+
+  it("sessionRateLimit allows 30 requests per minute", () => {
+    expect(sessionRateLimit("session:global").ok).toBe(true);
+    for (let i = 1; i < 30; i++) {
+      expect(sessionRateLimit("session:global").ok).toBe(true);
+    }
+    expect(sessionRateLimit("session:global").ok).toBe(false);
+  });
+
+  it("statsRateLimit allows 60 requests per minute", () => {
+    const key = "stats:session-1";
+    for (let i = 0; i < 60; i++) {
+      expect(statsRateLimit(key).ok).toBe(true);
+    }
+    expect(statsRateLimit(key).ok).toBe(false);
   });
 });

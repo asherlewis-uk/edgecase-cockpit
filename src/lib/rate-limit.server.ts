@@ -80,3 +80,18 @@ export function usageRateLimit(sessionId: string): RateLimitResult {
 export function healthRateLimit(clientId: string): RateLimitResult {
   return checkRateLimit({ key: `health:${clientId}`, limit: 120, windowMs: 60_000 });
 }
+
+/** For thread mutation routes (create/update/delete/import/fork/pin). */
+export function threadsRateLimit(sessionId: string): RateLimitResult {
+  return checkRateLimit({ key: `threads:${sessionId}`, limit: 60, windowMs: 60_000 });
+}
+
+/** For session bootstrap. */
+export function sessionRateLimit(key: string): RateLimitResult {
+  return checkRateLimit({ key, limit: 30, windowMs: 60_000 });
+}
+
+/** For provider stats mutation. */
+export function statsRateLimit(key: string): RateLimitResult {
+  return checkRateLimit({ key, limit: 60, windowMs: 60_000 });
+}
