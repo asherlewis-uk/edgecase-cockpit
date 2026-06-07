@@ -1,7 +1,18 @@
 import { useState } from "react";
-import { ChevronDown, AlertCircle, RefreshCw, Copy, Trash2, Pencil, Check, X } from "lucide-react";
+import {
+  ChevronDown,
+  AlertCircle,
+  RefreshCw,
+  Copy,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+  Wrench,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Message } from "@/lib/cockpit-store";
+import type { ToolCall } from "@/lib/tools";
 import { MarkdownContent } from "./MarkdownContent";
 
 export function PulsingDot() {
@@ -13,6 +24,51 @@ export function PulsingDot() {
   );
 }
 
+function ToolCallCard({
+  call,
+  onExecute,
+}: {
+  call: ToolCall;
+  onExecute: (call: ToolCall) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  let args: string;
+  try {
+    const parsed = JSON.parse(call.arguments);
+    args = JSON.stringify(parsed, null, 2);
+  } catch {
+    args = call.arguments;
+  }
+
+  return (
+    <div className="my-2 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+      <div className="flex items-center gap-2 text-sm text-white/80">
+        <Wrench className="size-4 text-amber-300" />
+        <span className="font-medium">{call.name}</span>
+      </div>
+      {expanded && (
+        <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-black/30 p-2 text-xs text-white/70">
+          {args}
+        </pre>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={() => onExecute(call)}
+          className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-500/30"
+        >
+          <Check className="size-3" /> Execute
+        </button>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="rounded-full bg-white/[0.06] px-3 py-1 text-xs text-white/50 hover:bg-white/[0.12]"
+        >
+          {expanded ? "Hide args" : "Show args"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function MessageRow({
   m,
   streaming,
@@ -20,6 +76,7 @@ export function MessageRow({
   onRegenerateFrom,
   onDelete,
   onEdit,
+  onExecuteTool,
   showTimestamp,
 }: {
   m: Message;
@@ -28,6 +85,7 @@ export function MessageRow({
   onRegenerateFrom: () => void;
   onDelete: () => void;
   onEdit: (newContent: string) => void;
+  onExecuteTool?: (call: ToolCall) => void;
   showTimestamp: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -57,6 +115,21 @@ export function MessageRow({
     if (e.key === "Escape") {
       handleCancelEdit();
     }
+  }
+
+  if (m.role === "tool") {
+    return (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-white/40">
+          <Wrench className="size-3" />
+          <span>tool result</span>
+          {relativeTime && <span className="text-white/30">{relativeTime}</span>}
+        </div>
+        <div className="max-w-[92%] rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/80">
+          <MarkdownContent content={m.content} />
+        </div>
+      </div>
+    );
   }
 
   if (m.role === "user") {
@@ -203,6 +276,13 @@ export function MessageRow({
           )}
           {m.pending && m.content && (
             <span className="ml-1 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-white/80 align-middle" />
+          )}
+          {m.toolCalls && m.toolCalls.length > 0 && onExecuteTool && (
+            <div className="mt-2">
+              {m.toolCalls.map((call) => (
+                <ToolCallCard key={call.id} call={call} onExecute={onExecuteTool} />
+              ))}
+            </div>
           )}
           {!m.error && m.content && !m.pending && (
             <span className="inline-flex items-center gap-1 opacity-0 transition group-hover:opacity-100">

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getCockpitSession } from "@/lib/session.server";
 import { rateLimit, urlAllowedAnyProvider } from "@/lib/proxy-guard.server";
+import { validateCsrfToken } from "@/lib/csrf.server";
 
 // Server-side reachability probe. The browser can't reliably ping localhost
 // (mixed-content + CORS) or arbitrary cloud hosts. This runs from the server
@@ -14,6 +15,9 @@ export const Route = createFileRoute("/api/proxy/detect")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const csrfCheck = validateCsrfToken(request);
+        if (csrfCheck !== true) return csrfCheck;
+
         const session = await getCockpitSession();
         const rl = rateLimit(`detect:${session.data.id ?? "anon"}`);
         if (!rl.ok) {

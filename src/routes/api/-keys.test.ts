@@ -24,15 +24,20 @@ vi.mock("@/lib/providers", async () => {
   };
 });
 
-import { getCockpitSession, setProviderCreds } from "@/lib/session.server";
+import {
+  getCockpitSession,
+  setProviderCreds,
+  clearProviderCreds,
+  getProviderCreds,
+} from "@/lib/session.server";
 import { clearRateLimitBuckets } from "@/lib/rate-limit.server";
 
 beforeEach(() => {
   clearRateLimitBuckets();
 });
 
-// CSRF token for test requests (must match cookie and header)
-const CSRF_TOKEN = "test-csrf-token";
+// CSRF token for test requests (must be 64 hex chars to match validation)
+const CSRF_TOKEN = "aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233";
 const CSRF_HEADERS = {
   "Content-Type": "application/json",
   "X-CSRF-Token": CSRF_TOKEN,
@@ -59,6 +64,34 @@ describe("POST /api/keys/set", () => {
     const mod = await import("@/routes/api/keys/set");
     // Extract the POST handler from the TanStack Start route definition
     handler = (mod.Route.options as any).server.handlers.POST;
+  });
+
+  it("returns 403 for missing CSRF token", async () => {
+    const req = new Request("http://localhost/api/keys/set", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "openai", apiKey: "sk-test" }),
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Missing CSRF token");
+  });
+
+  it("returns 403 for invalid CSRF token", async () => {
+    const req = new Request("http://localhost/api/keys/set", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": "bad-token",
+        Cookie: "csrf-token=other-token",
+      },
+      body: JSON.stringify({ providerId: "openai", apiKey: "sk-test" }),
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Invalid CSRF token");
   });
 
   it("returns 400 for missing request body", async () => {
@@ -165,6 +198,165 @@ describe("POST /api/keys/set", () => {
     });
     const res = await handler({ request: req });
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Route handler: POST /api/keys/clear
+// ---------------------------------------------------------------------------
+describe("POST /api/keys/clear", () => {
+  let handler: (ctx: { request: Request }) => Promise<Response>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(getCockpitSession).mockResolvedValue({
+      data: { id: "test-session" },
+      update: vi.fn(),
+    } as any);
+    const mod = await import("@/routes/api/keys/clear");
+    handler = (mod.Route.options as any).server.handlers.POST;
+  });
+
+  it("returns 403 for missing CSRF token", async () => {
+    const req = new Request("http://localhost/api/keys/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "openai" }),
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Missing CSRF token");
+  });
+
+  it("returns 403 for invalid CSRF token", async () => {
+    const req = new Request("http://localhost/api/keys/clear", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": "bad",
+        Cookie: "csrf-token=other",
+      },
+      body: JSON.stringify({ providerId: "openai" }),
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Invalid CSRF token");
+  });
+
+  it("clears all keys when no providerId given", async () => {
+    const req = new Request("http://localhost/api/keys/clear", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({}),
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(200);
+    expect(clearProviderCreds).toHaveBeenCalledWith(undefined);
+  });
+
+  it("clears a specific provider key", async () => {
+    const req = new Request("http://localhost/api/keys/clear", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({ providerId: "openai" }),
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(200);
+    expect(clearProviderCreds).toHaveBeenCalledWith("openai");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Route handler: POST /api/keys/validate
+// ---------------------------------------------------------------------------
+describe("POST /api/keys/validate", () => {
+  let handler: (ctx: { request: Request }) => Promise<Response>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(getCockpitSession).mockResolvedValue({
+      data: { id: "test-session", providers: {} },
+      update: vi.fn(),
+    } as any);
+    const mod = await import("@/routes/api/keys/validate");
+    handler = (mod.Route.options as any).server.handlers.POST;
+  });
+
+  it("returns 403 for missing CSRF token", async () => {
+    const req = new Request("http://localhost/api/keys/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Missing CSRF token");
+  });
+
+  it("returns empty results when no providers stored", async () => {
+    const req = new Request("http://localhost/api/keys/validate", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.results).toEqual({});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Route handler: POST /api/keys/validate/$providerId
+// ---------------------------------------------------------------------------
+describe("POST /api/keys/validate/$providerId", () => {
+  let handler: (ctx: { params: { providerId: string }; request: Request }) => Promise<Response>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(getCockpitSession).mockResolvedValue({
+      data: { id: "test-session" },
+      update: vi.fn(),
+    } as any);
+    vi.mocked(getProviderCreds).mockResolvedValue({ apiKey: "sk-test" } as any);
+    const mod = await import("@/routes/api/keys/validate.$providerId");
+    handler = (mod.Route.options as any).server.handlers.POST;
+  });
+
+  it("returns 403 for missing CSRF token", async () => {
+    const req = new Request("http://localhost/api/keys/validate/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await handler({ params: { providerId: "openai" }, request: req });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Missing CSRF token");
+  });
+
+  it("returns 400 for unknown provider", async () => {
+    const req = new Request("http://localhost/api/keys/validate/unknown", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+    });
+    const res = await handler({ params: { providerId: "unknown" }, request: req });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toBe("unknown_provider");
+  });
+
+  it("returns valid:false for missing key", async () => {
+    vi.mocked(getProviderCreds).mockResolvedValue(null as any);
+    const req = new Request("http://localhost/api/keys/validate/openai", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+    });
+    const res = await handler({ params: { providerId: "openai" }, request: req });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(false);
+    expect(body.reason).toBe("no_key");
   });
 });
 

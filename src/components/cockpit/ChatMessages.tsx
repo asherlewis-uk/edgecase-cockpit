@@ -1,8 +1,9 @@
 import { type RefObject } from "react";
 import { AlertCircle, Clock, RefreshCw } from "lucide-react";
 import type { Message } from "@/lib/cockpit-store";
-import { store } from "@/lib/cockpit-store";
 import { MessageRow } from "@/components/cockpit/MessageRow";
+
+import type { ToolCall } from "@/lib/tools";
 
 export function ChatMessages({
   messages,
@@ -11,6 +12,8 @@ export function ChatMessages({
   onRegenerate,
   onRegenerateFrom,
   onEditMessage,
+  onDeleteMessage,
+  onExecuteTool,
   onRetry,
   error,
   isCoolingDown,
@@ -22,6 +25,8 @@ export function ChatMessages({
   onRegenerate: () => void;
   onRegenerateFrom: (messageId: string) => void;
   onEditMessage: (messageId: string, newContent: string) => void;
+  onDeleteMessage: (messageId: string) => void;
+  onExecuteTool?: (messageId: string, call: ToolCall) => void;
   onRetry: () => void;
   error: string | null;
   isCoolingDown: boolean;
@@ -40,15 +45,14 @@ export function ChatMessages({
               streaming={isStreaming}
               onRegenerate={onRegenerate}
               onRegenerateFrom={() => onRegenerateFrom(m.id)}
-              onDelete={() => {
-                const activeId = store.getState().activeThreadId;
-                if (activeId) store.deleteMessage(activeId, m.id);
-              }}
+              onDelete={() => onDeleteMessage(m.id)}
               onEdit={(newContent) => onEditMessage(m.id, newContent)}
+              onExecuteTool={(call) => onExecuteTool?.(m.id, call)}
               showTimestamp={showTimestamp}
             />
           );
         })}
+        ;;
         {error && (
           <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
             {isCoolingDown ? <Clock className="size-4" /> : <AlertCircle className="size-4" />}

@@ -28,8 +28,28 @@ CREATE TABLE IF NOT EXISTS provider_stats (
   provider_id TEXT NOT NULL,
   calls INTEGER NOT NULL DEFAULT 0,
   errors INTEGER NOT NULL DEFAULT 0,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(session_id, provider_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_provider_stats_session
   ON provider_stats(session_id);
+
+CREATE TABLE IF NOT EXISTS usage_records (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  model TEXT,
+  thread_id TEXT,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated_cost REAL NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_session
+  ON usage_records(session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_usage_thread
+  ON usage_records(session_id, thread_id);

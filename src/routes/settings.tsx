@@ -10,6 +10,7 @@ import {
   Trash2,
   Upload,
   RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -128,6 +129,8 @@ function SettingsPage() {
             ))}
           </div>
         </Section>
+
+        <RagSection />
 
         <ExtractedUsageSection />
 
@@ -821,5 +824,72 @@ function ProviderCard({
         </Button>
       </div>
     </div>
+  );
+}
+
+function RagSection() {
+  const settings = useStore((s) => s.settings);
+  const rag = settings.rag;
+  const embeddingProviders = PROVIDERS.filter((p) => p.supports.embeddings && p.embeddingsPath);
+
+  return (
+    <Section title="Retrieval (RAG)">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">Enable retrieval</p>
+            <p className="text-xs text-white/50">
+              Embed messages and retrieve relevant past context for each prompt.
+            </p>
+          </div>
+          <Switch
+            checked={rag.enabled}
+            onCheckedChange={(checked) =>
+              store.updateSettings({ rag: { ...rag, enabled: checked } })
+            }
+          />
+        </div>
+
+        {rag.enabled && (
+          <>
+            <div className="grid gap-2">
+              <Label className="text-xs text-white/60">Embedding provider</Label>
+              <Select
+                value={rag.providerId}
+                onValueChange={(id) => store.updateSettings({ rag: { ...rag, providerId: id } })}
+              >
+                <SelectTrigger className="h-9 border-white/10 bg-white/5 text-sm text-white">
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent className="border-white/10 bg-zinc-950 text-white">
+                  {embeddingProviders.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="focus:bg-white/10">
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-xs text-white/60">Model override (optional)</Label>
+              <Input
+                value={rag.model ?? ""}
+                onChange={(e) =>
+                  store.updateSettings({ rag: { ...rag, model: e.target.value || undefined } })
+                }
+                placeholder={`Default model for ${embeddingProviders.find((p) => p.id === rag.providerId)?.name ?? "provider"}`}
+                className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-amber-300/80">
+              <AlertCircle className="size-3.5" />
+              <span>Retrieval sends message text to the selected embedding provider.</span>
+            </div>
+          </>
+        )}
+      </div>
+    </Section>
   );
 }

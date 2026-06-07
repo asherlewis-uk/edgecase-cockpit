@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PROVIDERS, type Model } from "@/lib/providers";
 import { getCockpitSession, getProviderCreds } from "@/lib/session.server";
 import { rateLimit, urlAllowedForProvider } from "@/lib/proxy-guard.server";
+import { validateCsrfToken } from "@/lib/csrf.server";
 
 async function fetchModels(
   provider: (typeof PROVIDERS)[number],
@@ -71,7 +72,13 @@ async function fetchModels(
 export const Route = createFileRoute("/api/proxy/models")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        // CSRF policy: GET is a safe method per RFC 9110, so validateCsrfToken
+        // returns true automatically. We call it explicitly to document the
+        // policy decision and keep route handlers consistent.
+        const csrfCheck = validateCsrfToken(request);
+        if (csrfCheck !== true) return csrfCheck;
+
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
         const rl = rateLimit(`models:${sessionId}`);

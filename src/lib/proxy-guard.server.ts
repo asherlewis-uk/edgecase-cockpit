@@ -30,6 +30,11 @@ export function rateLimit(
   return { ok: true };
 }
 
+/** Clear all proxy-guard rate-limit buckets. Exposed for tests. */
+export function clearProxyGuardBuckets(): void {
+  buckets.clear();
+}
+
 function matchHost(pattern: string, host: string): boolean {
   if (pattern === "*") return true;
   if (pattern === host) return true;

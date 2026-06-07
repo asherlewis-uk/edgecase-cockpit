@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { PROVIDERS, getProvider, type ProviderDef } from "@/lib/providers";
+import type { ToolCall, ToolResult } from "@/lib/tools";
 
 export type ProviderConfig = {
   apiKey: string;
@@ -39,12 +40,19 @@ export type KeyboardShortcuts = {
   forceCtrl: boolean;
 };
 
+export type RagSettings = {
+  enabled: boolean;
+  providerId: string;
+  model?: string;
+};
+
 export type Settings = {
   /** Legacy field retained for saved-settings migration compatibility. */
   userName: string;
   profile: UserProfile;
   personalization: Personalization;
   keyboardShortcuts: KeyboardShortcuts;
+  rag: RagSettings;
   activeProviderId: string;
   providers: Record<string, ProviderConfig>;
   pinnedProviderIds: string[];
@@ -52,7 +60,7 @@ export type Settings = {
 
 export type Message = {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
   providerId?: string;
   providerName?: string;
@@ -64,6 +72,8 @@ export type Message = {
   attachments?: string[];
   videoAttachments?: string[];
   assistantImages?: string[];
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
 };
 
 export type Thread = {
@@ -121,6 +131,39 @@ export function bumpProviderStat(id: string, kind: "call" | "error") {
   saveStats(s);
   statsListeners.forEach((l) => l());
 }
+export function recordTokenUsage(id: string, inputTokens: number, outputTokens: number) {
+  const s = loadStats();
+  const cur = s[id] ?? { calls: 0, errors: 0 };
+  cur.inputTokens = (cur.inputTokens ?? 0) + inputTokens;
+  cur.outputTokens = (cur.outputTokens ?? 0) + outputTokens;
+  s[id] = cur;
+  saveStats(s);
+  statsListeners.forEach((l) => l());
+}
+export async function syncTokenUsageToServer(
+  providerId: string,
+  inputTokens: number,
+  outputTokens: number,
+  model?: string,
+  threadId?: string,
+) {
+  try {
+    await fetch("/api/stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify({
+        providerId,
+        kind: "call",
+        inputTokens,
+        outputTokens,
+        model,
+        threadId,
+      }),
+    });
+  } catch {
+    /* ignore network errors; local stats are source of truth */
+  }
+}
 export function resetProviderStats() {
   saveStats({});
   statsListeners.forEach((l) => l());
@@ -166,11 +209,17 @@ export const defaultKeyboardShortcuts: KeyboardShortcuts = {
   forceCtrl: false,
 };
 
+export const defaultRagSettings: RagSettings = {
+  enabled: false,
+  providerId: "openai",
+};
+
 export const defaultSettings: Settings = {
   userName: defaultProfile.displayName,
   profile: defaultProfile,
   personalization: defaultPersonalization,
   keyboardShortcuts: defaultKeyboardShortcuts,
+  rag: defaultRagSettings,
   activeProviderId: "openai",
   providers: {},
   pinnedProviderIds: [],
@@ -284,6 +333,19 @@ function normalizeKeyboardShortcuts(raw: unknown): KeyboardShortcuts {
   };
 }
 
+function normalizeRagSettings(raw: unknown): RagSettings {
+  const source = isRecord(raw) ? raw : {};
+  const providerIdCandidate = optionalString(source.providerId);
+  return {
+    enabled: typeof source.enabled === "boolean" ? source.enabled : defaultRagSettings.enabled,
+    providerId:
+      providerIdCandidate && PROVIDERS.some((p) => p.id === providerIdCandidate)
+        ? providerIdCandidate
+        : defaultRagSettings.providerId,
+    model: optionalString(source.model),
+  };
+}
+
 function normalizeProviders(raw: unknown): Record<string, ProviderConfig> {
   if (!isRecord(raw)) return {};
   const providers: Record<string, ProviderConfig> = {};
@@ -318,6 +380,7 @@ export function normalizeSettings(raw: Partial<Settings> | unknown): Settings {
     profile,
     personalization: normalizePersonalization(source.personalization),
     keyboardShortcuts: normalizeKeyboardShortcuts(source.keyboardShortcuts),
+    rag: normalizeRagSettings(source.rag),
     activeProviderId,
     providers: normalizeProviders(source.providers),
     pinnedProviderIds: normalizePinnedProviderIds(source.pinnedProviderIds),
@@ -902,6 +965,25 @@ export function csrfHeaders(): Record<string, string> {
     .find((part) => part.startsWith("csrf-token="))
     ?.slice("csrf-token=".length);
   return token ? { "X-CSRF-Token": decodeURIComponent(token) } : {};
+}
+
+/** Sync a thread's current state to the server. Fire-and-forget; local state is source of truth. */
+export async function syncThreadToServer(threadId: string): Promise<void> {
+  if (typeof window === "undefined") return;
+  const thread = store.getState().threads.find((t) => t.id === threadId);
+  if (!thread || thread.temporary) return;
+  try {
+    await fetch(`/api/threads/${threadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify({
+        messages: thread.messages,
+        updatedAt: thread.updatedAt,
+      }),
+    });
+  } catch {
+    /* ignore network errors; local state is source of truth */
+  }
 }
 
 export { PROVIDERS };

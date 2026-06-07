@@ -5,6 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PROVIDERS } from "@/lib/providers";
 import { getCockpitSession, getProviderCreds } from "@/lib/session.server";
 import { rateLimit, urlAllowedForProvider } from "@/lib/proxy-guard.server";
+import { validateCsrfToken } from "@/lib/csrf.server";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
@@ -12,6 +13,9 @@ export const Route = createFileRoute("/api/proxy/transcribe")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const csrfCheck = validateCsrfToken(request);
+        if (csrfCheck !== true) return csrfCheck;
+
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
         const rl = rateLimit(`transcribe:${sessionId}`);
