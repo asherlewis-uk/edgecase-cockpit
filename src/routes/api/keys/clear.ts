@@ -1,10 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { clearProviderCreds } from "@/lib/session.server";
+import { getCockpitSession } from "@/lib/session.server";
+import { keysRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 
 export const Route = createFileRoute("/api/keys/clear")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const session = await getCockpitSession();
+        const sessionId = session.data.id ?? "anon";
+        const rl = keysRateLimit(sessionId);
+        if (!rl.ok) {
+          return rateLimitResponse(rl.retryAfter);
+        }
+
         let providerId: string | undefined;
         try {
           const body = (await request.json()) as { providerId?: string };

@@ -1,12 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getProviderCreds } from "@/lib/session.server";
+import { getProviderCreds, getCockpitSession } from "@/lib/session.server";
 import { PROVIDERS } from "@/lib/providers";
 import { validateProviderKey } from "@/lib/validate-key.server";
+import { keysRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 
 export const Route = createFileRoute("/api/keys/validate/$providerId")({
   server: {
     handlers: {
       POST: async ({ params }) => {
+        const session = await getCockpitSession();
+        const sessionId = session.data.id ?? "anon";
+        const rl = keysRateLimit(sessionId);
+        if (!rl.ok) {
+          return rateLimitResponse(rl.retryAfter);
+        }
+
         const providerId = params.providerId;
         const provider = PROVIDERS.find((p) => p.id === providerId);
         if (!provider) {

@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { setPlatformEnv } from "./lib/platform.server";
+import { withCspHeaders } from "./lib/csp.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -73,7 +74,25 @@ export default {
       setPlatformEnv(env);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+
+      // Only attach security headers to document/HTML responses.
+      // API routes manage their own headers; static assets are served by
+      // the platform and should not be modified here.
+      const contentType = normalized.headers.get("content-type") ?? "";
+      const isDocument =
+        contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
+      if (isDocument) {
+        const mode =
+          typeof env === "object" &&
+          env !== null &&
+          (env as Record<string, unknown>).NODE_ENV === "development"
+            ? "development"
+            : "production";
+        return withCspHeaders(normalized, mode);
+      }
+
+      return normalized;
     } catch (error) {
       console.error(error);
       return brandedErrorResponse();

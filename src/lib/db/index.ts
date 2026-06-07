@@ -74,6 +74,15 @@ export async function getThreads(sessionId: string): Promise<Thread[]> {
   return rows.map(rowToThread);
 }
 
+export async function getThreadCount(sessionId: string): Promise<number> {
+  const db = getDB();
+  const row = await db
+    .prepare("SELECT COUNT(*) as count FROM threads WHERE session_id = ?1")
+    .bind(sessionId)
+    .first<{ count: number }>();
+  return row?.count ?? 0;
+}
+
 export async function createThread(sessionId: string, thread: Thread): Promise<void> {
   const db = getDB();
   const sanitizedMessages = thread.messages.map((m) => sanitizeMessage(m));

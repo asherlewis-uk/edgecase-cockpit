@@ -3,8 +3,13 @@ import { z } from "zod";
 import { getCockpitSession } from "@/lib/session.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
 import { threadRateLimiter } from "@/lib/proxy-guard.server";
-import { createThread } from "@/lib/db";
+import { createThread, getThreadCount } from "@/lib/db";
 import type { Thread } from "@/lib/cockpit-store";
+import {
+  getStorageLimits,
+  validateImportPayload,
+  limitViolationResponse,
+} from "@/lib/storage-limits.server";
 
 const MessageSchema = z.object({
   id: z.string(),
@@ -65,10 +70,26 @@ export const Route = createFileRoute("/api/threads/import")({
           );
         }
 
+        const payloadViolation = validateImportPayload(parsed.data.threads);
+        if (payloadViolation) {
+          return limitViolationResponse(payloadViolation);
+        }
+
+        const limits = getStorageLimits();
+        const currentThreadCount = await getThreadCount(session.data.id);
+        const allowedToImport = Math.max(0, limits.maxThreadsPerSession - currentThreadCount);
+        if (allowedToImport === 0) {
+          return limitViolationResponse({
+            field: "threads",
+            limit: limits.maxThreadsPerSession,
+            actual: currentThreadCount + parsed.data.threads.length,
+          });
+        }
+
         const now = Date.now();
         let imported = 0;
 
-        for (const t of parsed.data.threads) {
+        for (const t of parsed.data.threads.slice(0, allowedToImport)) {
           const thread: Thread = {
             id: crypto.randomUUID(),
             title: t.title,

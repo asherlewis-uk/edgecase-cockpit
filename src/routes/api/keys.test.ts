@@ -25,6 +25,11 @@ vi.mock("@/lib/providers", async () => {
 });
 
 import { getCockpitSession, setProviderCreds } from "@/lib/session.server";
+import { clearRateLimitBuckets } from "@/lib/rate-limit.server";
+
+beforeEach(() => {
+  clearRateLimitBuckets();
+});
 
 // CSRF token for test requests (must match cookie and header)
 const CSRF_TOKEN = "test-csrf-token";
@@ -46,6 +51,10 @@ describe("POST /api/keys/set", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.mocked(getCockpitSession).mockResolvedValue({
+      data: { id: "test-session" },
+      update: vi.fn(),
+    } as any);
     // Dynamically import to get the handler after mocks are set up
     const mod = await import("@/routes/api/keys/set");
     // Extract the POST handler from the TanStack Start route definition

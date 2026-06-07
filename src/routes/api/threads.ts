@@ -6,10 +6,17 @@ import { threadRateLimiter } from "@/lib/proxy-guard.server";
 import {
   createSession as dbCreateSession,
   getThreads as dbGetThreads,
+  getThreadCount,
   createThread as dbCreateThread,
   deleteThreads as dbDeleteThreads,
 } from "@/lib/db";
 import type { Thread } from "@/lib/cockpit-store";
+import {
+  getStorageLimits,
+  validateThreadTitle,
+  validateMessages,
+  limitViolationResponse,
+} from "@/lib/storage-limits.server";
 
 const CreateThreadBody = z.object({
   id: z.string().min(1),
@@ -83,6 +90,26 @@ export const Route = createFileRoute("/api/threads")({
             { error: "Invalid thread data", details: parsed.error.flatten() },
             { status: 400 },
           );
+        }
+
+        const titleViolation = validateThreadTitle(parsed.data.title);
+        if (titleViolation) {
+          return limitViolationResponse(titleViolation);
+        }
+
+        const messageViolation = validateMessages(parsed.data.messages);
+        if (messageViolation) {
+          return limitViolationResponse(messageViolation);
+        }
+
+        const limits = getStorageLimits();
+        const threadCount = await getThreadCount(session.data.id);
+        if (threadCount >= limits.maxThreadsPerSession) {
+          return limitViolationResponse({
+            field: "threads",
+            limit: limits.maxThreadsPerSession,
+            actual: threadCount + 1,
+          });
         }
 
         const thread: Thread = {

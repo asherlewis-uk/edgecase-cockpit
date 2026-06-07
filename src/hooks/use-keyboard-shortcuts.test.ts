@@ -24,7 +24,10 @@ describe("useKeyboardShortcuts", () => {
     vi.clearAllMocks();
   });
 
-  function fireKey(key: string, options?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) {
+  function fireKey(
+    key: string,
+    options?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean },
+  ) {
     const event = new KeyboardEvent("keydown", {
       key,
       bubbles: true,
