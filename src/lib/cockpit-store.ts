@@ -60,6 +60,9 @@ export type Thread = {
   messages: Message[];
   updatedAt: number;
   temporary?: boolean;
+  pinned?: boolean;
+  archived?: boolean;
+  color?: string;
 };
 
 function titleForFirstUserMessage(msg: Message) {
@@ -74,7 +77,12 @@ const SETTINGS_KEY = "cockpit.settings.v2";
 const THREADS_KEY = "cockpit.threads.v1";
 const STATS_KEY = "cockpit.provider-stats.v1";
 
-export type ProviderStat = { calls: number; errors: number };
+export type ProviderStat = {
+  calls: number;
+  errors: number;
+  inputTokens?: number;
+  outputTokens?: number;
+};
 type StatsMap = Record<string, ProviderStat>;
 
 function loadStats(): StatsMap {
@@ -460,6 +468,8 @@ export const store = {
       messages: [],
       updatedAt: Date.now(),
       temporary: opts?.temporary,
+      pinned: false,
+      archived: false,
     };
     state = {
       ...state,
@@ -490,11 +500,99 @@ export const store = {
     persist();
     emit();
   },
+  duplicateThread(id: string): string | null {
+    const source = state.threads.find((t) => t.id === id);
+    if (!source) return null;
+    const copy: Thread = {
+      ...source,
+      id: crypto.randomUUID(),
+      title: `Copy of ${source.title}`,
+      messages: source.messages.map((m) => ({ ...m })),
+      updatedAt: Date.now(),
+      temporary: false,
+      pinned: false,
+      archived: false,
+    };
+    state = {
+      ...state,
+      threads: [copy, ...state.threads],
+      activeThreadId: copy.id,
+    };
+    persist();
+    emit();
+    return copy.id;
+  },
+  pinThread(id: string) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, pinned: true } : t)),
+    };
+    persist();
+    emit();
+  },
+  unpinThread(id: string) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, pinned: false } : t)),
+    };
+    persist();
+    emit();
+  },
+  archiveThread(id: string) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, archived: true } : t)),
+      activeThreadId: state.activeThreadId === id ? null : state.activeThreadId,
+    };
+    persist();
+    emit();
+  },
+  unarchiveThread(id: string) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, archived: false } : t)),
+    };
+    persist();
+    emit();
+  },
+  setThreadColor(id: string, color: string) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) => (t.id === id ? { ...t, color } : t)),
+    };
+    persist();
+    emit();
+  },
+  reorderThreads(fromIndex: number, toIndex: number) {
+    const next = [...state.threads];
+    const [item] = next.splice(fromIndex, 1);
+    if (!item) return;
+    next.splice(toIndex, 0, item);
+    state = { ...state, threads: next };
+    persist();
+    emit();
+  },
   deleteThread(id: string) {
     state = {
       ...state,
       threads: state.threads.filter((t) => t.id !== id),
       activeThreadId: state.activeThreadId === id ? null : state.activeThreadId,
+    };
+    persist();
+    emit();
+  },
+  setThreadMessages(threadId: string, messages: Message[]) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) =>
+        t.id === threadId
+          ? {
+              ...t,
+              messages,
+              updatedAt: Date.now(),
+            }
+          : t,
+      ),
     };
     persist();
     emit();
@@ -519,6 +617,25 @@ export const store = {
     persist();
     emit();
   },
+  deleteMessage(threadId: string, id: string) {
+    state = {
+      ...state,
+      threads: state.threads.map((t) =>
+        t.id === threadId
+          ? {
+              ...t,
+              messages: t.messages.filter((m) => m.id !== id),
+              updatedAt: Date.now(),
+            }
+          : t,
+      ),
+    };
+    persist();
+    emit();
+  },
+  clearThreadMessages(threadId: string) {
+    this.setThreadMessages(threadId, []);
+  },
   patchMessage(threadId: string, id: string, patch: Partial<Message>) {
     state = {
       ...state,
@@ -533,6 +650,77 @@ export const store = {
     };
     persist();
     emit();
+  },
+  exportThread(id: string, format: "json" | "markdown" | "txt" = "json"): string | null {
+    const thread = state.threads.find((t) => t.id === id);
+    if (!thread) return null;
+    if (format === "json") return JSON.stringify({ thread }, null, 2);
+    if (format === "markdown") {
+      return [
+        `# ${thread.title}`,
+        "",
+        ...thread.messages.flatMap((m) => [`## ${m.role}`, "", m.content || "_no content_", ""]),
+      ].join("\n");
+    }
+    return thread.messages.map((m) => `${m.role.toUpperCase()}:\n${m.content}`).join("\n\n");
+  },
+  importThreads(threads: Thread[]) {
+    const now = Date.now();
+    const next = threads.map((t) => ({
+      ...t,
+      id: t.id || crypto.randomUUID(),
+      updatedAt: t.updatedAt || now,
+      pinned: !!t.pinned,
+      archived: !!t.archived,
+    }));
+    state = { ...state, threads: [...next, ...state.threads] };
+    persist();
+    emit();
+  },
+  mergeThreads(sourceId: string, targetId: string) {
+    const source = state.threads.find((t) => t.id === sourceId);
+    const target = state.threads.find((t) => t.id === targetId);
+    if (!source || !target || source.id === target.id) return;
+    const mergedMessages = [...target.messages, ...source.messages].sort((a, b) => a.ts - b.ts);
+    state = {
+      ...state,
+      threads: state.threads
+        .filter((t) => t.id !== sourceId)
+        .map((t) =>
+          t.id === targetId
+            ? {
+                ...t,
+                messages: mergedMessages,
+                updatedAt: Date.now(),
+              }
+            : t,
+        ),
+      activeThreadId: state.activeThreadId === sourceId ? targetId : state.activeThreadId,
+    };
+    persist();
+    emit();
+  },
+  searchThreads(query: string): Thread[] {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return state.threads;
+    return state.threads.filter(
+      (t) =>
+        t.title.toLowerCase().includes(needle) ||
+        t.messages.some((m) => m.content.toLowerCase().includes(needle)),
+    );
+  },
+  getTotalTokens(): number {
+    return state.threads.reduce(
+      (sum, t) =>
+        sum + t.messages.reduce((messageSum, m) => messageSum + Math.ceil(m.content.length / 4), 0),
+      0,
+    );
+  },
+  getThreadCount(): number {
+    return state.threads.length;
+  },
+  getMessageCount(): number {
+    return state.threads.reduce((sum, t) => sum + t.messages.length, 0);
   },
   clearAll() {
     state = {
@@ -619,6 +807,16 @@ export function isProviderReady(settings: Settings, id?: string): boolean {
 
 export function providerHasKey(id: string): boolean {
   return !!state.providerKeyStatus[id];
+}
+
+export function csrfHeaders(): Record<string, string> {
+  if (typeof document === "undefined") return {};
+  const token = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("csrf-token="))
+    ?.slice("csrf-token=".length);
+  return token ? { "X-CSRF-Token": decodeURIComponent(token) } : {};
 }
 
 export { PROVIDERS };

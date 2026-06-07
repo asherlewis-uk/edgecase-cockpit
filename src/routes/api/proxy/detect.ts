@@ -30,7 +30,10 @@ export const Route = createFileRoute("/api/proxy/detect")({
           return Response.json({ ok: false, error: "Bad url" }, { status: 400 });
         }
         if (!urlAllowedAnyProvider(url)) {
-          return Response.json({ ok: false, error: "Host not in any provider allowlist" }, { status: 400 });
+          return Response.json(
+            { ok: false, error: "Host not in any provider allowlist" },
+            { status: 400 },
+          );
         }
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 2000);

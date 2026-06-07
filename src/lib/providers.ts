@@ -400,9 +400,17 @@ function normalizeMessages(messages: ChatMessage[]): unknown[] {
   });
 }
 
-function buildBody(p: ProviderDef, model: string, messages: ChatMessage[], stream: boolean): string {
+function buildBody(
+  p: ProviderDef,
+  model: string,
+  messages: ChatMessage[],
+  stream: boolean,
+): string {
   if (p.bodyStyle === "anthropic") {
-    const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    const sys = messages
+      .filter((m) => m.role === "system")
+      .map((m) => m.content)
+      .join("\n");
     const msgs = messages
       .filter((m) => m.role !== "system")
       .map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : "" }));
@@ -436,7 +444,10 @@ function pickOpenAIDelta(j: unknown): string {
 function pickFinal(p: ProviderDef, raw: unknown): string {
   if (p.bodyStyle === "anthropic") {
     const o = raw as { content?: { type?: string; text?: string }[] };
-    return (o?.content ?? []).filter((b) => b?.type === "text").map((b) => b?.text ?? "").join("");
+    return (o?.content ?? [])
+      .filter((b) => b?.type === "text")
+      .map((b) => b?.text ?? "")
+      .join("");
   }
   return pickOpenAIDelta(raw) || "";
 }
@@ -472,9 +483,7 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
         try {
           const j = JSON.parse(payload);
           const delta =
-            provider.bodyStyle === "anthropic"
-              ? pickAnthropicDelta(j)
-              : pickOpenAIDelta(j);
+            provider.bodyStyle === "anthropic" ? pickAnthropicDelta(j) : pickOpenAIDelta(j);
           if (delta) {
             acc += delta;
             onDelta?.(delta);
@@ -574,14 +583,24 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
   if (!res.ok) {
     const text = await res.text();
     let parsed: unknown = text;
-    try { parsed = JSON.parse(text); } catch { /* keep */ }
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      /* keep */
+    }
     const ra = res.headers.get("retry-after");
     const retryAfter = ra ? Number(ra) : undefined;
     const errMsg =
       typeof parsed === "object" && parsed && "error" in parsed
         ? String((parsed as { error: unknown }).error)
-        : typeof parsed === "string" ? parsed : `HTTP ${res.status}`;
-    throw new ProviderError(`${provider.name} → ${res.status}: ${errMsg}`, res.status, Number.isFinite(retryAfter) ? retryAfter : undefined);
+        : typeof parsed === "string"
+          ? parsed
+          : `HTTP ${res.status}`;
+    throw new ProviderError(
+      `${provider.name} → ${res.status}: ${errMsg}`,
+      res.status,
+      Number.isFinite(retryAfter) ? retryAfter : undefined,
+    );
   }
 
   if (stream && res.body) {
@@ -604,8 +623,13 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
           const j = JSON.parse(payload);
           const delta =
             provider.bodyStyle === "anthropic" ? pickAnthropicDelta(j) : pickOpenAIDelta(j);
-          if (delta) { acc += delta; onDelta?.(delta); }
-        } catch { /* ignore partial */ }
+          if (delta) {
+            acc += delta;
+            onDelta?.(delta);
+          }
+        } catch {
+          /* ignore partial */
+        }
       }
     }
     return { text: acc, raw: acc };
@@ -613,7 +637,11 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
 
   const text = await res.text();
   let raw: unknown = text;
-  try { raw = JSON.parse(text); } catch { /* keep text */ }
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    /* keep text */
+  }
   const out = pickFinal(provider, raw);
   onDelta?.(out);
   return { text: out, raw };

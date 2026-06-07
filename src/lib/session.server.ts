@@ -1,6 +1,6 @@
 // Encrypted cookie session — keeps API keys server-side only.
 // Browser never sees plaintext keys after this layer is in place.
-import { useSession } from "@tanstack/react-start/server";
+import { useSession as startSession } from "@tanstack/react-start/server";
 
 export type SessionProviderCreds = {
   apiKey: string;
@@ -32,7 +32,7 @@ function config() {
 }
 
 export async function getCockpitSession() {
-  const s = await useSession<SessionData>(config());
+  const s = await startSession<SessionData>(config());
   if (!s.data.id) {
     await s.update({ ...s.data, id: crypto.randomUUID() });
   }

@@ -41,6 +41,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { PersonalizationSection as ExtractedPersonalizationSection } from "@/components/cockpit/settings/PersonalizationSection";
+import { ProfileSection as ExtractedProfileSection } from "@/components/cockpit/settings/ProfileSection";
+import { ProviderCard as ExtractedProviderCard } from "@/components/cockpit/settings/ProviderCard";
+import { UsageSection as ExtractedUsageSection } from "@/components/cockpit/settings/UsageSection";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -92,14 +96,14 @@ function SettingsPage() {
       </header>
 
       <div className="mx-auto max-w-3xl space-y-8 px-4 py-6">
-        <ProfileSection />
+        <ExtractedProfileSection />
 
-        <PersonalizationSection />
+        <ExtractedPersonalizationSection />
 
         <Section title="Cloud providers">
           <div className="grid gap-3 sm:grid-cols-2">
             {cloud.map((p) => (
-              <ProviderCard
+              <ExtractedProviderCard
                 key={p.id}
                 p={p}
                 isActive={p.id === active.provider.id}
@@ -112,7 +116,7 @@ function SettingsPage() {
         <Section title="Local / Self-hosted">
           <div className="grid gap-3 sm:grid-cols-2">
             {local.map((p) => (
-              <ProviderCard
+              <ExtractedProviderCard
                 key={p.id}
                 p={p}
                 isActive={p.id === active.provider.id}
@@ -123,7 +127,7 @@ function SettingsPage() {
           </div>
         </Section>
 
-        <UsageSection />
+        <ExtractedUsageSection />
 
         <Section title="Danger">
           <Button

@@ -15,12 +15,26 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImagesRouteImport } from './routes/images'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadIdRouteImport } from './routes/thread.$id'
+import { Route as ApiUsageRouteImport } from './routes/api/usage'
+import { Route as ApiThreadsRouteImport } from './routes/api/threads'
+import { Route as ApiStatsRouteImport } from './routes/api/stats'
+import { Route as ApiSessionRouteImport } from './routes/api/session'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiUsageThreadIdRouteImport } from './routes/api/usage.$threadId'
+import { Route as ApiThreadsImportRouteImport } from './routes/api/threads.import'
+import { Route as ApiThreadsIdRouteImport } from './routes/api/threads.$id'
 import { Route as ApiProxyTranscribeRouteImport } from './routes/api/proxy/transcribe'
+import { Route as ApiProxyModelsRouteImport } from './routes/api/proxy/models'
 import { Route as ApiProxyDetectRouteImport } from './routes/api/proxy/detect'
 import { Route as ApiProxyChatRouteImport } from './routes/api/proxy/chat'
+import { Route as ApiKeysValidateRouteImport } from './routes/api/keys/validate'
 import { Route as ApiKeysStatusRouteImport } from './routes/api/keys/status'
 import { Route as ApiKeysSetRouteImport } from './routes/api/keys/set'
 import { Route as ApiKeysClearRouteImport } from './routes/api/keys/clear'
+import { Route as ApiThreadsIdPinRouteImport } from './routes/api/threads.$id.pin'
+import { Route as ApiThreadsIdForkRouteImport } from './routes/api/threads.$id.fork'
+import { Route as ApiThreadsIdExportRouteImport } from './routes/api/threads.$id.export'
+import { Route as ApiKeysValidateProviderIdRouteImport } from './routes/api/keys/validate.$providerId'
 
 const VideosRoute = VideosRouteImport.update({
   id: '/videos',
@@ -52,9 +66,54 @@ const ThreadIdRoute = ThreadIdRouteImport.update({
   path: '/thread/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiUsageRoute = ApiUsageRouteImport.update({
+  id: '/api/usage',
+  path: '/api/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiThreadsRoute = ApiThreadsRouteImport.update({
+  id: '/api/threads',
+  path: '/api/threads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStatsRoute = ApiStatsRouteImport.update({
+  id: '/api/stats',
+  path: '/api/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSessionRoute = ApiSessionRouteImport.update({
+  id: '/api/session',
+  path: '/api/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiUsageThreadIdRoute = ApiUsageThreadIdRouteImport.update({
+  id: '/$threadId',
+  path: '/$threadId',
+  getParentRoute: () => ApiUsageRoute,
+} as any)
+const ApiThreadsImportRoute = ApiThreadsImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => ApiThreadsRoute,
+} as any)
+const ApiThreadsIdRoute = ApiThreadsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiThreadsRoute,
+} as any)
 const ApiProxyTranscribeRoute = ApiProxyTranscribeRouteImport.update({
   id: '/api/proxy/transcribe',
   path: '/api/proxy/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProxyModelsRoute = ApiProxyModelsRouteImport.update({
+  id: '/api/proxy/models',
+  path: '/api/proxy/models',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProxyDetectRoute = ApiProxyDetectRouteImport.update({
@@ -65,6 +124,11 @@ const ApiProxyDetectRoute = ApiProxyDetectRouteImport.update({
 const ApiProxyChatRoute = ApiProxyChatRouteImport.update({
   id: '/api/proxy/chat',
   path: '/api/proxy/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKeysValidateRoute = ApiKeysValidateRouteImport.update({
+  id: '/api/keys/validate',
+  path: '/api/keys/validate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiKeysStatusRoute = ApiKeysStatusRouteImport.update({
@@ -82,6 +146,27 @@ const ApiKeysClearRoute = ApiKeysClearRouteImport.update({
   path: '/api/keys/clear',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiThreadsIdPinRoute = ApiThreadsIdPinRouteImport.update({
+  id: '/pin',
+  path: '/pin',
+  getParentRoute: () => ApiThreadsIdRoute,
+} as any)
+const ApiThreadsIdForkRoute = ApiThreadsIdForkRouteImport.update({
+  id: '/fork',
+  path: '/fork',
+  getParentRoute: () => ApiThreadsIdRoute,
+} as any)
+const ApiThreadsIdExportRoute = ApiThreadsIdExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => ApiThreadsIdRoute,
+} as any)
+const ApiKeysValidateProviderIdRoute =
+  ApiKeysValidateProviderIdRouteImport.update({
+    id: '/$providerId',
+    path: '/$providerId',
+    getParentRoute: () => ApiKeysValidateRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,13 +174,27 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/session': typeof ApiSessionRoute
+  '/api/stats': typeof ApiStatsRoute
+  '/api/threads': typeof ApiThreadsRouteWithChildren
+  '/api/usage': typeof ApiUsageRouteWithChildren
   '/thread/$id': typeof ThreadIdRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
   '/api/keys/status': typeof ApiKeysStatusRoute
+  '/api/keys/validate': typeof ApiKeysValidateRouteWithChildren
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/models': typeof ApiProxyModelsRoute
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
+  '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
+  '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
+  '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
+  '/api/threads/$id/export': typeof ApiThreadsIdExportRoute
+  '/api/threads/$id/fork': typeof ApiThreadsIdForkRoute
+  '/api/threads/$id/pin': typeof ApiThreadsIdPinRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -103,13 +202,27 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/session': typeof ApiSessionRoute
+  '/api/stats': typeof ApiStatsRoute
+  '/api/threads': typeof ApiThreadsRouteWithChildren
+  '/api/usage': typeof ApiUsageRouteWithChildren
   '/thread/$id': typeof ThreadIdRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
   '/api/keys/status': typeof ApiKeysStatusRoute
+  '/api/keys/validate': typeof ApiKeysValidateRouteWithChildren
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/models': typeof ApiProxyModelsRoute
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
+  '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
+  '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
+  '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
+  '/api/threads/$id/export': typeof ApiThreadsIdExportRoute
+  '/api/threads/$id/fork': typeof ApiThreadsIdForkRoute
+  '/api/threads/$id/pin': typeof ApiThreadsIdPinRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -118,13 +231,27 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/session': typeof ApiSessionRoute
+  '/api/stats': typeof ApiStatsRoute
+  '/api/threads': typeof ApiThreadsRouteWithChildren
+  '/api/usage': typeof ApiUsageRouteWithChildren
   '/thread/$id': typeof ThreadIdRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
   '/api/keys/status': typeof ApiKeysStatusRoute
+  '/api/keys/validate': typeof ApiKeysValidateRouteWithChildren
   '/api/proxy/chat': typeof ApiProxyChatRoute
   '/api/proxy/detect': typeof ApiProxyDetectRoute
+  '/api/proxy/models': typeof ApiProxyModelsRoute
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
+  '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
+  '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
+  '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
+  '/api/threads/$id/export': typeof ApiThreadsIdExportRoute
+  '/api/threads/$id/fork': typeof ApiThreadsIdForkRoute
+  '/api/threads/$id/pin': typeof ApiThreadsIdPinRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -134,13 +261,27 @@ export interface FileRouteTypes {
     | '/library'
     | '/settings'
     | '/videos'
+    | '/api/health'
+    | '/api/session'
+    | '/api/stats'
+    | '/api/threads'
+    | '/api/usage'
     | '/thread/$id'
     | '/api/keys/clear'
     | '/api/keys/set'
     | '/api/keys/status'
+    | '/api/keys/validate'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/models'
     | '/api/proxy/transcribe'
+    | '/api/threads/$id'
+    | '/api/threads/import'
+    | '/api/usage/$threadId'
+    | '/api/keys/validate/$providerId'
+    | '/api/threads/$id/export'
+    | '/api/threads/$id/fork'
+    | '/api/threads/$id/pin'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -148,13 +289,27 @@ export interface FileRouteTypes {
     | '/library'
     | '/settings'
     | '/videos'
+    | '/api/health'
+    | '/api/session'
+    | '/api/stats'
+    | '/api/threads'
+    | '/api/usage'
     | '/thread/$id'
     | '/api/keys/clear'
     | '/api/keys/set'
     | '/api/keys/status'
+    | '/api/keys/validate'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/models'
     | '/api/proxy/transcribe'
+    | '/api/threads/$id'
+    | '/api/threads/import'
+    | '/api/usage/$threadId'
+    | '/api/keys/validate/$providerId'
+    | '/api/threads/$id/export'
+    | '/api/threads/$id/fork'
+    | '/api/threads/$id/pin'
   id:
     | '__root__'
     | '/'
@@ -162,13 +317,27 @@ export interface FileRouteTypes {
     | '/library'
     | '/settings'
     | '/videos'
+    | '/api/health'
+    | '/api/session'
+    | '/api/stats'
+    | '/api/threads'
+    | '/api/usage'
     | '/thread/$id'
     | '/api/keys/clear'
     | '/api/keys/set'
     | '/api/keys/status'
+    | '/api/keys/validate'
     | '/api/proxy/chat'
     | '/api/proxy/detect'
+    | '/api/proxy/models'
     | '/api/proxy/transcribe'
+    | '/api/threads/$id'
+    | '/api/threads/import'
+    | '/api/usage/$threadId'
+    | '/api/keys/validate/$providerId'
+    | '/api/threads/$id/export'
+    | '/api/threads/$id/fork'
+    | '/api/threads/$id/pin'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -177,12 +346,19 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   SettingsRoute: typeof SettingsRoute
   VideosRoute: typeof VideosRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiSessionRoute: typeof ApiSessionRoute
+  ApiStatsRoute: typeof ApiStatsRoute
+  ApiThreadsRoute: typeof ApiThreadsRouteWithChildren
+  ApiUsageRoute: typeof ApiUsageRouteWithChildren
   ThreadIdRoute: typeof ThreadIdRoute
   ApiKeysClearRoute: typeof ApiKeysClearRoute
   ApiKeysSetRoute: typeof ApiKeysSetRoute
   ApiKeysStatusRoute: typeof ApiKeysStatusRoute
+  ApiKeysValidateRoute: typeof ApiKeysValidateRouteWithChildren
   ApiProxyChatRoute: typeof ApiProxyChatRoute
   ApiProxyDetectRoute: typeof ApiProxyDetectRoute
+  ApiProxyModelsRoute: typeof ApiProxyModelsRoute
   ApiProxyTranscribeRoute: typeof ApiProxyTranscribeRoute
 }
 
@@ -230,11 +406,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/usage': {
+      id: '/api/usage'
+      path: '/api/usage'
+      fullPath: '/api/usage'
+      preLoaderRoute: typeof ApiUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/threads': {
+      id: '/api/threads'
+      path: '/api/threads'
+      fullPath: '/api/threads'
+      preLoaderRoute: typeof ApiThreadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stats': {
+      id: '/api/stats'
+      path: '/api/stats'
+      fullPath: '/api/stats'
+      preLoaderRoute: typeof ApiStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/session': {
+      id: '/api/session'
+      path: '/api/session'
+      fullPath: '/api/session'
+      preLoaderRoute: typeof ApiSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/usage/$threadId': {
+      id: '/api/usage/$threadId'
+      path: '/$threadId'
+      fullPath: '/api/usage/$threadId'
+      preLoaderRoute: typeof ApiUsageThreadIdRouteImport
+      parentRoute: typeof ApiUsageRoute
+    }
+    '/api/threads/import': {
+      id: '/api/threads/import'
+      path: '/import'
+      fullPath: '/api/threads/import'
+      preLoaderRoute: typeof ApiThreadsImportRouteImport
+      parentRoute: typeof ApiThreadsRoute
+    }
+    '/api/threads/$id': {
+      id: '/api/threads/$id'
+      path: '/$id'
+      fullPath: '/api/threads/$id'
+      preLoaderRoute: typeof ApiThreadsIdRouteImport
+      parentRoute: typeof ApiThreadsRoute
+    }
     '/api/proxy/transcribe': {
       id: '/api/proxy/transcribe'
       path: '/api/proxy/transcribe'
       fullPath: '/api/proxy/transcribe'
       preLoaderRoute: typeof ApiProxyTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/proxy/models': {
+      id: '/api/proxy/models'
+      path: '/api/proxy/models'
+      fullPath: '/api/proxy/models'
+      preLoaderRoute: typeof ApiProxyModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/proxy/detect': {
@@ -249,6 +488,13 @@ declare module '@tanstack/react-router' {
       path: '/api/proxy/chat'
       fullPath: '/api/proxy/chat'
       preLoaderRoute: typeof ApiProxyChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/keys/validate': {
+      id: '/api/keys/validate'
+      path: '/api/keys/validate'
+      fullPath: '/api/keys/validate'
+      preLoaderRoute: typeof ApiKeysValidateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/keys/status': {
@@ -272,8 +518,90 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKeysClearRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/threads/$id/pin': {
+      id: '/api/threads/$id/pin'
+      path: '/pin'
+      fullPath: '/api/threads/$id/pin'
+      preLoaderRoute: typeof ApiThreadsIdPinRouteImport
+      parentRoute: typeof ApiThreadsIdRoute
+    }
+    '/api/threads/$id/fork': {
+      id: '/api/threads/$id/fork'
+      path: '/fork'
+      fullPath: '/api/threads/$id/fork'
+      preLoaderRoute: typeof ApiThreadsIdForkRouteImport
+      parentRoute: typeof ApiThreadsIdRoute
+    }
+    '/api/threads/$id/export': {
+      id: '/api/threads/$id/export'
+      path: '/export'
+      fullPath: '/api/threads/$id/export'
+      preLoaderRoute: typeof ApiThreadsIdExportRouteImport
+      parentRoute: typeof ApiThreadsIdRoute
+    }
+    '/api/keys/validate/$providerId': {
+      id: '/api/keys/validate/$providerId'
+      path: '/$providerId'
+      fullPath: '/api/keys/validate/$providerId'
+      preLoaderRoute: typeof ApiKeysValidateProviderIdRouteImport
+      parentRoute: typeof ApiKeysValidateRoute
+    }
   }
 }
+
+interface ApiThreadsIdRouteChildren {
+  ApiThreadsIdExportRoute: typeof ApiThreadsIdExportRoute
+  ApiThreadsIdForkRoute: typeof ApiThreadsIdForkRoute
+  ApiThreadsIdPinRoute: typeof ApiThreadsIdPinRoute
+}
+
+const ApiThreadsIdRouteChildren: ApiThreadsIdRouteChildren = {
+  ApiThreadsIdExportRoute: ApiThreadsIdExportRoute,
+  ApiThreadsIdForkRoute: ApiThreadsIdForkRoute,
+  ApiThreadsIdPinRoute: ApiThreadsIdPinRoute,
+}
+
+const ApiThreadsIdRouteWithChildren = ApiThreadsIdRoute._addFileChildren(
+  ApiThreadsIdRouteChildren,
+)
+
+interface ApiThreadsRouteChildren {
+  ApiThreadsIdRoute: typeof ApiThreadsIdRouteWithChildren
+  ApiThreadsImportRoute: typeof ApiThreadsImportRoute
+}
+
+const ApiThreadsRouteChildren: ApiThreadsRouteChildren = {
+  ApiThreadsIdRoute: ApiThreadsIdRouteWithChildren,
+  ApiThreadsImportRoute: ApiThreadsImportRoute,
+}
+
+const ApiThreadsRouteWithChildren = ApiThreadsRoute._addFileChildren(
+  ApiThreadsRouteChildren,
+)
+
+interface ApiUsageRouteChildren {
+  ApiUsageThreadIdRoute: typeof ApiUsageThreadIdRoute
+}
+
+const ApiUsageRouteChildren: ApiUsageRouteChildren = {
+  ApiUsageThreadIdRoute: ApiUsageThreadIdRoute,
+}
+
+const ApiUsageRouteWithChildren = ApiUsageRoute._addFileChildren(
+  ApiUsageRouteChildren,
+)
+
+interface ApiKeysValidateRouteChildren {
+  ApiKeysValidateProviderIdRoute: typeof ApiKeysValidateProviderIdRoute
+}
+
+const ApiKeysValidateRouteChildren: ApiKeysValidateRouteChildren = {
+  ApiKeysValidateProviderIdRoute: ApiKeysValidateProviderIdRoute,
+}
+
+const ApiKeysValidateRouteWithChildren = ApiKeysValidateRoute._addFileChildren(
+  ApiKeysValidateRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -281,12 +609,19 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   SettingsRoute: SettingsRoute,
   VideosRoute: VideosRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiSessionRoute: ApiSessionRoute,
+  ApiStatsRoute: ApiStatsRoute,
+  ApiThreadsRoute: ApiThreadsRouteWithChildren,
+  ApiUsageRoute: ApiUsageRouteWithChildren,
   ThreadIdRoute: ThreadIdRoute,
   ApiKeysClearRoute: ApiKeysClearRoute,
   ApiKeysSetRoute: ApiKeysSetRoute,
   ApiKeysStatusRoute: ApiKeysStatusRoute,
+  ApiKeysValidateRoute: ApiKeysValidateRouteWithChildren,
   ApiProxyChatRoute: ApiProxyChatRoute,
   ApiProxyDetectRoute: ApiProxyDetectRoute,
+  ApiProxyModelsRoute: ApiProxyModelsRoute,
   ApiProxyTranscribeRoute: ApiProxyTranscribeRoute,
 }
 export const routeTree = rootRouteImport

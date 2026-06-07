@@ -8,6 +8,36 @@ import {
   type Settings,
 } from "@/lib/cockpit-store";
 import { callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
+import { retryWithBackoff } from "@/lib/retry";
+
+// ── Offline queue localStorage persistence ──────────────────────────────────
+const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";
+
+function loadOfflineQueue(): PromptDraft[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as PromptDraft[];
+  } catch {
+    /* ignore corrupt data */
+  }
+  return [];
+}
+
+function saveOfflineQueue(queue: PromptDraft[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (queue.length === 0) {
+      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    } else {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    }
+  } catch {
+    /* quota exceeded or unavailable */
+  }
+}
 
 function extractImageUrls(text: string): string[] {
   if (!text) return [];
@@ -73,17 +103,21 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
   const activeId = useStore((s) => s.activeThreadId);
   const active = threads.find((t) => t.id === activeId) || null;
   const messages: Message[] = active?.messages ?? [];
+  const initialQueueRef = useRef<PromptDraft[] | null>(null);
+  if (initialQueueRef.current === null) initialQueueRef.current = loadOfflineQueue();
 
   const [status, setStatus] = useState<"idle" | "streaming" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownNow, setCooldownNow] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
-  const [queueSize, setQueueSize] = useState(0);
-  const queueRef = useRef<PromptDraft[]>([]);
+  const [queueSize, setQueueSize] = useState(() => initialQueueRef.current?.length ?? 0);
+  const queueRef = useRef<PromptDraft[]>(initialQueueRef.current ?? []);
   const abortRef = useRef<AbortController | null>(null);
   const lastPromptRef = useRef<PromptDraft | null>(null);
   const backoffRef = useRef(0);
+  const lastErrorRef = useRef<{ message: string; count: number } | null>(null);
+  const fiveXxBackoffRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -91,6 +125,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     const on = () => {
       setIsOnline(true);
       const q = queueRef.current.splice(0);
+      saveOfflineQueue(queueRef.current);
       setQueueSize(0);
       (async () => {
         for (const item of q) {
@@ -158,22 +193,26 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       let acc = "";
       try {
         bumpProviderStat(provider.id, "call");
-        const res = await callProviderChatViaProxy({
-          provider,
-          apiKey,
-          baseUrl,
-          model,
-          messages: history,
-          signal: controller.signal,
-          stream: true,
-          onDelta: (chunk: string) => {
-            acc += chunk;
-            store.patchMessage(threadId, placeholderId, {
-              content: acc,
-              pending: true,
-            });
-          },
-        });
+        const res = await retryWithBackoff(
+          () =>
+            callProviderChatViaProxy({
+              provider,
+              apiKey,
+              baseUrl,
+              model,
+              messages: history,
+              signal: controller.signal,
+              stream: true,
+              onDelta: (chunk: string) => {
+                acc += chunk;
+                store.patchMessage(threadId, placeholderId, {
+                  content: acc,
+                  pending: true,
+                });
+              },
+            }),
+          { maxRetries: 3 },
+        );
         const finalText = (res.text || acc || "").trim();
         const assistantImages = extractImageUrls(finalText);
         store.patchMessage(threadId, placeholderId, {
@@ -209,12 +248,23 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         } else if (typeof navigator !== "undefined" && !navigator.onLine) {
           if (lastPromptRef.current) {
             queueRef.current.push(lastPromptRef.current);
+            saveOfflineQueue(queueRef.current);
             setQueueSize(queueRef.current.length);
           }
           setError("Offline — queued for retry");
           setStatus("error");
         } else {
-          setError(msg);
+          // ── Error deduplication ──
+          const dedupKey = msg;
+          if (lastErrorRef.current && lastErrorRef.current.message === dedupKey) {
+            lastErrorRef.current.count++;
+            if (lastErrorRef.current.count >= 3) {
+              setError(`Error occurred (x${lastErrorRef.current.count})`);
+            }
+          } else {
+            lastErrorRef.current = { message: dedupKey, count: 1 };
+            setError(msg);
+          }
           setStatus("error");
         }
       } finally {
@@ -251,6 +301,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       lastPromptRef.current = { text: storedContent, imageAttachments, videoAttachments };
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         queueRef.current.push({ text: storedContent, imageAttachments, videoAttachments });
+        saveOfflineQueue(queueRef.current);
         setQueueSize(queueRef.current.length);
         setError("Offline — queued for retry");
         setStatus("error");
@@ -288,6 +339,54 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     await runAssistant(threadId, lastUser.content);
   }, [runAssistant]);
 
+  const regenerateFrom = useCallback(
+    async (messageId: string) => {
+      const threadId = store.getState().activeThreadId;
+      if (!threadId) return;
+      const t = store.getState().threads.find((x) => x.id === threadId);
+      if (!t) return;
+      const selectedIndex = t.messages.findIndex((m) => m.id === messageId);
+      if (selectedIndex < 0) return;
+      const promptIndex =
+        t.messages[selectedIndex].role === "user"
+          ? selectedIndex
+          : [...t.messages.slice(0, selectedIndex)].reverse().findIndex((m) => m.role === "user");
+      const userIndex =
+        t.messages[selectedIndex].role === "user"
+          ? promptIndex
+          : promptIndex < 0
+            ? -1
+            : selectedIndex - promptIndex - 1;
+      if (userIndex < 0) return;
+      const prompt = t.messages[userIndex];
+      store.setThreadMessages(threadId, t.messages.slice(0, userIndex + 1));
+      await runAssistant(threadId, prompt.content);
+    },
+    [runAssistant],
+  );
+
+  const editMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      const threadId = store.getState().activeThreadId;
+      if (!threadId) return;
+      const t = store.getState().threads.find((x) => x.id === threadId);
+      if (!t) return;
+      const idx = t.messages.findIndex((m) => m.id === messageId && m.role === "user");
+      if (idx < 0) return;
+      const now = Date.now();
+      const edited = {
+        ...t.messages[idx],
+        content: newContent,
+        ts: now,
+        timestamp: now,
+      };
+      store.setThreadMessages(threadId, [...t.messages.slice(0, idx), edited]);
+      lastPromptRef.current = { text: newContent };
+      await runAssistant(threadId, newContent);
+    },
+    [runAssistant],
+  );
+
   const retry = useCallback(async () => {
     if (lastPromptRef.current) {
       setError(null);
@@ -307,6 +406,8 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     sendMessage,
     stop,
     regenerate,
+    regenerateFrom,
+    editMessage,
     retry,
     isOnline,
     queueSize,

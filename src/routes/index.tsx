@@ -26,8 +26,18 @@ import {
 } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
 import { Drawer } from "@/components/cockpit/Drawer";
+import { ChatInput } from "@/components/cockpit/ChatInput";
+import { ChatMessages } from "@/components/cockpit/ChatMessages";
+import { CockpitErrorBoundary } from "@/components/cockpit/CockpitErrorBoundary";
+import { CommandPalette } from "@/components/cockpit/CommandPalette";
+import { Greeting } from "@/components/cockpit/Greeting";
+import { ModelPicker } from "@/components/cockpit/ModelPicker";
+import { ShortcutHelp } from "@/components/cockpit/ShortcutHelp";
+import { StatusBar } from "@/components/cockpit/StatusBar";
+import { ThreadOverflowMenu as ExtractedThreadOverflowMenu } from "@/components/cockpit/ThreadOverflowMenu";
 import { useStore, store, PROVIDERS, resolveProvider, type Message } from "@/lib/cockpit-store";
 import { useChat } from "@/hooks/use-chat";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { transcribeAudioViaProxy } from "@/lib/providers";
 import {
   DropdownMenu,
@@ -88,6 +98,8 @@ export function Cockpit() {
     sendMessage,
     stop,
     regenerate,
+    regenerateFrom,
+    editMessage,
     retry,
     isOnline,
     queueSize,
@@ -100,6 +112,25 @@ export function Cockpit() {
       });
       navigate({ to: "/settings" });
     },
+  });
+  const {
+    commandPaletteOpen,
+    setCommandPaletteOpen,
+    shortcutHelpOpen,
+    setShortcutHelpOpen,
+    displayMod,
+  } = useKeyboardShortcuts({
+    onNewThread: () => {
+      store.selectThread(null);
+      setTemporary(false);
+    },
+    onSendMessage: () => {
+      void handleSend();
+    },
+    onStopGeneration: stop,
+    onCloseDrawer: () => setDrawerOpen(false),
+    isStreaming,
+    drawerOpen,
   });
 
   useEffect(() => {
@@ -368,361 +399,208 @@ export function Cockpit() {
           <p className="text-sm text-white/80">Choose a screen or window to attach</p>
         </div>
       )}
-      {(!isOnline || queueSize > 0) && (
-        <div className="relative z-20 mx-3 mt-2 flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-100">
-          <WifiOff className="size-3.5" />
-          <span>
-            {isOnline ? "Back online" : "You're offline"}
-            {queueSize > 0 && ` — ${queueSize} queued`}
-          </span>
-        </div>
-      )}
+      <CockpitErrorBoundary>
+        <StatusBar isOnline={isOnline} queueSize={queueSize} />
 
-      <header className="relative z-10 flex items-center justify-between px-3 pt-3">
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="relative grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
-          aria-label="Open menu"
-        >
-          <Menu className="size-5 text-white/90" strokeWidth={1.8} />
-          <span
-            className="absolute right-2.5 top-2.5 size-1.5 rounded-full"
-            style={{
-              backgroundColor: `hsl(var(--cockpit-hue) 95% 65%)`,
-              boxShadow: `0 0 8px hsl(var(--cockpit-hue) 95% 65% / 0.8)`,
-              animation: reduceMotion
-                ? "none"
-                : `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite, cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
-            }}
-          />
-        </button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-2 text-[15px] backdrop-blur transition hover:bg-white/[0.08]">
-              <span
-                className={`grid size-6 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${provider.accent}`}
-              >
-                {provider.badge}
-              </span>
-              <span className="font-medium text-white">{provider.name}</span>
-              <ChevronDown className="size-4 text-white/70" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-72 border-white/10 bg-zinc-950 text-white">
-            <DropdownMenuLabel className="text-xs uppercase tracking-wider text-white/40">
-              Cloud
-            </DropdownMenuLabel>
-            {cloudProviders.map((p) => (
-              <ProviderRow
-                key={p.id}
-                p={p}
-                active={p.id === provider.id}
-                onSelect={() => store.setActiveProvider(p.id)}
-              />
-            ))}
-            <DropdownMenuSeparator className="bg-white/10" />
-            <DropdownMenuLabel className="text-xs uppercase tracking-wider text-white/40">
-              Local
-            </DropdownMenuLabel>
-            {localProviders.map((p) => (
-              <ProviderRow
-                key={p.id}
-                p={p}
-                active={p.id === provider.id}
-                onSelect={() => store.setActiveProvider(p.id)}
-              />
-            ))}
-            <DropdownMenuSeparator className="bg-white/10" />
-            <DropdownMenuItem
-              onClick={() => navigate({ to: "/settings" })}
-              className="focus:bg-white/10"
-            >
-              <span className="text-xs text-white/70">Manage providers…</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className="flex items-center gap-2">
+        <header className="relative z-10 flex items-center justify-between px-3 pt-3">
           <button
-            onClick={captureScreenshot}
-            className={`grid size-11 place-items-center rounded-full transition ${visualSurface.button}`}
-            aria-label="Capture screenshot"
-            disabled={!canCaptureScreenshots || screenshotMode}
-            title={
-              canCaptureScreenshots
-                ? "Capture screenshot"
-                : provider.supports.vision
-                  ? "Screenshot capture is not available in this browser"
-                  : `${provider.name} does not support image review`
-            }
+            onClick={() => setDrawerOpen(true)}
+            className="relative grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
+            aria-label="Open menu"
           >
-            <Camera className="size-5 text-white/90" strokeWidth={1.6} />
-          </button>
-          {messages.length === 0 ? (
-            <button
-              onClick={() => {
-                const next = !currentTemporary;
-                setTemporary(next);
-                const id = store.getState().activeThreadId;
-                if (id) store.setThreadTemporary(id, next);
-                else if (next) store.newThread({ temporary: true });
-              }}
-              className={`grid size-11 place-items-center rounded-full backdrop-blur transition ${
-                currentTemporary
-                  ? "bg-white/20 text-white ring-1 ring-white/40"
-                  : visualSurface.button
-              }`}
-              aria-label="Temporary chat"
-              aria-pressed={currentTemporary}
-              title={currentTemporary ? "Temporary chat on — won't be saved" : "Temporary chat"}
-            >
-              <MessageSquareDashed className="size-5" strokeWidth={1.6} />
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                store.selectThread(null);
-                setTemporary(false);
-              }}
-              className={`grid size-11 place-items-center rounded-full transition ${visualSurface.button}`}
-              aria-label="New chat"
-            >
-              <SquarePen className="size-5 text-white/90" strokeWidth={1.6} />
-            </button>
-          )}
-          {messages.length > 0 && <ThreadOverflowMenu />}
-        </div>
-      </header>
-
-      <div ref={scrollRef} className="relative z-0 flex-1 overflow-y-auto px-4">
-        {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center pb-32">
-            <Sparkle size={56} />
-            <h1 className="mt-6 text-3xl font-light tracking-tight text-white/90">
-              Ask away, {displayName}!
-            </h1>
-            {greetingStatus && (
-              <p className="mt-3 max-w-xs text-center text-sm text-white/45">{greetingStatus}</p>
-            )}
-            {provider.needsApiKey && !apiKey && (
-              <button
-                onClick={() => navigate({ to: "/settings" })}
-                className="mt-5 flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs text-amber-200"
-              >
-                <AlertCircle className="size-3.5" /> No API key set for {provider.name}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-5 py-8">
-            {messages.map((m) => (
-              <MessageRow key={m.id} m={m} streaming={isStreaming} onRegenerate={regenerate} />
-            ))}
-            {error && (
-              <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
-                {isCoolingDown ? <Clock className="size-4" /> : <AlertCircle className="size-4" />}
-                <span className="flex-1 truncate">{error}</span>
-                {isCoolingDown ? (
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs tabular-nums text-white">
-                    {cooldownSeconds}s
-                  </span>
-                ) : (
-                  <button
-                    onClick={retry}
-                    className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
-                  >
-                    <RefreshCw className="size-3" /> Retry
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="relative z-10 px-3 pb-6 pt-2">
-        <div
-          className={`mx-auto flex max-w-3xl flex-col gap-2 rounded-3xl px-2 py-2 ${visualSurface.input}`}
-        >
-          {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 px-2 pt-1">
-              {attachments.map((item) => (
-                <div key={item.id} className="relative">
-                  {item.kind === "video" ? (
-                    <video
-                      src={item.src}
-                      muted
-                      playsInline
-                      className="size-14 rounded-lg bg-black object-cover ring-1 ring-white/15"
-                    />
-                  ) : (
-                    <img
-                      src={item.src}
-                      alt="attachment"
-                      className="size-14 rounded-lg object-cover ring-1 ring-white/15"
-                    />
-                  )}
-                  {item.kind === "screenshot" && (
-                    <span className="absolute bottom-1 left-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/70">
-                      Shot
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setAttachments((p) => p.filter((next) => next.id !== item.id))}
-                    className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-black/80 text-white ring-1 ring-white/20"
-                    aria-label="Remove attachment"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={[canAttachImages ? "image/*" : null, canAttachVideo ? "video/*" : null]
-                .filter(Boolean)
-                .join(",")}
-              multiple
-              hidden
-              onChange={(e) => {
-                if (e.target.files) ingestFiles(e.target.files);
-                e.target.value = "";
+            <Menu className="size-5 text-white/90" strokeWidth={1.8} />
+            <span
+              className="absolute right-2.5 top-2.5 size-1.5 rounded-full"
+              style={{
+                backgroundColor: `hsl(var(--cockpit-hue) 95% 65%)`,
+                boxShadow: `0 0 8px hsl(var(--cockpit-hue) 95% 65% / 0.8)`,
+                animation: reduceMotion
+                  ? "none"
+                  : `cockpit-hue-cycle ${pulse.cycleMs}ms linear infinite, cockpit-pulse ${pulse.breatheMs}ms ease-in-out infinite`,
               }}
             />
+          </button>
+
+          <div className="flex min-w-0 items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-2 text-[15px] backdrop-blur transition hover:bg-white/[0.08]">
+                  <span
+                    className={`grid size-6 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${provider.accent}`}
+                  >
+                    {provider.badge}
+                  </span>
+                  <span className="font-medium text-white">{provider.name}</span>
+                  <ChevronDown className="size-4 text-white/70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-72 border-white/10 bg-zinc-950 text-white">
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-white/40">
+                  Cloud
+                </DropdownMenuLabel>
+                {cloudProviders.map((p) => (
+                  <ProviderRow
+                    key={p.id}
+                    p={p}
+                    active={p.id === provider.id}
+                    onSelect={() => store.setActiveProvider(p.id)}
+                  />
+                ))}
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-white/40">
+                  Local
+                </DropdownMenuLabel>
+                {localProviders.map((p) => (
+                  <ProviderRow
+                    key={p.id}
+                    p={p}
+                    active={p.id === provider.id}
+                    onSelect={() => store.setActiveProvider(p.id)}
+                  />
+                ))}
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  onClick={() => navigate({ to: "/settings" })}
+                  className="focus:bg-white/10"
+                >
+                  <span className="text-xs text-white/70">Manage providers…</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <ModelPicker
+              provider={provider}
+              visualButtonClass={visualSurface.button}
+              displayMod={displayMod}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className={`grid size-10 shrink-0 place-items-center rounded-full text-white/85 transition ${visualSurface.button}`}
-              aria-label="Attach media"
-              disabled={!canAttachMedia}
+              onClick={captureScreenshot}
+              className={`grid size-11 place-items-center rounded-full transition ${visualSurface.button}`}
+              aria-label="Capture screenshot"
+              disabled={!canCaptureScreenshots || screenshotMode}
               title={
-                canAttachMedia
-                  ? canAttachImages && canAttachVideo
-                    ? "Attach image or video"
-                    : canAttachVideo
-                      ? "Attach video"
-                      : "Attach image"
-                  : `${provider.name} does not support media review`
+                canCaptureScreenshots
+                  ? "Capture screenshot"
+                  : provider.supports.vision
+                    ? "Screenshot capture is not available in this browser"
+                    : `${provider.name} does not support image review`
               }
             >
-              <ImageIcon className="size-5" strokeWidth={1.6} />
+              <Camera className="size-5 text-white/90" strokeWidth={1.6} />
             </button>
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              onPaste={(e) => {
-                const files = Array.from(e.clipboardData?.files ?? []);
-                if (files.length) {
-                  e.preventDefault();
-                  ingestFiles(files);
-                }
-              }}
-              placeholder={`${promptPlaceholder} ${provider.name}…`}
-              className="flex-1 bg-transparent px-2 py-2 text-[17px] text-white placeholder:text-white/40 focus:outline-none"
-            />
-            {isCoolingDown ? (
-              <div className="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 text-xs tabular-nums text-white/80">
-                {cooldownSeconds}
-              </div>
-            ) : isStreaming ? (
+            {messages.length === 0 ? (
               <button
-                className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
-                style={hueButtonStyle(pulse, reduceMotion)}
-                aria-label="Stop"
-                onClick={stop}
+                onClick={() => {
+                  const next = !currentTemporary;
+                  setTemporary(next);
+                  const id = store.getState().activeThreadId;
+                  if (id) store.setThreadTemporary(id, next);
+                  else if (next) store.newThread({ temporary: true });
+                }}
+                className={`grid size-11 place-items-center rounded-full backdrop-blur transition ${
+                  currentTemporary
+                    ? "bg-white/20 text-white ring-1 ring-white/40"
+                    : visualSurface.button
+                }`}
+                aria-label="Temporary chat"
+                aria-pressed={currentTemporary}
+                title={currentTemporary ? "Temporary chat on — won't be saved" : "Temporary chat"}
               >
-                <Square className="size-4 fill-white" strokeWidth={0} />
-              </button>
-            ) : input.trim() || attachments.length > 0 ? (
-              <button
-                onClick={handleSend}
-                className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
-                style={hueButtonStyle(pulse, reduceMotion)}
-                aria-label="Send"
-              >
-                <AudioLines className="size-5" strokeWidth={1.8} />
-              </button>
-            ) : recording === "transcribing" ? (
-              <button
-                onClick={cancelTranscribing}
-                className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-white/[0.08] px-3 text-sm text-white/85 transition hover:bg-white/[0.14]"
-                aria-label="Cancel transcription"
-              >
-                <X className="size-4" strokeWidth={1.8} />
-                Cancel
+                <MessageSquareDashed className="size-5" strokeWidth={1.6} />
               </button>
             ) : (
-              <>
-                <button
-                  onClick={() =>
-                    recording === "recording" && recordMode === "mic"
-                      ? stopRecording()
-                      : startRecording("mic")
-                  }
-                  className="grid size-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/85 transition hover:bg-white/[0.12]"
-                  aria-label={
-                    recording === "recording" && recordMode === "mic"
-                      ? "Stop recording"
-                      : "Voice to text"
-                  }
-                  title={
-                    recording === "recording" && recordMode === "mic"
-                      ? "Stop & transcribe"
-                      : "Voice to text"
-                  }
-                >
-                  <Mic
-                    className={`size-5 ${recording === "recording" && recordMode === "mic" ? "text-red-400 animate-pulse" : ""}`}
-                    strokeWidth={1.6}
-                  />
-                </button>
-                <button
-                  onClick={() =>
-                    recording === "recording" && recordMode === "live"
-                      ? stopRecording()
-                      : startRecording("live")
-                  }
-                  className="grid size-10 shrink-0 place-items-center rounded-full text-white transition-colors"
-                  style={hueButtonStyle(pulse, reduceMotion)}
-                  aria-label={
-                    recording === "recording" && recordMode === "live"
-                      ? "Stop live"
-                      : "Live voice — record & send"
-                  }
-                  title={
-                    recording === "recording" && recordMode === "live"
-                      ? "Stop & send"
-                      : "Live voice — records & sends on stop"
-                  }
-                >
-                  <AudioLines
-                    className={`size-5 ${recording === "recording" && recordMode === "live" ? "animate-pulse" : ""}`}
-                    strokeWidth={1.8}
-                  />
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  store.selectThread(null);
+                  setTemporary(false);
+                }}
+                className={`grid size-11 place-items-center rounded-full transition ${visualSurface.button}`}
+                aria-label="New chat"
+              >
+                <SquarePen className="size-5 text-white/90" strokeWidth={1.6} />
+              </button>
             )}
+            {messages.length > 0 && <ExtractedThreadOverflowMenu />}
           </div>
-        </div>
-        <p className="mt-2 text-center text-[11px] text-white/35">
-          {assistantName} may hallucinate. Verify critical info.
-        </p>
-      </div>
+        </header>
 
-      <Drawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        onOpenSettings={() => navigate({ to: "/settings" })}
-      />
+        {messages.length === 0 ? (
+          <div ref={scrollRef} className="relative z-0 flex-1 overflow-y-auto px-4">
+            <Greeting
+              displayName={displayName}
+              assistantName={assistantName}
+              greetingStatus={greetingStatus}
+              providerName={provider.name}
+              needsApiKey={!!provider.needsApiKey && !apiKey}
+            />
+          </div>
+        ) : (
+          <ChatMessages
+            messages={messages}
+            isStreaming={isStreaming}
+            scrollRef={scrollRef}
+            onRegenerate={regenerate}
+            onRegenerateFrom={regenerateFrom}
+            onEditMessage={editMessage}
+            onRetry={retry}
+            error={error}
+            isCoolingDown={isCoolingDown}
+            cooldownSeconds={cooldownSeconds}
+          />
+        )}
+
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          attachments={attachments}
+          setAttachments={setAttachments}
+          fileInputRef={fileInputRef}
+          recording={recording}
+          recordMode={recordMode}
+          onSend={handleSend}
+          onCaptureScreenshot={captureScreenshot}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecording}
+          onCancelTranscribing={cancelTranscribing}
+          onIngestFiles={(files) => {
+            void ingestFiles(files);
+          }}
+          onStop={stop}
+          canAttachMedia={canAttachMedia}
+          canAttachImages={canAttachImages}
+          canAttachVideo={canAttachVideo}
+          canCaptureScreenshots={canCaptureScreenshots}
+          screenshotMode={screenshotMode}
+          providerName={provider.name}
+          visualSurface={visualSurface}
+          isStreaming={isStreaming}
+          isCoolingDown={isCoolingDown}
+          cooldownSeconds={cooldownSeconds}
+          promptPlaceholder={promptPlaceholder}
+          assistantName={assistantName}
+          pulse={pulse}
+          reduceMotion={reduceMotion}
+        />
+
+        <Drawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          onOpenSettings={() => navigate({ to: "/settings" })}
+        />
+        <CommandPalette
+          open={commandPaletteOpen}
+          onOpenChange={setCommandPaletteOpen}
+          onOpenShortcutHelp={() => setShortcutHelpOpen(true)}
+          displayMod={displayMod}
+        />
+        <ShortcutHelp
+          open={shortcutHelpOpen}
+          onOpenChange={setShortcutHelpOpen}
+          displayMod={displayMod}
+        />
+      </CockpitErrorBoundary>
     </div>
   );
 }

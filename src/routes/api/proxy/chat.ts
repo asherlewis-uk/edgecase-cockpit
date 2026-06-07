@@ -43,9 +43,17 @@ function normalizeMessages(messages: ProxyBody["messages"]) {
   });
 }
 
-function buildBody(p: ReturnType<typeof getProvider>, model: string, messages: ProxyBody["messages"], stream: boolean) {
+function buildBody(
+  p: ReturnType<typeof getProvider>,
+  model: string,
+  messages: ProxyBody["messages"],
+  stream: boolean,
+) {
   if (p.bodyStyle === "anthropic") {
-    const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    const sys = messages
+      .filter((m) => m.role === "system")
+      .map((m) => m.content)
+      .join("\n");
     const msgs = messages
       .filter((m) => m.role !== "system")
       .map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : "" }));
@@ -100,7 +108,10 @@ export const Route = createFileRoute("/api/proxy/chat")({
             headers: { "Content-Type": "application/json" },
           });
         }
-        const baseUrl = (body.baseUrlOverride?.trim() || provider.defaultBaseUrl).replace(/\/+$/, "");
+        const baseUrl = (body.baseUrlOverride?.trim() || provider.defaultBaseUrl).replace(
+          /\/+$/,
+          "",
+        );
         if (!urlAllowedForProvider(provider.id, baseUrl)) {
           return new Response(
             JSON.stringify({ error: `Base URL host not allowed for ${provider.name}` }),
@@ -111,10 +122,10 @@ export const Route = createFileRoute("/api/proxy/chat")({
         const model = body.model?.trim() || creds?.model || provider.defaultModel;
         const apiKey = creds?.apiKey ?? "";
         if (provider.needsApiKey && !apiKey) {
-          return new Response(
-            JSON.stringify({ error: `No API key set for ${provider.name}` }),
-            { status: 401, headers: { "Content-Type": "application/json" } },
-          );
+          return new Response(JSON.stringify({ error: `No API key set for ${provider.name}` }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
         }
         const stream = body.stream ?? true;
         const url = baseUrl + provider.chatPath;
@@ -126,7 +137,12 @@ export const Route = createFileRoute("/api/proxy/chat")({
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 60_000);
         try {
-          upstream = await fetch(url, { method: "POST", headers, body: upstreamBody, signal: ctrl.signal });
+          upstream = await fetch(url, {
+            method: "POST",
+            headers,
+            body: upstreamBody,
+            signal: ctrl.signal,
+          });
         } catch (e) {
           clearTimeout(timer);
           const msg = e instanceof Error ? e.message : "Upstream fetch failed";

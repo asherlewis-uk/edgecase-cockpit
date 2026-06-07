@@ -20,6 +20,18 @@ export function rateLimit(key: string): { ok: boolean; retryAfter?: number } {
   return { ok: true };
 }
 
+export function threadRateLimiter(key: string): { ok: boolean; retryAfter?: number } {
+  return rateLimit(key);
+}
+
+export function statsRateLimiter(key: string): { ok: boolean; retryAfter?: number } {
+  return rateLimit(key);
+}
+
+export function sessionRateLimiter(key: string): { ok: boolean; retryAfter?: number } {
+  return rateLimit(key);
+}
+
 function matchHost(pattern: string, host: string): boolean {
   if (pattern === "*") return true;
   if (pattern === host) return true;

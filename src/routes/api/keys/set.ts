@@ -4,7 +4,11 @@ import { setProviderCreds } from "@/lib/session.server";
 import { PROVIDERS } from "@/lib/providers";
 
 const Body = z.object({
-  providerId: z.string().min(1).max(64).regex(/^[a-z0-9-]+$/),
+  providerId: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9-]+$/),
   apiKey: z.string().min(1).max(8192),
   baseUrl: z.string().max(512).optional(),
   model: z.string().max(256).optional(),

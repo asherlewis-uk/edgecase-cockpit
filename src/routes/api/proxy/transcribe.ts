@@ -41,7 +41,9 @@ export const Route = createFileRoute("/api/proxy/transcribe")({
         const provider = PROVIDERS.find((p) => p.id === providerId);
         if (!provider || !provider.transcribePath) {
           return Response.json(
-            { error: `${provider?.name ?? providerId} does not support transcription. Switch to OpenAI or a compatible provider.` },
+            {
+              error: `${provider?.name ?? providerId} does not support transcription. Switch to OpenAI or a compatible provider.`,
+            },
             { status: 400 },
           );
         }
@@ -49,7 +51,10 @@ export const Route = createFileRoute("/api/proxy/transcribe")({
         const baseUrl = (creds?.baseUrl?.trim() || provider.defaultBaseUrl).replace(/\/+$/, "");
         const url = baseUrl + provider.transcribePath;
         if (!urlAllowedForProvider(providerId, baseUrl)) {
-          return Response.json({ error: "Base URL not allowed for this provider" }, { status: 400 });
+          return Response.json(
+            { error: "Base URL not allowed for this provider" },
+            { status: 400 },
+          );
         }
         if (provider.needsApiKey && !creds?.apiKey) {
           return Response.json({ error: `No API key for ${provider.name}` }, { status: 401 });
