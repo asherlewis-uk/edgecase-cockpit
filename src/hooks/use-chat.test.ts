@@ -379,6 +379,24 @@ describe("useChat error handling", () => {
     expect(result.current.status).toBe("error");
   });
 
+  it("handles localStorage unavailability gracefully", async () => {
+    vi.stubGlobal("localStorage", undefined);
+    mockCallProxy.mockRejectedValueOnce(new Error("Failed to fetch"));
+    vi.stubGlobal("navigator", { onLine: false });
+
+    mockStore.newThread();
+
+    const { result } = renderHook(() => useChat());
+
+    await act(async () => {
+      await result.current.sendMessage("offline");
+    });
+
+    expect(result.current.error).toContain("Offline");
+    expect(result.current.status).toBe("error");
+    // Should not throw even though localStorage is undefined
+  });
+
   it("handles offline errors", async () => {
     mockCallProxy.mockRejectedValueOnce(new Error("Failed to fetch"));
     vi.stubGlobal("navigator", { onLine: false });

@@ -119,19 +119,22 @@ export function Cockpit() {
     shortcutHelpOpen,
     setShortcutHelpOpen,
     displayMod,
-  } = useKeyboardShortcuts({
-    onNewThread: () => {
-      store.selectThread(null);
-      setTemporary(false);
+  } = useKeyboardShortcuts(
+    {
+      onNewThread: () => {
+        store.selectThread(null);
+        setTemporary(false);
+      },
+      onSendMessage: () => {
+        void handleSend();
+      },
+      onStopGeneration: stop,
+      onCloseDrawer: () => setDrawerOpen(false),
+      isStreaming,
+      drawerOpen,
     },
-    onSendMessage: () => {
-      void handleSend();
-    },
-    onStopGeneration: stop,
-    onCloseDrawer: () => setDrawerOpen(false),
-    isStreaming,
-    drawerOpen,
-  });
+    settings.keyboardShortcuts,
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -599,6 +602,7 @@ export function Cockpit() {
           open={shortcutHelpOpen}
           onOpenChange={setShortcutHelpOpen}
           displayMod={displayMod}
+          shortcuts={settings.keyboardShortcuts}
         />
       </CockpitErrorBoundary>
     </div>

@@ -13,8 +13,20 @@ import { retryWithBackoff } from "@/lib/retry";
 // ── Offline queue localStorage persistence ──────────────────────────────────
 const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";
 
+function isLocalStorageAvailable(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const testKey = "__cockpit_ls_test__";
+    localStorage.setItem(testKey, "1");
+    localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function loadOfflineQueue(): PromptDraft[] {
-  if (typeof window === "undefined") return [];
+  if (!isLocalStorageAvailable()) return [];
   try {
     const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
     if (!raw) return [];
@@ -27,7 +39,7 @@ function loadOfflineQueue(): PromptDraft[] {
 }
 
 function saveOfflineQueue(queue: PromptDraft[]): void {
-  if (typeof window === "undefined") return;
+  if (!isLocalStorageAvailable()) return;
   try {
     if (queue.length === 0) {
       localStorage.removeItem(OFFLINE_QUEUE_KEY);

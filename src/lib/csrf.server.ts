@@ -9,6 +9,7 @@
 const CSRF_COOKIE = "csrf-token";
 const CSRF_HEADER = "X-CSRF-Token";
 const TOKEN_BYTES = 32;
+const EXPECTED_TOKEN_LENGTH = TOKEN_BYTES * 2; // hex encoding
 
 function generateToken(): string {
   const bytes = new Uint8Array(TOKEN_BYTES);
@@ -44,6 +45,18 @@ function parseCookies(header: string): Record<string, string> {
 }
 
 /**
+ * Constant-time comparison of two hex strings to prevent timing attacks.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+/**
  * Validate a CSRF token from the X-CSRF-Token header against the csrf-token cookie.
  * For safe methods (GET, HEAD, OPTIONS), validation is skipped.
  * Returns true if valid, or a Response object with a 403 error if invalid.
@@ -54,16 +67,21 @@ export function validateCsrfToken(request: Request): true | Response {
   // Safe methods don't need CSRF protection
   if (["GET", "HEAD", "OPTIONS"].includes(method)) return true;
 
-  const headerToken = request.headers.get(CSRF_HEADER);
+  const headerToken = request.headers.get(CSRF_HEADER)?.trim();
   if (!headerToken) {
     return Response.json({ error: "Missing CSRF token" }, { status: 403 });
   }
 
   const cookieHeader = request.headers.get("cookie") ?? "";
   const cookies = parseCookies(cookieHeader);
-  const cookieToken = cookies[CSRF_COOKIE];
+  const cookieToken = cookies[CSRF_COOKIE]?.trim();
 
-  if (!cookieToken || headerToken !== cookieToken) {
+  if (
+    !cookieToken ||
+    cookieToken.length !== EXPECTED_TOKEN_LENGTH ||
+    headerToken.length !== EXPECTED_TOKEN_LENGTH ||
+    !timingSafeEqual(headerToken, cookieToken)
+  ) {
     return Response.json({ error: "Invalid CSRF token" }, { status: 403 });
   }
 

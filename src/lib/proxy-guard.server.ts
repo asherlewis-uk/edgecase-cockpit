@@ -3,17 +3,27 @@
 import { PROVIDERS } from "@/lib/providers";
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS = 60_000;
-const PER_WINDOW = 120;
+export const DEFAULT_WINDOW_MS = 60_000;
+export const DEFAULT_PER_WINDOW = 120;
 
-export function rateLimit(key: string): { ok: boolean; retryAfter?: number } {
+export type RateLimitConfig = {
+  windowMs?: number;
+  perWindow?: number;
+};
+
+export function rateLimit(
+  key: string,
+  config: RateLimitConfig = {},
+): { ok: boolean; retryAfter?: number } {
+  const windowMs = config.windowMs ?? DEFAULT_WINDOW_MS;
+  const perWindow = config.perWindow ?? DEFAULT_PER_WINDOW;
   const now = Date.now();
   const b = buckets.get(key);
   if (!b || b.resetAt < now) {
-    buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    buckets.set(key, { count: 1, resetAt: now + windowMs });
     return { ok: true };
   }
-  if (b.count >= PER_WINDOW) {
+  if (b.count >= perWindow) {
     return { ok: false, retryAfter: Math.ceil((b.resetAt - now) / 1000) };
   }
   b.count++;

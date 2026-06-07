@@ -100,6 +100,8 @@ function SettingsPage() {
 
         <ExtractedPersonalizationSection />
 
+        <KeyboardShortcutsSection />
+
         <Section title="Cloud providers">
           <div className="grid gap-3 sm:grid-cols-2">
             {cloud.map((p) => (
@@ -376,6 +378,71 @@ function PersonalizationSection() {
           >
             <RotateCcw className="mr-2 size-3.5" />
             Reset personalization
+          </Button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function KeyboardShortcutsSection() {
+  const shortcuts = useStore((s) => s.settings.keyboardShortcuts);
+
+  return (
+    <Section title="Keyboard Shortcuts">
+      <div className="grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="space-y-3">
+          <SwitchRow
+            id="shortcut-cmd-palette"
+            label="Command palette (Ctrl/Cmd + K)"
+            checked={shortcuts.enabled.commandPalette}
+            onChange={(commandPalette) =>
+              store.updateKeyboardShortcuts({ enabled: { commandPalette } })
+            }
+          />
+          <SwitchRow
+            id="shortcut-new-thread"
+            label="New thread (Ctrl/Cmd + N)"
+            checked={shortcuts.enabled.newThread}
+            onChange={(newThread) => store.updateKeyboardShortcuts({ enabled: { newThread } })}
+          />
+          <SwitchRow
+            id="shortcut-send-message"
+            label="Send message (Ctrl/Cmd + Enter)"
+            checked={shortcuts.enabled.sendMessage}
+            onChange={(sendMessage) => store.updateKeyboardShortcuts({ enabled: { sendMessage } })}
+          />
+          <SwitchRow
+            id="shortcut-help"
+            label="Shortcuts help (Ctrl/Cmd + /)"
+            checked={shortcuts.enabled.help}
+            onChange={(help) => store.updateKeyboardShortcuts({ enabled: { help } })}
+          />
+          <SwitchRow
+            id="shortcut-escape"
+            label="Escape actions (stop / close / dismiss)"
+            checked={shortcuts.enabled.escapeActions}
+            onChange={(escapeActions) =>
+              store.updateKeyboardShortcuts({ enabled: { escapeActions } })
+            }
+          />
+          <SwitchRow
+            id="shortcut-force-ctrl"
+            label="Always use Ctrl (even on Mac)"
+            checked={shortcuts.forceCtrl}
+            onChange={(forceCtrl) => store.updateKeyboardShortcuts({ forceCtrl })}
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => store.resetKeyboardShortcuts()}
+            className="border-white/10 bg-transparent text-white/60 hover:bg-white/10 hover:text-white"
+          >
+            <RotateCcw className="mr-2 size-3.5" />
+            Reset shortcuts
           </Button>
         </div>
       </div>

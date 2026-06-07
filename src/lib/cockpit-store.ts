@@ -28,11 +28,23 @@ export type Personalization = {
   rememberLastProvider: boolean;
 };
 
+export type KeyboardShortcuts = {
+  enabled: {
+    commandPalette: boolean;
+    newThread: boolean;
+    sendMessage: boolean;
+    help: boolean;
+    escapeActions: boolean;
+  };
+  forceCtrl: boolean;
+};
+
 export type Settings = {
   /** Legacy field retained for saved-settings migration compatibility. */
   userName: string;
   profile: UserProfile;
   personalization: Personalization;
+  keyboardShortcuts: KeyboardShortcuts;
   activeProviderId: string;
   providers: Record<string, ProviderConfig>;
   pinnedProviderIds: string[];
@@ -143,10 +155,22 @@ export const defaultPersonalization: Personalization = {
   rememberLastProvider: true,
 };
 
+export const defaultKeyboardShortcuts: KeyboardShortcuts = {
+  enabled: {
+    commandPalette: true,
+    newThread: true,
+    sendMessage: true,
+    help: true,
+    escapeActions: true,
+  },
+  forceCtrl: false,
+};
+
 export const defaultSettings: Settings = {
   userName: defaultProfile.displayName,
   profile: defaultProfile,
   personalization: defaultPersonalization,
+  keyboardShortcuts: defaultKeyboardShortcuts,
   activeProviderId: "openai",
   providers: {},
   pinnedProviderIds: [],
@@ -231,6 +255,35 @@ function normalizePersonalization(raw: unknown): Personalization {
   };
 }
 
+function normalizeKeyboardShortcuts(raw: unknown): KeyboardShortcuts {
+  const source = isRecord(raw) ? raw : {};
+  const enabled = isRecord(source.enabled) ? source.enabled : defaultKeyboardShortcuts.enabled;
+  return {
+    enabled: {
+      commandPalette:
+        typeof enabled.commandPalette === "boolean"
+          ? enabled.commandPalette
+          : defaultKeyboardShortcuts.enabled.commandPalette,
+      newThread:
+        typeof enabled.newThread === "boolean"
+          ? enabled.newThread
+          : defaultKeyboardShortcuts.enabled.newThread,
+      sendMessage:
+        typeof enabled.sendMessage === "boolean"
+          ? enabled.sendMessage
+          : defaultKeyboardShortcuts.enabled.sendMessage,
+      help:
+        typeof enabled.help === "boolean" ? enabled.help : defaultKeyboardShortcuts.enabled.help,
+      escapeActions:
+        typeof enabled.escapeActions === "boolean"
+          ? enabled.escapeActions
+          : defaultKeyboardShortcuts.enabled.escapeActions,
+    },
+    forceCtrl:
+      typeof source.forceCtrl === "boolean" ? source.forceCtrl : defaultKeyboardShortcuts.forceCtrl,
+  };
+}
+
 function normalizeProviders(raw: unknown): Record<string, ProviderConfig> {
   if (!isRecord(raw)) return {};
   const providers: Record<string, ProviderConfig> = {};
@@ -264,6 +317,7 @@ export function normalizeSettings(raw: Partial<Settings> | unknown): Settings {
     userName: profile.displayName,
     profile,
     personalization: normalizePersonalization(source.personalization),
+    keyboardShortcuts: normalizeKeyboardShortcuts(source.keyboardShortcuts),
     activeProviderId,
     providers: normalizeProviders(source.providers),
     pinnedProviderIds: normalizePinnedProviderIds(source.pinnedProviderIds),
@@ -422,6 +476,18 @@ export const store = {
           ? { ...state.settings.providers, ...patch.providers }
           : state.settings.providers,
         pinnedProviderIds: patch.pinnedProviderIds ?? state.settings.pinnedProviderIds,
+        keyboardShortcuts: patch.keyboardShortcuts
+          ? {
+              ...state.settings.keyboardShortcuts,
+              ...patch.keyboardShortcuts,
+              enabled: patch.keyboardShortcuts.enabled
+                ? {
+                    ...state.settings.keyboardShortcuts.enabled,
+                    ...patch.keyboardShortcuts.enabled,
+                  }
+                : state.settings.keyboardShortcuts.enabled,
+            }
+          : state.settings.keyboardShortcuts,
       }),
     };
     persist();
@@ -437,6 +503,22 @@ export const store = {
       personalization: { ...state.settings.personalization, ...patch },
     });
   },
+  updateKeyboardShortcuts(
+    patch: Partial<Omit<KeyboardShortcuts, "enabled">> & {
+      enabled?: Partial<KeyboardShortcuts["enabled"]>;
+    },
+  ) {
+    this.updateSettings({
+      keyboardShortcuts: {
+        ...state.settings.keyboardShortcuts,
+        ...patch,
+        enabled: {
+          ...state.settings.keyboardShortcuts.enabled,
+          ...(patch.enabled ?? {}),
+        },
+      },
+    });
+  },
   resetProfile() {
     this.updateSettings({
       profile: defaultProfile,
@@ -445,6 +527,9 @@ export const store = {
   },
   resetPersonalization() {
     this.updateSettings({ personalization: defaultPersonalization });
+  },
+  resetKeyboardShortcuts() {
+    this.updateSettings({ keyboardShortcuts: defaultKeyboardShortcuts });
   },
   setActiveProvider(id: string) {
     this.updateSettings({ activeProviderId: id });
