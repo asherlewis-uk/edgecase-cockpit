@@ -21,7 +21,9 @@ import {
   executeBuiltInTool,
   BUILT_IN_TOOLS,
   StreamToolCallAccumulator,
+  AnthropicStreamToolCallAccumulator,
   extractOpenAIToolCallDelta,
+  extractAnthropicToolCallDelta,
   validateToolCall,
   sanitizeToolCallArgs,
 } from "@/lib/tools";
@@ -252,15 +254,25 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       ];
 
       // When tools are present, prefer streaming if the provider supports
-      // streaming tool-call deltas (OpenAI-compatible bodyStyle). Otherwise,
-      // fall back to non-streaming for reliable tool_calls parsing.
+      // streaming tool-call deltas:
+      //   - OpenAI bodyStyle: uses StreamToolCallAccumulator
+      //   - Anthropic bodyStyle: uses AnthropicStreamToolCallAccumulator
+      // Otherwise, fall back to non-streaming for reliable tool_calls parsing.
       const hasTools = toolDefs && toolDefs.length > 0;
+      const isOpenAI = provider.bodyStyle === "openai" || provider.bodyStyle === "gemini";
+      const isAnthropic = provider.bodyStyle === "anthropic";
+      const supportsOpenAIStreamingTools = hasTools && isOpenAI && provider.supports.streamingTools;
+      const supportsAnthropicStreamingTools =
+        hasTools && isAnthropic && provider.supports.streamingTools;
       const supportsStreamingTools =
-        hasTools && provider.bodyStyle === "openai" && provider.supports.streamingTools;
+        supportsOpenAIStreamingTools || supportsAnthropicStreamingTools;
       const useStream = !hasTools || supportsStreamingTools;
 
       let acc = "";
-      const toolAccum = supportsStreamingTools ? new StreamToolCallAccumulator() : null;
+      const toolAccum = supportsOpenAIStreamingTools ? new StreamToolCallAccumulator() : null;
+      const toolAccumAnthropic = supportsAnthropicStreamingTools
+        ? new AnthropicStreamToolCallAccumulator()
+        : null;
       try {
         bumpProviderStat(provider.id, "call");
         const res = await retryWithBackoff(
@@ -283,13 +295,19 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
                     });
                   }
                 : undefined,
-              onToolCallDelta: supportsStreamingTools
+              onToolCallDelta: supportsOpenAIStreamingTools
                 ? (delta: {
                     index: number;
                     id?: string;
                     function?: { name?: string; arguments?: string };
                   }) => {
                     toolAccum?.ingest(delta);
+                  }
+                : undefined,
+              onRawChunk: supportsAnthropicStreamingTools
+                ? (chunk: unknown) => {
+                    const delta = extractAnthropicToolCallDelta(chunk);
+                    if (delta) toolAccumAnthropic?.ingest(delta);
                   }
                 : undefined,
             }),
@@ -300,8 +318,11 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
 
         // Detect tool calls from response
         let toolCalls: ToolCall[] | undefined;
-        if (supportsStreamingTools && toolAccum) {
+        if (supportsOpenAIStreamingTools && toolAccum) {
           toolCalls = toolAccum.complete();
+          if (toolCalls.length === 0) toolCalls = undefined;
+        } else if (supportsAnthropicStreamingTools && toolAccumAnthropic) {
+          toolCalls = toolAccumAnthropic.complete();
           if (toolCalls.length === 0) toolCalls = undefined;
         } else if (!useStream && hasTools && typeof res.raw === "object" && res.raw !== null) {
           toolCalls =

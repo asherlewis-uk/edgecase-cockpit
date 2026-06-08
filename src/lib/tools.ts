@@ -306,3 +306,123 @@ export function extractOpenAIToolCallDelta(chunk: unknown): ToolCallDelta[] {
   }
   return deltas;
 }
+
+// ── Anthropic streaming tool-use delta support ─────────────────────────────
+
+/**
+ * Anthropic SSE streaming chunk shape.
+ * Events: content_block_start, content_block_delta, content_block_stop.
+ * Tool use blocks arrive via content_block_start (name+id) followed by
+ * content_block_delta (partial_json fragments).
+ */
+export type AnthropicSSEEvent = {
+  type: string;
+  index?: number;
+  content_block?: {
+    type?: string;
+    id?: string;
+    name?: string;
+  };
+  delta?: {
+    type?: string;
+    text?: string;
+    partial_json?: string;
+  };
+};
+
+/**
+ * Extract tool-use deltas from an Anthropic SSE chunk.
+ * Handles content_block_start (records tool id/name/index) and
+ * content_block_delta (accumulates partial_json arguments).
+ */
+export function extractAnthropicToolCallDelta(chunk: unknown): {
+  deltaType: "start" | "delta";
+  index: number;
+  id?: string;
+  name?: string;
+  partialJson?: string;
+} | null {
+  const evt = chunk as AnthropicSSEEvent;
+  if (!evt || typeof evt.type !== "string") return null;
+
+  // content_block_start: tool_use block begins
+  if (evt.type === "content_block_start") {
+    const block = evt.content_block;
+    if (block?.type === "tool_use" && block.id && block.name) {
+      return {
+        deltaType: "start",
+        index: evt.index ?? 0,
+        id: block.id,
+        name: block.name,
+      };
+    }
+    return null;
+  }
+
+  // content_block_delta: input_json_delta fragment
+  if (evt.type === "content_block_delta") {
+    const delta = evt.delta;
+    if (delta?.type === "input_json_delta" && delta.partial_json !== undefined) {
+      return {
+        deltaType: "delta",
+        index: evt.index ?? 0,
+        partialJson: delta.partial_json,
+      };
+    }
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Streaming accumulator for Anthropic tool_use streaming deltas.
+ * Tracks tool-use blocks by index across content_block_start/delta events.
+ */
+export class AnthropicStreamToolCallAccumulator {
+  private calls = new Map<number, { id: string; name: string; args: string }>();
+
+  ingest(delta: {
+    deltaType: "start" | "delta";
+    index: number;
+    id?: string;
+    name?: string;
+    partialJson?: string;
+  }) {
+    const c = this.calls.get(delta.index) ?? { id: "", name: "", args: "" };
+
+    if (delta.deltaType === "start") {
+      if (delta.id) c.id = delta.id;
+      if (delta.name && validateToolName(delta.name)) c.name = delta.name;
+      else if (delta.name) return; // drop unsafe names — don't accumulate
+    }
+
+    if (delta.deltaType === "delta" && delta.partialJson) {
+      c.args += delta.partialJson;
+    }
+
+    this.calls.set(delta.index, c);
+  }
+
+  complete(): ToolCall[] {
+    const out: ToolCall[] = [];
+    for (const [, c] of this.calls) {
+      if (c.id && c.name && c.args) {
+        // Try to parse to valid JSON object; accept partial if needed
+        let args = c.args;
+        try {
+          JSON.parse(args);
+        } catch {
+          // If not yet valid JSON, wrap as raw text
+          args = JSON.stringify({ _partial_json: c.args });
+        }
+        out.push({ id: c.id, name: c.name, arguments: args });
+      }
+    }
+    return out;
+  }
+
+  reset() {
+    this.calls.clear();
+  }
+}

@@ -9,7 +9,9 @@ import {
   isBuiltInTool,
   BUILT_IN_TOOLS,
   StreamToolCallAccumulator,
+  AnthropicStreamToolCallAccumulator,
   extractOpenAIToolCallDelta,
+  extractAnthropicToolCallDelta,
   validateToolName,
   sanitizeToolCallArgs,
   validateToolCall,
@@ -378,5 +380,107 @@ describe("StreamToolCallAccumulator safety", () => {
     const calls = acc.complete();
     expect(calls).toHaveLength(1);
     expect(calls[0].name).toBe("safe");
+  });
+});
+
+// ── Anthropic streaming tool deltas ────────────────────────────────────────
+
+describe("extractAnthropicToolCallDelta", () => {
+  it("extracts tool_use start from content_block_start", () => {
+    const delta = extractAnthropicToolCallDelta({
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "tool_use", id: "toolu_1", name: "echo" },
+    });
+    expect(delta).not.toBeNull();
+    expect(delta!.deltaType).toBe("start");
+    expect(delta!.id).toBe("toolu_1");
+    expect(delta!.name).toBe("echo");
+  });
+
+  it("extracts input_json_delta from content_block_delta", () => {
+    const delta = extractAnthropicToolCallDelta({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "input_json_delta", partial_json: '{"text":"hi"}' },
+    });
+    expect(delta).not.toBeNull();
+    expect(delta!.deltaType).toBe("delta");
+    expect(delta!.partialJson).toBe('{"text":"hi"}');
+  });
+
+  it("returns null for non-tool content_block_start", () => {
+    const delta = extractAnthropicToolCallDelta({
+      type: "content_block_start",
+      content_block: { type: "text" },
+    });
+    expect(delta).toBeNull();
+  });
+
+  it("returns null for text content_block_delta", () => {
+    const delta = extractAnthropicToolCallDelta({
+      type: "content_block_delta",
+      delta: { type: "text_delta", text: "hello" },
+    });
+    expect(delta).toBeNull();
+  });
+
+  it("returns null for non-SSE object", () => {
+    expect(extractAnthropicToolCallDelta(null)).toBeNull();
+    expect(extractAnthropicToolCallDelta(undefined)).toBeNull();
+    expect(extractAnthropicToolCallDelta("string")).toBeNull();
+  });
+});
+
+describe("AnthropicStreamToolCallAccumulator", () => {
+  it("accumulates start + partial_json into complete call", () => {
+    const acc = new AnthropicStreamToolCallAccumulator();
+    acc.ingest({ deltaType: "start", index: 0, id: "toolu_1", name: "echo" });
+    acc.ingest({ deltaType: "delta", index: 0, partialJson: '{"tex' });
+    acc.ingest({ deltaType: "delta", index: 0, partialJson: 't":"hi"}' });
+    const calls = acc.complete();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].id).toBe("toolu_1");
+    expect(calls[0].name).toBe("echo");
+    expect(calls[0].arguments).toBe('{"text":"hi"}');
+  });
+
+  it("accumulates multiple parallel tool blocks", () => {
+    const acc = new AnthropicStreamToolCallAccumulator();
+    acc.ingest({ deltaType: "start", index: 0, id: "toolu_a", name: "echo" });
+    acc.ingest({ deltaType: "start", index: 1, id: "toolu_b", name: "word_count" });
+    acc.ingest({ deltaType: "delta", index: 0, partialJson: '{"text":"hi"}' });
+    acc.ingest({ deltaType: "delta", index: 1, partialJson: '{"text":"hello world"}' });
+    const calls = acc.complete();
+    expect(calls).toHaveLength(2);
+  });
+
+  it("drops blocks with unsafe names", () => {
+    const acc = new AnthropicStreamToolCallAccumulator();
+    acc.ingest({ deltaType: "start", index: 0, id: "t1", name: "safe" });
+    acc.ingest({ deltaType: "start", index: 1, id: "t2", name: "rm -rf /" });
+    acc.ingest({ deltaType: "delta", index: 0, partialJson: "{}" });
+    acc.ingest({ deltaType: "delta", index: 1, partialJson: "{}" });
+    const calls = acc.complete();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].name).toBe("safe");
+  });
+
+  it("wraps non-JSON args as _partial_json", () => {
+    const acc = new AnthropicStreamToolCallAccumulator();
+    acc.ingest({ deltaType: "start", index: 0, id: "t1", name: "echo" });
+    acc.ingest({ deltaType: "delta", index: 0, partialJson: '{"text":"h' });
+    // Incomplete JSON
+    const calls = acc.complete();
+    expect(calls).toHaveLength(1);
+    const parsed = JSON.parse(calls[0].arguments);
+    expect(parsed._partial_json).toBe('{"text":"h');
+  });
+
+  it("reset clears accumulated state", () => {
+    const acc = new AnthropicStreamToolCallAccumulator();
+    acc.ingest({ deltaType: "start", index: 0, id: "t1", name: "echo" });
+    acc.reset();
+    expect(acc.complete()).toEqual([]);
   });
 });

@@ -79,7 +79,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "An",
     accent: "from-amber-500 to-orange-600",
     description: "Claude Sonnet & Opus with long context and tools.",
-    supports: cap(true, false, true, true, false),
+    supports: cap(true, false, true, true, true),
     defaultBaseUrl: "https://api.anthropic.com",
     defaultModel: "claude-3-5-sonnet-latest",
     needsApiKey: true,
@@ -97,7 +97,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Gm",
     accent: "from-sky-400 to-indigo-500",
     description: "Gemini 2.5 Flash & Pro with vision and tools.",
-    supports: cap(true, true, true, true, false),
+    supports: cap(true, true, true, true, true),
     defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     defaultModel: "gemini-2.5-flash",
     needsApiKey: true,
@@ -366,6 +366,8 @@ export type ProviderCallOpts = {
     id?: string;
     function?: { name?: string; arguments?: string };
   }) => void;
+  /** Raw SSE chunk callback for providers with non-OpenAI stream shapes (e.g. Anthropic). */
+  onRawChunk?: (chunk: unknown) => void;
 };
 
 export class ProviderError extends Error {
@@ -494,7 +496,7 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
   text: string;
   raw: unknown;
 }> {
-  const { provider, apiKey, baseUrl, model, messages, signal, onDelta } = opts;
+  const { provider, apiKey, baseUrl, model, messages, signal, onDelta, onRawChunk } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
   const url = baseUrl.replace(/\/+$/, "") + provider.chatPath;
   const headers = buildHeaders(provider, apiKey);
@@ -520,6 +522,8 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
         if (!payload || payload === "[DONE]") continue;
         try {
           const j = JSON.parse(payload);
+          // Route raw chunk to tool-call delta handler if present
+          if (onRawChunk) onRawChunk(j);
           const delta =
             provider.bodyStyle === "anthropic" ? pickAnthropicDelta(j) : pickOpenAIDelta(j);
           if (delta) {
