@@ -388,3 +388,59 @@ export async function getAggregateUsage(sessionId: string): Promise<{
     perProvider: providerStats,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Vector Docs
+// ---------------------------------------------------------------------------
+
+export async function upsertVectorDoc(doc: {
+  id: string;
+  sessionId: string;
+  text: string;
+  embedding: number[];
+  metadata?: Record<string, unknown>;
+  createdAt: number;
+}): Promise<void> {
+  const db = getDB();
+  await db
+    .prepare(
+      "INSERT OR REPLACE INTO vector_docs (id, session_id, text, embedding, metadata, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    )
+    .bind(
+      doc.id,
+      doc.sessionId,
+      doc.text,
+      JSON.stringify(doc.embedding),
+      doc.metadata ? JSON.stringify(doc.metadata) : null,
+      doc.createdAt,
+    )
+    .run();
+}
+
+export async function getVectorDocs(sessionId: string): Promise<
+  Array<{
+    id: string;
+    text: string;
+    embedding: number[];
+    metadata?: Record<string, unknown>;
+  }>
+> {
+  const db = getDB();
+  const result = await db
+    .prepare(
+      "SELECT id, text, embedding, metadata FROM vector_docs WHERE session_id = ?1 ORDER BY created_at DESC",
+    )
+    .bind(sessionId)
+    .all<{ id: string; text: string; embedding: string; metadata: string | null }>();
+  return result.results.map((row) => ({
+    id: row.id,
+    text: row.text,
+    embedding: JSON.parse(row.embedding) as number[],
+    metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : undefined,
+  }));
+}
+
+export async function clearVectorDocs(sessionId: string): Promise<void> {
+  const db = getDB();
+  await db.prepare("DELETE FROM vector_docs WHERE session_id = ?1").bind(sessionId).run();
+}

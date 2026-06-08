@@ -24,7 +24,7 @@ import {
   extractOpenAIToolCallDelta,
 } from "@/lib/tools";
 import { embedTexts } from "@/lib/embeddings";
-import { addVectorDocs, searchVectorStore } from "@/lib/vector-store";
+import { addVectorDocs, searchVectorStore, chunkText } from "@/lib/vector-store";
 
 // ── Offline queue localStorage persistence ──────────────────────────────────
 const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";
@@ -136,6 +136,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
 
   const [status, setStatus] = useState<"idle" | "streaming" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [ragError, setRagError] = useState<string | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownNow, setCooldownNow] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
@@ -219,7 +220,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
               results.map((r) => `- ${r.text}`).join("\n");
           }
         } catch {
-          /* ignore retrieval failures; chat continues without context */
+          setRagError("RAG retrieval unavailable");
         }
       }
 
@@ -399,21 +400,21 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         ts: now,
         timestamp: now,
       });
-      // RAG ingestion: embed user message for future retrieval
+      // RAG ingestion: chunk and embed user message for future retrieval
       const rag = store.getState().settings.rag ?? { enabled: false };
       if (rag.enabled && storedContent) {
         try {
-          const embeddings = await embedTexts([storedContent], rag.providerId, rag.model);
-          addVectorDocs([
-            {
-              id: `msg-${threadId}-${now}`,
-              text: storedContent,
-              embedding: embeddings[0],
-              metadata: { threadId, role: "user" },
-            },
-          ]);
+          const chunks = chunkText(storedContent);
+          const embeddings = await embedTexts(chunks, rag.providerId, rag.model);
+          const docs = chunks.map((chunk, i) => ({
+            id: `msg-${threadId}-${now}-${i}`,
+            text: chunk,
+            embedding: embeddings[i],
+            metadata: { threadId, role: "user", chunkIndex: i },
+          }));
+          addVectorDocs(docs);
         } catch {
-          /* ignore embedding failures; RAG is best-effort */
+          setRagError("RAG embedding unavailable");
         }
       }
       lastPromptRef.current = { text: storedContent, imageAttachments, videoAttachments };
@@ -540,6 +541,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     messages,
     status,
     error,
+    ragError,
     isStreaming: status === "streaming",
     sendMessage,
     stop,

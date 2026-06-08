@@ -53,3 +53,16 @@ CREATE INDEX IF NOT EXISTS idx_usage_session
 
 CREATE INDEX IF NOT EXISTS idx_usage_thread
   ON usage_records(session_id, thread_id);
+
+CREATE TABLE IF NOT EXISTS vector_docs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  embedding TEXT NOT NULL,
+  metadata TEXT,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vector_docs_session
+  ON vector_docs(session_id, created_at);

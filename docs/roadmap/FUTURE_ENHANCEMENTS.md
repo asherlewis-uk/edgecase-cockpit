@@ -105,9 +105,9 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 - **Dangerous tool guard:** Only `isBuiltInTool` gates execution. A more robust permission model may be needed for user-defined tools.
 
 ### Embeddings/RAG
-- **Chunking:** Only whole messages are embedded and retrieved. Sentence- or paragraph-level chunking would improve relevance.
-- **Cross-device sync:** The vector store lives in localStorage. A server-side vector store or sync mechanism would be needed for multi-device RAG.
-- **Embedding failure handling:** Failures are silently ignored. The UI could surface a "RAG unavailable" indicator.
+- **Chunking:** Sentence/paragraph-level chunking implemented via `chunkText` in `src/lib/vector-store.ts`. Splits on sentence boundaries (.!?) and paragraph breaks, merging short sentences.
+- **Cross-device sync:** Server-side sync implemented via D1 `vector_docs` table and `/api/vector-docs` endpoint. localStorage remains source of truth with local-first fallback.
+- **Embedding failure handling:** Failures are now surfaced via `ragError` state returned from `useChat`. UI display is minimal but functional.
 
 ### Non-goals for the next PR
 - Do not rewrite completed rate limiting/storage/CSP work.

@@ -5,6 +5,7 @@ import {
   clearVectorStore,
   searchVectorStore,
   getVectorStoreSize,
+  chunkText,
 } from "@/lib/vector-store";
 
 beforeEach(() => {
@@ -58,5 +59,30 @@ describe("clearVectorStore", () => {
     addVectorDocs([{ id: "1", text: "a", embedding: [1, 0, 0] }]);
     clearVectorStore();
     expect(getVectorStoreSize()).toBe(0);
+  });
+});
+
+describe("chunkText", () => {
+  it("returns chunks for multi-sentence text", () => {
+    const chunks = chunkText("Hello world. This is a test. Another sentence.");
+    expect(chunks.length).toBeGreaterThanOrEqual(1);
+    expect(chunks[0]).toContain("Hello world");
+  });
+
+  it("returns single chunk for short text", () => {
+    const chunks = chunkText("Hi there.");
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toBe("Hi there.");
+  });
+
+  it("returns empty array for empty text", () => {
+    expect(chunkText("")).toEqual([]);
+  });
+
+  it("splits on paragraph breaks", () => {
+    const chunks = chunkText("First paragraph.\n\nSecond paragraph.");
+    expect(chunks.length).toBe(2);
+    expect(chunks[0]).toContain("First");
+    expect(chunks[1]).toContain("Second");
   });
 });

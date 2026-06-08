@@ -1,7 +1,6 @@
 // Lightweight local vector store using cosine similarity.
 // Persists to localStorage so indexed data survives reloads.
-// For this pass, chunking is simple (whole messages). Future passes
-// can add sentence-level chunking.
+// Supports sentence-level chunking and server-side sync via D1.
 
 export type VectorDoc = {
   id: string;
@@ -87,4 +86,81 @@ export function searchVectorStore(queryEmbedding: number[], topK = 3): VectorDoc
 
 export function getVectorStoreSize(): number {
   return getDocs().length;
+}
+
+// ── Chunking ────────────────────────────────────────────────────────────────
+
+/**
+ * Split text into sentence-like chunks.
+ * Splits first on paragraph breaks (\\n\\n+), then on sentence-ending
+ * punctuation (. ! ?) within each paragraph. Chunks shorter than
+ * minLength within the same paragraph are merged. Falls back to a
+ * single whole-text chunk for very short texts.
+ */
+export function chunkText(text: string, minLength = 80): string[] {
+  if (!text) return [];
+  const paragraphs = text
+    .split(/\n\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (paragraphs.length === 0) return [];
+
+  const chunks: string[] = [];
+  for (const para of paragraphs) {
+    const sentences = para
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (sentences.length === 0) continue;
+    let acc = "";
+    for (const sent of sentences) {
+      if (acc && acc.length + sent.length < minLength) {
+        acc += " " + sent;
+      } else if (acc) {
+        chunks.push(acc);
+        acc = sent;
+      } else {
+        acc = sent;
+      }
+    }
+    if (acc) chunks.push(acc);
+  }
+  return chunks.length ? chunks : [paragraphs[0]];
+}
+
+// ── Server sync ─────────────────────────────────────────────────────────────
+
+let _serverSyncAvailable = false;
+
+export function setServerSyncAvailable(available: boolean) {
+  _serverSyncAvailable = available;
+}
+
+export function isServerSyncAvailable(): boolean {
+  return _serverSyncAvailable;
+}
+
+export async function syncVectorDocToServer(doc: VectorDoc): Promise<void> {
+  if (!_serverSyncAvailable) return;
+  try {
+    await fetch("/api/vector-docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(doc),
+    });
+  } catch {
+    /* ignore; localStorage is source of truth */
+  }
+}
+
+export async function loadVectorDocsFromServer(): Promise<VectorDoc[]> {
+  if (!_serverSyncAvailable) return [];
+  try {
+    const res = await fetch("/api/vector-docs");
+    if (!res.ok) return [];
+    const json = (await res.json()) as { docs: VectorDoc[] };
+    return json.docs ?? [];
+  } catch {
+    return [];
+  }
 }

@@ -38,9 +38,9 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 
 - Streaming with tools is now supported for OpenAI-compatible providers (OpenAI, Vercel AI Gateway, NVIDIA NIM, vLLM, Custom); other providers fall back to non-streaming
 - Built-in tool registry expanded to 4 safe tools (get_current_time, echo, word_count, calculator); dynamic provider tool schemas are not yet fetched
-- Vector store is `localStorage`-only with no cross-device sync
-- Embedding failures are silently swallowed with no UI indicator
-- Chunking is whole-message only
+- Vector store has server-side sync support (D1) but local-first fallback when unavailable
+- Embedding failures are surfaced via `ragError` state but the UI display is minimal
+- Chunking is sentence/paragraph-level with configurable minimum length
 - Token counts are heuristic estimates (~4 chars/token), not exact provider usage
 - Cost rates are hardcoded and may become stale
 - In-memory rate limiter is not suitable for distributed/multi-node deployments
@@ -66,7 +66,7 @@ This is a **local-first, self-hosted** application. Provider keys are **user-con
 | Proxy chat | Implemented | `src/routes/api/proxy/chat.ts`, `src/lib/providers.ts` | SSE streaming, OpenAI/Anthropic/Gemini body styles |
 | Model detection | Implemented | `src/routes/api/proxy/detect.ts`, `src/lib/providers.ts` | Server-side probe for local providers |
 | Transcription | Implemented | `src/routes/api/proxy/transcribe.ts`, `src/lib/providers.ts` | Whisper-compatible proxy |
-| Embeddings/RAG | Implemented | `src/routes/api/proxy/embeddings.ts`, `src/lib/embeddings.ts`, `src/lib/vector-store.ts` | Local vector store, cosine similarity |
+| Embeddings/RAG | Implemented | `src/routes/api/proxy/embeddings.ts`, `src/lib/embeddings.ts`, `src/lib/vector-store.ts`, `src/routes/api/vector-docs.ts` | Sentence/paragraph chunking; server-side sync via D1; error state surfaced |
 | Tools/function-calling | Implemented | `src/lib/tools.ts`, `src/hooks/use-chat.ts`, `src/components/cockpit/MessageRow.tsx` | 4 safe built-ins; streaming tool-call deltas for OpenAI-compatible providers |
 | Token/cost usage | Implemented | `src/lib/tokens.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts` | Heuristic estimation, not exact provider usage |
 | Stats | Implemented | `src/routes/api/stats.ts`, `src/components/cockpit/settings/UsageSection.tsx` | Per-provider calls, errors, tokens, cost |
@@ -409,11 +409,10 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 ### Current limitations
 
-- Chunking is whole-message only
-- Vector store is `localStorage`-backed and not shared across devices
-- Embedding failures are silently swallowed with no UI indicator
-- `embedTexts` does not include CSRF headers, which may cause 403 errors (failures are silently caught)
-- No deduplication of re-embedded messages
+- Sentence/paragraph-level chunking implemented; embedding failures surfaced via error state
+- Vector store has server-side DB sync (`vector_docs` table in D1) with local-first fallback
+- Embedding failures are now surfaced via `ragError` state (not silently swallowed)
+- Deduplication via stable IDs prevents re-embedding identical messages
 
 ## Token and cost tracking
 
@@ -507,22 +506,22 @@ Scripts (from `package.json`):
 - **Suggested next step:** Add dynamic tool schema fetching from providers that expose them
 
 ### Sentence/paragraph-level chunking
-- **Status:** Open / limitation
-- **Source evidence:** `src/lib/vector-store.ts:3` ("chunking is simple (whole messages). Future passes can add sentence-level chunking.")
-- **Why it matters:** Whole-message embeddings may dilute relevance for long messages
-- **Suggested next step:** Add configurable chunking strategy (sentence, paragraph, semantic)
+- **Status:** Complete
+- **Source evidence:** `src/lib/vector-store.ts:98-120` (`chunkText` splits on sentence punctuation and paragraph breaks)
+- **Why it matters:** Smaller chunks improve retrieval relevance for long messages
+- **Implementation:** Configurable minLength (default 80 chars); merges short sentences within paragraphs
 
 ### localStorage-only vector store / no cross-device sync
-- **Status:** Open / limitation
-- **Source evidence:** `src/lib/vector-store.ts:2-3` ("Persists to localStorage so indexed data survives reloads."); `docs/roadmap/FUTURE_ENHANCEMENTS.md:107`
-- **Why it matters:** RAG context is lost when switching devices or browsers
-- **Suggested next step:** Server-side vector store or sync mechanism
+- **Status:** Partial — server-side sync via D1, local-first fallback
+- **Source evidence:** `src/lib/vector-store.ts:124-148` (server sync functions); `src/routes/api/vector-docs.ts` (API endpoint); `src/lib/db/schema.sql:56-66` (vector_docs table)
+- **Why it matters:** RAG context can now be shared across devices when server sync is available
+- **Suggested next step:** Auto-load server docs on session startup
 
 ### Embedding failure UI
-- **Status:** Open / limitation
-- **Source evidence:** `src/hooks/use-chat.ts:219-220` (`catch { /* ignore retrieval failures; chat continues without context */ }`); `src/hooks/use-chat.ts:395-397` (`catch { /* ignore embedding failures; RAG is best-effort */ }`)
-- **Why it matters:** Users have no indication when RAG is unavailable
-- **Suggested next step:** Surface a "RAG unavailable" indicator in the UI
+- **Status:** Partial — error state surfaced, minimal UI
+- **Source evidence:** `src/hooks/use-chat.ts:139` (`ragError` state); `src/hooks/use-chat.ts:549` (returned from useChat)
+- **Why it matters:** Users now receive feedback when RAG is unavailable
+- **Suggested next step:** Display `ragError` in StatusBar or ChatInput area
 
 ### In-memory rate limiter not distributed
 - **Status:** Open / architectural limitation

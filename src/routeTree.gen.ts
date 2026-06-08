@@ -15,6 +15,7 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImagesRouteImport } from './routes/images'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadIdRouteImport } from './routes/thread.$id'
+import { Route as ApiVectorDocsRouteImport } from './routes/api/vector-docs'
 import { Route as ApiUsageRouteImport } from './routes/api/usage'
 import { Route as ApiThreadsRouteImport } from './routes/api/threads'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
@@ -65,6 +66,11 @@ const IndexRoute = IndexRouteImport.update({
 const ThreadIdRoute = ThreadIdRouteImport.update({
   id: '/thread/$id',
   path: '/thread/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVectorDocsRoute = ApiVectorDocsRouteImport.update({
+  id: '/api/vector-docs',
+  path: '/api/vector-docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiUsageRoute = ApiUsageRouteImport.update({
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/api/stats': typeof ApiStatsRoute
   '/api/threads': typeof ApiThreadsRouteWithChildren
   '/api/usage': typeof ApiUsageRouteWithChildren
+  '/api/vector-docs': typeof ApiVectorDocsRoute
   '/thread/$id': typeof ThreadIdRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
@@ -214,6 +221,7 @@ export interface FileRoutesByTo {
   '/api/stats': typeof ApiStatsRoute
   '/api/threads': typeof ApiThreadsRouteWithChildren
   '/api/usage': typeof ApiUsageRouteWithChildren
+  '/api/vector-docs': typeof ApiVectorDocsRoute
   '/thread/$id': typeof ThreadIdRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
@@ -244,6 +252,7 @@ export interface FileRoutesById {
   '/api/stats': typeof ApiStatsRoute
   '/api/threads': typeof ApiThreadsRouteWithChildren
   '/api/usage': typeof ApiUsageRouteWithChildren
+  '/api/vector-docs': typeof ApiVectorDocsRoute
   '/thread/$id': typeof ThreadIdRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
@@ -275,6 +284,7 @@ export interface FileRouteTypes {
     | '/api/stats'
     | '/api/threads'
     | '/api/usage'
+    | '/api/vector-docs'
     | '/thread/$id'
     | '/api/keys/clear'
     | '/api/keys/set'
@@ -304,6 +314,7 @@ export interface FileRouteTypes {
     | '/api/stats'
     | '/api/threads'
     | '/api/usage'
+    | '/api/vector-docs'
     | '/thread/$id'
     | '/api/keys/clear'
     | '/api/keys/set'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/api/stats'
     | '/api/threads'
     | '/api/usage'
+    | '/api/vector-docs'
     | '/thread/$id'
     | '/api/keys/clear'
     | '/api/keys/set'
@@ -363,6 +375,7 @@ export interface RootRouteChildren {
   ApiStatsRoute: typeof ApiStatsRoute
   ApiThreadsRoute: typeof ApiThreadsRouteWithChildren
   ApiUsageRoute: typeof ApiUsageRouteWithChildren
+  ApiVectorDocsRoute: typeof ApiVectorDocsRoute
   ThreadIdRoute: typeof ThreadIdRoute
   ApiKeysClearRoute: typeof ApiKeysClearRoute
   ApiKeysSetRoute: typeof ApiKeysSetRoute
@@ -417,6 +430,13 @@ declare module '@tanstack/react-router' {
       path: '/thread/$id'
       fullPath: '/thread/$id'
       preLoaderRoute: typeof ThreadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/vector-docs': {
+      id: '/api/vector-docs'
+      path: '/api/vector-docs'
+      fullPath: '/api/vector-docs'
+      preLoaderRoute: typeof ApiVectorDocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/usage': {
@@ -634,6 +654,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStatsRoute: ApiStatsRoute,
   ApiThreadsRoute: ApiThreadsRouteWithChildren,
   ApiUsageRoute: ApiUsageRouteWithChildren,
+  ApiVectorDocsRoute: ApiVectorDocsRoute,
   ThreadIdRoute: ThreadIdRoute,
   ApiKeysClearRoute: ApiKeysClearRoute,
   ApiKeysSetRoute: ApiKeysSetRoute,
