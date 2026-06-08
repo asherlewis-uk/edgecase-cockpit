@@ -130,6 +130,51 @@ export function validateToolDef(tool: unknown): tool is ToolDef {
   return true;
 }
 
+/** Maximum length for tool names to prevent injection/buffer abuse. */
+const MAX_TOOL_NAME_LENGTH = 128;
+/** Maximum length for tool call arguments JSON string. */
+const MAX_TOOL_ARGS_LENGTH = 16384;
+
+/**
+ * Validate that a tool name looks like a legitimate, safe identifier.
+ * Rejects: empty strings, overly long names, names with control characters
+ * or suspicious patterns (shell metacharacters, path traversal).
+ */
+export function validateToolName(name: string): boolean {
+  if (!name || typeof name !== "string") return false;
+  if (name.length > MAX_TOOL_NAME_LENGTH) return false;
+  // Only allow alphanumeric, underscore, hyphen, dot — standard tool naming.
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name)) return false;
+  return true;
+}
+
+/**
+ * Validate that tool call arguments is safe JSON.
+ * Returns the parsed object, or null if invalid/dangerous.
+ */
+export function sanitizeToolCallArgs(args: string): Record<string, unknown> | null {
+  if (!args || typeof args !== "string" || args.length > MAX_TOOL_ARGS_LENGTH) return null;
+  try {
+    const parsed = JSON.parse(args);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate a tool call is well-formed and safe.
+ */
+export function validateToolCall(call: unknown): call is ToolCall {
+  if (typeof call !== "object" || call === null) return false;
+  const t = call as Record<string, unknown>;
+  if (typeof t.id !== "string" || !t.id) return false;
+  if (typeof t.name !== "string" || !validateToolName(t.name)) return false;
+  if (typeof t.arguments !== "string") return false;
+  return true;
+}
+
 /** Serialize tools for OpenAI-compatible request bodies. */
 export function toOpenAITools(tools: ToolDef[]): unknown[] {
   return tools.map((t) => ({
@@ -153,39 +198,47 @@ export function toAnthropicTools(tools: ToolDef[]): unknown[] {
 
 /** Extract tool calls from an OpenAI-compatible response body. */
 export function parseOpenAIToolCalls(raw: unknown): ToolCall[] {
-  const msg = (raw as { choices?: { message?: { tool_calls?: unknown[] } }[] } | undefined)
-    ?.choices?.[0]?.message;
-  if (!msg?.tool_calls || !Array.isArray(msg.tool_calls)) return [];
-  const out: ToolCall[] = [];
-  for (const tc of msg.tool_calls) {
-    const t = tc as { id?: string; function?: { name?: string; arguments?: string } };
-    if (t.id && t.function?.name) {
-      out.push({
-        id: String(t.id),
-        name: t.function.name,
-        arguments: String(t.function.arguments ?? "{}"),
-      });
+  try {
+    const msg = (raw as { choices?: { message?: { tool_calls?: unknown[] } }[] } | undefined)
+      ?.choices?.[0]?.message;
+    if (!msg?.tool_calls || !Array.isArray(msg.tool_calls)) return [];
+    const out: ToolCall[] = [];
+    for (const tc of msg.tool_calls) {
+      const t = tc as { id?: string; function?: { name?: string; arguments?: string } };
+      if (t.id && t.function?.name && validateToolName(t.function.name)) {
+        out.push({
+          id: String(t.id),
+          name: t.function.name,
+          arguments: String(t.function.arguments ?? "{}"),
+        });
+      }
     }
+    return out;
+  } catch {
+    return [];
   }
-  return out;
 }
 
 /** Extract tool calls from an Anthropic response body. */
 export function parseAnthropicToolCalls(raw: unknown): ToolCall[] {
-  const content = (raw as { content?: unknown[] } | undefined)?.content;
-  if (!Array.isArray(content)) return [];
-  const out: ToolCall[] = [];
-  for (const block of content) {
-    const b = block as { type?: string; id?: string; name?: string; input?: unknown };
-    if (b.type === "tool_use" && b.id && b.name) {
-      out.push({
-        id: String(b.id),
-        name: b.name,
-        arguments: JSON.stringify(b.input ?? {}),
-      });
+  try {
+    const content = (raw as { content?: unknown[] } | undefined)?.content;
+    if (!Array.isArray(content)) return [];
+    const out: ToolCall[] = [];
+    for (const block of content) {
+      const b = block as { type?: string; id?: string; name?: string; input?: unknown };
+      if (b.type === "tool_use" && b.id && b.name && validateToolName(b.name)) {
+        out.push({
+          id: String(b.id),
+          name: b.name,
+          arguments: JSON.stringify(b.input ?? {}),
+        });
+      }
     }
+    return out;
+  } catch {
+    return [];
   }
-  return out;
 }
 
 /**
@@ -217,7 +270,7 @@ export class StreamToolCallAccumulator {
   complete(): ToolCall[] {
     const out: ToolCall[] = [];
     for (const [, c] of this.calls) {
-      if (c.id && c.name) {
+      if (c.id && c.name && validateToolName(c.name)) {
         out.push({ id: c.id, name: c.name, arguments: c.args || "{}" });
       }
     }

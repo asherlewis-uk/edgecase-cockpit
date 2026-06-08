@@ -32,7 +32,7 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 - Voice input via `MediaRecorder` + Whisper-compatible transcription proxy
 - Screenshot capture via `getDisplayMedia`
 - Image/video attachment support
-- 319 tests across 20 test files
+- 359 tests across 21 test files
 
 **What remains limited or future work:**
 
@@ -50,30 +50,30 @@ This is a **local-first, self-hosted** application. Provider keys are **user-con
 
 ## Feature map
 
-| Feature | Status | Source files | Notes |
-|---|---|---|---|
-| Chat cockpit | Implemented | `src/routes/index.tsx`, `src/hooks/use-chat.ts` | Streaming, attachments, screenshots, voice |
-| Model picker | Implemented | `src/components/cockpit/ModelPicker.tsx` | Fetches live models from `/api/proxy/models` |
-| Keyboard shortcuts | Implemented | `src/hooks/use-keyboard-shortcuts.ts`, `src/components/cockpit/ShortcutHelp.tsx` | Configurable per-action |
-| Command palette | Implemented | `src/components/cockpit/CommandPalette.tsx` | Thread search, provider search, nav actions |
-| Markdown rendering | Implemented | `src/components/cockpit/MarkdownContent.tsx` | `react-markdown`, `remark-gfm`, `rehype-highlight` |
-| Message edit/delete | Implemented | `src/components/cockpit/MessageRow.tsx`, `src/hooks/use-chat.ts` | Edit triggers re-run; delete syncs to server |
-| Offline queue | Implemented | `src/hooks/use-chat.ts` | `localStorage`-backed, auto-drains on reconnect |
-| Thread CRUD | Implemented | `src/lib/cockpit-store.ts`, `src/routes/api/threads.ts`, `src/routes/api/threads.$id.ts` | Local-first with server sync |
-| Thread import/export/fork/pin | Implemented | `src/routes/api/threads.import.ts`, `src/routes/api/threads.$id.export.ts`, `src/routes/api/threads.$id.fork.ts`, `src/routes/api/threads.$id.pin.ts` | JSON, Markdown, TXT formats |
-| Settings UI | Implemented | `src/routes/settings.tsx`, `src/components/cockpit/settings/*` | Profile, personalization, providers, RAG, usage |
-| Provider key validation | Implemented | `src/lib/validate-key.server.ts`, `src/routes/api/keys/validate.ts` | Lightweight ping to models endpoint |
-| Proxy chat | Implemented | `src/routes/api/proxy/chat.ts`, `src/lib/providers.ts` | SSE streaming, OpenAI/Anthropic/Gemini body styles |
-| Model detection | Implemented | `src/routes/api/proxy/detect.ts`, `src/lib/providers.ts` | Server-side probe for local providers |
-| Transcription | Implemented | `src/routes/api/proxy/transcribe.ts`, `src/lib/providers.ts` | Whisper-compatible proxy |
-| Embeddings/RAG | Implemented | `src/routes/api/proxy/embeddings.ts`, `src/lib/embeddings.ts`, `src/lib/vector-store.ts`, `src/routes/api/vector-docs.ts` | Sentence/paragraph chunking; server-side sync via D1; error state surfaced |
-| Tools/function-calling | Implemented | `src/lib/tools.ts`, `src/hooks/use-chat.ts`, `src/components/cockpit/MessageRow.tsx` | 4 safe built-ins; streaming tool-call deltas for OpenAI-compatible providers |
-| Token/cost usage | Implemented | `src/lib/tokens.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts` | Exact usage from provider responses when available; falls back to heuristic estimation |
-| Stats | Implemented | `src/routes/api/stats.ts`, `src/components/cockpit/settings/UsageSection.tsx` | Per-provider calls, errors, tokens, cost |
-| CSP/security headers | Implemented | `src/lib/csp.server.ts`, `src/server.ts` | Attached to HTML responses only |
-| CSRF | Implemented | `src/lib/csrf.server.ts` | Double-submit cookie; all mutating routes |
-| Rate limiting | Implemented | `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts` | In-memory; presets for keys, usage, health, threads, session, stats, proxy |
-| Storage limits | Implemented | `src/lib/storage-limits.server.ts` | Max threads, messages, content length, title, attachments |
+| Feature                       | Status      | Source files                                                                                                                                          | Notes                                                                                  |
+| ----------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Chat cockpit                  | Implemented | `src/routes/index.tsx`, `src/hooks/use-chat.ts`                                                                                                       | Streaming, attachments, screenshots, voice                                             |
+| Model picker                  | Implemented | `src/components/cockpit/ModelPicker.tsx`                                                                                                              | Fetches live models from `/api/proxy/models`                                           |
+| Keyboard shortcuts            | Implemented | `src/hooks/use-keyboard-shortcuts.ts`, `src/components/cockpit/ShortcutHelp.tsx`                                                                      | Configurable per-action                                                                |
+| Command palette               | Implemented | `src/components/cockpit/CommandPalette.tsx`                                                                                                           | Thread search, provider search, nav actions                                            |
+| Markdown rendering            | Implemented | `src/components/cockpit/MarkdownContent.tsx`                                                                                                          | `react-markdown`, `remark-gfm`, `rehype-highlight`                                     |
+| Message edit/delete           | Implemented | `src/components/cockpit/MessageRow.tsx`, `src/hooks/use-chat.ts`                                                                                      | Edit triggers re-run; delete syncs to server                                           |
+| Offline queue                 | Implemented | `src/hooks/use-chat.ts`                                                                                                                               | `localStorage`-backed, auto-drains on reconnect                                        |
+| Thread CRUD                   | Implemented | `src/lib/cockpit-store.ts`, `src/routes/api/threads.ts`, `src/routes/api/threads.$id.ts`                                                              | Local-first with server sync                                                           |
+| Thread import/export/fork/pin | Implemented | `src/routes/api/threads.import.ts`, `src/routes/api/threads.$id.export.ts`, `src/routes/api/threads.$id.fork.ts`, `src/routes/api/threads.$id.pin.ts` | JSON, Markdown, TXT formats                                                            |
+| Settings UI                   | Implemented | `src/routes/settings.tsx`, `src/components/cockpit/settings/*`                                                                                        | Profile, personalization, providers, RAG, usage                                        |
+| Provider key validation       | Implemented | `src/lib/validate-key.server.ts`, `src/routes/api/keys/validate.ts`                                                                                   | Lightweight ping to models endpoint                                                    |
+| Proxy chat                    | Implemented | `src/routes/api/proxy/chat.ts`, `src/lib/providers.ts`                                                                                                | SSE streaming, OpenAI/Anthropic/Gemini body styles                                     |
+| Model detection               | Implemented | `src/routes/api/proxy/detect.ts`, `src/lib/providers.ts`                                                                                              | Server-side probe for local providers                                                  |
+| Transcription                 | Implemented | `src/routes/api/proxy/transcribe.ts`, `src/lib/providers.ts`                                                                                          | Whisper-compatible proxy                                                               |
+| Embeddings/RAG                | Implemented | `src/routes/api/proxy/embeddings.ts`, `src/lib/embeddings.ts`, `src/lib/vector-store.ts`, `src/routes/api/vector-docs.ts`                             | Sentence/paragraph chunking; server-side sync via D1; error state surfaced             |
+| Tools/function-calling        | Implemented | `src/lib/tools.ts`, `src/hooks/use-chat.ts`, `src/components/cockpit/MessageRow.tsx`                                                                  | 4 safe built-ins; streaming tool-call deltas for OpenAI-compatible providers           |
+| Token/cost usage              | Implemented | `src/lib/tokens.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts`                                                                             | Exact usage from provider responses when available; falls back to heuristic estimation |
+| Stats                         | Implemented | `src/routes/api/stats.ts`, `src/components/cockpit/settings/UsageSection.tsx`                                                                         | Per-provider calls, errors, tokens, cost                                               |
+| CSP/security headers          | Implemented | `src/lib/csp.server.ts`, `src/server.ts`                                                                                                              | Attached to HTML responses only                                                        |
+| CSRF                          | Implemented | `src/lib/csrf.server.ts`                                                                                                                              | Double-submit cookie; all mutating routes                                              |
+| Rate limiting                 | Implemented | `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts`                                                                                       | In-memory; presets for keys, usage, health, threads, session, stats, proxy             |
+| Storage limits                | Implemented | `src/lib/storage-limits.server.ts`                                                                                                                    | Max threads, messages, content length, title, attachments                              |
 
 ## Architecture
 
@@ -270,35 +270,35 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 ## API routes
 
-| Route | Method | Purpose | Security / rate limit | Source |
-|---|---|---|---|---|
-| `/api/health` | GET | Health check | `healthRateLimit` | `src/routes/api/health.ts` |
-| `/api/session` | POST | Bootstrap encrypted session | `sessionRateLimit`, CSRF | `src/routes/api/session.ts` |
-| `/api/threads` | GET | List threads | `threadsRateLimit`, CSRF | `src/routes/api/threads.ts` |
-| `/api/threads` | POST | Create thread | `threadsRateLimit`, CSRF, storage limits | `src/routes/api/threads.ts` |
-| `/api/threads` | DELETE | Delete all threads | `threadsRateLimit`, CSRF | `src/routes/api/threads.ts` |
-| `/api/threads/$id` | GET | Get single thread | `threadsRateLimit`, CSRF | `src/routes/api/threads.$id.ts` |
-| `/api/threads/$id` | PATCH | Update thread | `threadsRateLimit`, CSRF, storage limits | `src/routes/api/threads.$id.ts` |
-| `/api/threads/$id` | DELETE | Delete thread | `threadsRateLimit`, CSRF | `src/routes/api/threads.$id.ts` |
-| `/api/threads/import` | POST | Bulk import threads | `threadsRateLimit`, CSRF, storage limits | `src/routes/api/threads.import.ts` |
-| `/api/threads/$id/export` | GET | Export thread (json/md/txt) | `threadsRateLimit`, CSRF | `src/routes/api/threads.$id.export.ts` |
-| `/api/threads/$id/fork` | POST | Fork thread | `threadsRateLimit`, CSRF | `src/routes/api/threads.$id.fork.ts` |
-| `/api/threads/$id/pin` | POST | Toggle pin | `threadsRateLimit`, CSRF | `src/routes/api/threads.$id.pin.ts` |
-| `/api/usage` | GET | Aggregate usage | `usageRateLimit`, CSRF | `src/routes/api/usage.ts` |
-| `/api/usage/$threadId` | GET | Per-thread usage | `usageRateLimit`, CSRF | `src/routes/api/usage.$threadId.ts` |
-| `/api/stats` | GET | Provider stats | `statsRateLimit`, CSRF | `src/routes/api/stats.ts` |
-| `/api/stats` | POST | Record usage | `statsRateLimit`, CSRF | `src/routes/api/stats.ts` |
-| `/api/stats` | DELETE | Reset stats | `statsRateLimit`, CSRF | `src/routes/api/stats.ts` |
-| `/api/keys/set` | POST | Store provider key | `keysRateLimit`, CSRF | `src/routes/api/keys/set.ts` |
-| `/api/keys/clear` | POST | Clear provider keys | `keysRateLimit`, CSRF | `src/routes/api/keys/clear.ts` |
-| `/api/keys/status` | GET | Key status per provider | `keysRateLimit`, CSRF | `src/routes/api/keys/status.ts` |
-| `/api/keys/validate` | POST | Validate all keys | `keysRateLimit`, CSRF | `src/routes/api/keys/validate.ts` |
-| `/api/keys/validate/$providerId` | POST | Validate single key | `keysRateLimit`, CSRF | `src/routes/api/keys/validate.$providerId.ts` |
-| `/api/proxy/chat` | POST | Chat completions proxy | `proxy-guard` rate limit, CSRF, URL allowlist | `src/routes/api/proxy/chat.ts` |
-| `/api/proxy/detect` | POST | Provider reachability probe | `proxy-guard` rate limit, CSRF | `src/routes/api/proxy/detect.ts` |
-| `/api/proxy/embeddings` | POST | Embeddings proxy | `proxy-guard` rate limit, CSRF, URL allowlist | `src/routes/api/proxy/embeddings.ts` |
-| `/api/proxy/models` | GET | Fetch available models | `proxy-guard` rate limit, CSRF | `src/routes/api/proxy/models.ts` |
-| `/api/proxy/transcribe` | POST | Audio transcription proxy | `proxy-guard` rate limit, CSRF | `src/routes/api/proxy/transcribe.ts` |
+| Route                            | Method | Purpose                     | Security / rate limit                         | Source                                        |
+| -------------------------------- | ------ | --------------------------- | --------------------------------------------- | --------------------------------------------- |
+| `/api/health`                    | GET    | Health check                | `healthRateLimit`                             | `src/routes/api/health.ts`                    |
+| `/api/session`                   | POST   | Bootstrap encrypted session | `sessionRateLimit`, CSRF                      | `src/routes/api/session.ts`                   |
+| `/api/threads`                   | GET    | List threads                | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.ts`                   |
+| `/api/threads`                   | POST   | Create thread               | `threadsRateLimit`, CSRF, storage limits      | `src/routes/api/threads.ts`                   |
+| `/api/threads`                   | DELETE | Delete all threads          | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.ts`                   |
+| `/api/threads/$id`               | GET    | Get single thread           | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.ts`               |
+| `/api/threads/$id`               | PATCH  | Update thread               | `threadsRateLimit`, CSRF, storage limits      | `src/routes/api/threads.$id.ts`               |
+| `/api/threads/$id`               | DELETE | Delete thread               | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.ts`               |
+| `/api/threads/import`            | POST   | Bulk import threads         | `threadsRateLimit`, CSRF, storage limits      | `src/routes/api/threads.import.ts`            |
+| `/api/threads/$id/export`        | GET    | Export thread (json/md/txt) | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.export.ts`        |
+| `/api/threads/$id/fork`          | POST   | Fork thread                 | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.fork.ts`          |
+| `/api/threads/$id/pin`           | POST   | Toggle pin                  | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.pin.ts`           |
+| `/api/usage`                     | GET    | Aggregate usage             | `usageRateLimit`, CSRF                        | `src/routes/api/usage.ts`                     |
+| `/api/usage/$threadId`           | GET    | Per-thread usage            | `usageRateLimit`, CSRF                        | `src/routes/api/usage.$threadId.ts`           |
+| `/api/stats`                     | GET    | Provider stats              | `statsRateLimit`, CSRF                        | `src/routes/api/stats.ts`                     |
+| `/api/stats`                     | POST   | Record usage                | `statsRateLimit`, CSRF                        | `src/routes/api/stats.ts`                     |
+| `/api/stats`                     | DELETE | Reset stats                 | `statsRateLimit`, CSRF                        | `src/routes/api/stats.ts`                     |
+| `/api/keys/set`                  | POST   | Store provider key          | `keysRateLimit`, CSRF                         | `src/routes/api/keys/set.ts`                  |
+| `/api/keys/clear`                | POST   | Clear provider keys         | `keysRateLimit`, CSRF                         | `src/routes/api/keys/clear.ts`                |
+| `/api/keys/status`               | GET    | Key status per provider     | `keysRateLimit`, CSRF                         | `src/routes/api/keys/status.ts`               |
+| `/api/keys/validate`             | POST   | Validate all keys           | `keysRateLimit`, CSRF                         | `src/routes/api/keys/validate.ts`             |
+| `/api/keys/validate/$providerId` | POST   | Validate single key         | `keysRateLimit`, CSRF                         | `src/routes/api/keys/validate.$providerId.ts` |
+| `/api/proxy/chat`                | POST   | Chat completions proxy      | `proxy-guard` rate limit, CSRF, URL allowlist | `src/routes/api/proxy/chat.ts`                |
+| `/api/proxy/detect`              | POST   | Provider reachability probe | `proxy-guard` rate limit, CSRF                | `src/routes/api/proxy/detect.ts`              |
+| `/api/proxy/embeddings`          | POST   | Embeddings proxy            | `proxy-guard` rate limit, CSRF, URL allowlist | `src/routes/api/proxy/embeddings.ts`          |
+| `/api/proxy/models`              | GET    | Fetch available models      | `proxy-guard` rate limit, CSRF                | `src/routes/api/proxy/models.ts`              |
+| `/api/proxy/transcribe`          | POST   | Audio transcription proxy   | `proxy-guard` rate limit, CSRF                | `src/routes/api/proxy/transcribe.ts`          |
 
 ## Security model
 
@@ -369,23 +369,23 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 ## Provider support
 
-| Provider / model family | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Notes |
-|---|---|---|---|---|---|---|---|---|---|
-| OpenAI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | GPT-4o, GPT-5, embeddings, Whisper |
-| Anthropic | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | Claude Sonnet/Opus; native body style |
-| Google Gemini | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | OpenAI-compatible endpoint |
-| Moonshot / KimiCoding | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | OpenAI-compatible |
-| OpenRouter | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | Unified gateway |
-| Ollama Cloud | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Managed Ollama |
-| NVIDIA NIM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Hosted inference microservices |
-| Vercel AI Gateway | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Multi-provider gateway |
-| Ollama (local) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local daemon; base URL editable |
-| LM Studio | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local server |
-| Hermes | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | Local gateway |
-| OpenClaw | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | Local agent gateway |
-| vLLM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | OpenAI-compatible server |
-| llama.cpp server | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local OpenAI-compatible server |
-| Custom (OpenAI-compatible) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Any endpoint; `allowedHosts: ["*"]` |
+| Provider / model family    | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Notes                                 |
+| -------------------------- | ---- | ------ | ----- | --------------- | ---------- | ------ | ------------- | ------------------------------------- |
+| OpenAI                     | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | GPT-4o, GPT-5, embeddings, Whisper    |
+| Anthropic                  | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Claude Sonnet/Opus; native body style |
+| Google Gemini              | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | OpenAI-compatible endpoint            |
+| Moonshot / KimiCoding      | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | OpenAI-compatible                     |
+| OpenRouter                 | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Unified gateway                       |
+| Ollama Cloud               | ✅   | ✅     | ❌    | ❌              | ✅         | ❌     | ❌            | Managed Ollama                        |
+| NVIDIA NIM                 | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Hosted inference microservices        |
+| Vercel AI Gateway          | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Multi-provider gateway                |
+| Ollama (local)             | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local daemon; base URL editable       |
+| LM Studio                  | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local server                          |
+| Hermes                     | ✅   | ✅     | ✅    | ❌              | ✅         | ❌     | ❌            | Local gateway                         |
+| OpenClaw                   | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Local agent gateway                   |
+| vLLM                       | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | OpenAI-compatible server              |
+| llama.cpp server           | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local OpenAI-compatible server        |
+| Custom (OpenAI-compatible) | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Any endpoint; `allowedHosts: ["*"]`   |
 
 **Note:** Capability flags in `src/lib/providers.ts` declare support, but not all combinations have been end-to-end tested. The `custom` provider allows any host, which shifts SSRF responsibility to the operator.
 
@@ -393,9 +393,11 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 - **Typed tool definitions:** `ToolDef`, `ToolCall`, `ToolResult` types in `src/lib/tools.ts`
 - **Validation:** `validateToolDef` checks name/description presence
+- **Safety guards:** `validateToolName` restricts tool names to safe `[a-zA-Z0-9][a-zA-Z0-9_.-]*` patterns (≤128 chars). `sanitizeToolCallArgs` validates JSON arguments as objects (≤16KB). `validateToolCall` validates complete tool call structures.
 - **Serialization:** `toOpenAITools` and `toAnthropicTools` adapt to provider body styles
-- **Parsing:** `parseOpenAIToolCalls` and `parseAnthropicToolCalls` extract tool calls from non-streaming responses
-- **Built-in registry:** `BUILT_IN_TOOLS` contains `get_current_time` and `echo`
+- **Parsing:** `parseOpenAIToolCalls` and `parseAnthropicToolCalls` extract tool calls from non-streaming responses — **now with `validateToolName` gating on each extracted call** (unsafe names are silently dropped)
+- **Stream accumulator:** `StreamToolCallAccumulator` applies `validateToolName` on `complete()`
+- **Built-in registry:** `BUILT_IN_TOOLS` contains `get_current_time`, `echo`, `word_count`, `calculator`
 - **Approval UI:** `MessageRow.tsx` renders tool calls as cards; user must click "Execute"
 - **Execution:** `executeBuiltInTool` runs only `isBuiltInTool`-gated tools; non-built-in tools return `[Tool "{name}" is not implemented]`
 - **Re-run:** After tool execution, the result is injected as a `tool` role message and the assistant is re-run with the result in context
@@ -404,6 +406,7 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 - Streaming with tools supported for OpenAI-compatible providers (bodyStyle: "openai" + streamingTools flag); other providers fall back to non-streaming
 - 4 built-in safe tools exist (get_current_time, echo, word_count, calculator); dynamic provider tool schemas are not yet fetched
+- Tool name safety is enforced at parse time — malicious provider responses with unsafe tool names are silently dropped rather than surfaced as errors
 
 ## Embeddings / RAG
 
@@ -466,27 +469,27 @@ bun run preview
 
 Scripts (from `package.json`):
 
-| Script | Command |
-|---|---|
-| `dev` | `vite dev` |
-| `build` | `vite build` |
+| Script      | Command                         |
+| ----------- | ------------------------------- |
+| `dev`       | `vite dev`                      |
+| `build`     | `vite build`                    |
 | `build:dev` | `vite build --mode development` |
-| `preview` | `vite preview` |
-| `lint` | `eslint .` |
-| `format` | `prettier --write .` |
-| `typecheck` | `tsc --noEmit` |
-| `test` | `vitest run` |
+| `preview`   | `vite preview`                  |
+| `lint`      | `eslint .`                      |
+| `format`    | `prettier --write .`            |
+| `typecheck` | `tsc --noEmit`                  |
+| `test`      | `vitest run`                    |
 
 ## Environment and configuration
 
-| Name | Required | Purpose | Source file |
-|---|---|---|---|
-| `SESSION_SECRET` | **Yes** | Encryption password for cookie sessions (≥32 chars) | `src/lib/session.server.ts`, `src/lib/env.server.ts` |
-| `NODE_ENV` | No | Runtime environment (development / production) | `src/routes/api/health.ts`, `src/server.ts` |
-| `LOG_LEVEL` | No | Structured JSON logger level | `src/lib/logger.server.ts` |
-| `DB` | Yes (platform) | Cloudflare D1 database binding | `src/lib/platform.server.ts`, `wrangler.jsonc` |
-| `ALLOW_IN_MEMORY_RATE_LIMIT` | Production | Set to `true` to acknowledge in-memory rate limiting in production (single-node only) | `src/lib/rate-limit.server.ts` |
-| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production | Set to `true` to opt in to wildcard (`*`) host matching for the custom provider | `src/lib/proxy-guard.server.ts` |
+| Name                          | Required       | Purpose                                                                               | Source file                                          |
+| ----------------------------- | -------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `SESSION_SECRET`              | **Yes**        | Encryption password for cookie sessions (≥32 chars)                                   | `src/lib/session.server.ts`, `src/lib/env.server.ts` |
+| `NODE_ENV`                    | No             | Runtime environment (development / production)                                        | `src/routes/api/health.ts`, `src/server.ts`          |
+| `LOG_LEVEL`                   | No             | Structured JSON logger level                                                          | `src/lib/logger.server.ts`                           |
+| `DB`                          | Yes (platform) | Cloudflare D1 database binding                                                        | `src/lib/platform.server.ts`, `wrangler.jsonc`       |
+| `ALLOW_IN_MEMORY_RATE_LIMIT`  | Production     | Set to `true` to acknowledge in-memory rate limiting in production (single-node only) | `src/lib/rate-limit.server.ts`                       |
+| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production     | Set to `true` to opt in to wildcard (`*`) host matching for the custom provider       | `src/lib/proxy-guard.server.ts`                      |
 
 **Important:** `wrangler.jsonc` contains a placeholder D1 database ID (`00000000-0000-0000-0000-000000000000`). You must update this with your actual D1 database ID before deployment.
 
@@ -518,70 +521,81 @@ Before deploying to production:
 - **Naming:** Route-adjacent tests use `-` prefix (e.g., `-keys.test.ts`, `-proxy.test.ts`). Library and component tests are co-located.
 - **Run all:** `bun run test` (or `vitest run`)
 - **Run targeted:** `npx vitest run src/lib/tools.test.ts`
-- **Current focus:** 319 tests across 20 files covering CSRF, CSP, rate limiting, storage limits, proxy guard, providers, tools, vector store, tokens, cockpit store, chat hook, keyboard shortcuts, chat input, greeting, and API routes
+- **Current focus:** 359 tests across 21 files covering CSRF, CSP, rate limiting, storage limits, proxy guard, providers, tools, vector store, tokens, cockpit store, chat hook, keyboard shortcuts, chat input, greeting, RAG/proxy integration, and API routes
 
 ## Known limitations and future work
 
 ### Streaming + tools
+
 - **Status:** Partial (OpenAI-compatible providers only)
 - **Source evidence:** `src/hooks/use-chat.ts:254-260` (streams with tool-call deltas when `provider.supports.streamingTools`; falls back to non-streaming for others)
 - **Why it matters:** Users see real-time text for OpenAI-compatible providers; Anthropic/Gemini providers still require non-streaming for tools
 - **Suggested next step:** Add Anthropic streaming tool-use delta parsing
 
 ### Dynamic tool schemas / provider tool discovery
+
 - **Status:** Open / limitation
 - **Source evidence:** `src/lib/tools.ts:34-53` (only `get_current_time` and `echo` in `BUILT_IN_TOOLS`); `src/lib/tools.ts:71` (non-built-in tools return "not implemented")
 - **Why it matters:** Users cannot use provider-native tools (e.g., OpenAI code interpreter, web search)
 - **Suggested next step:** Add dynamic tool schema fetching from providers that expose them
 
 ### Sentence/paragraph-level chunking
+
 - **Status:** Complete
 - **Source evidence:** `src/lib/vector-store.ts:98-120` (`chunkText` splits on sentence punctuation and paragraph breaks)
 - **Why it matters:** Smaller chunks improve retrieval relevance for long messages
 - **Implementation:** Configurable minLength (default 80 chars); merges short sentences within paragraphs
 
 ### localStorage-only vector store / no cross-device sync
+
 - **Status:** Partial — server-side sync via D1, local-first fallback
 - **Source evidence:** `src/lib/vector-store.ts:124-148` (server sync functions); `src/routes/api/vector-docs.ts` (API endpoint); `src/lib/db/schema.sql:56-66` (vector_docs table)
 - **Why it matters:** RAG context can now be shared across devices when server sync is available
 - **Suggested next step:** Auto-load server docs on session startup
 
 ### Embedding failure UI
+
 - **Status:** Implemented — `ragError` surfaced in StatusBar
 - **Source evidence:** `src/hooks/use-chat.ts:139` (`ragError` state); `src/components/cockpit/StatusBar.tsx` (renders `ragError` alongside offline/queue status)
 - **Why it matters:** Users see a visible indicator when RAG retrieval or embedding fails, without blocking chat
 
 ### In-memory rate limiter not distributed
+
 - **Status:** Hardened — pluggable `IRateLimiterBackend` interface; production guard warns unless `ALLOW_IN_MEMORY_RATE_LIMIT=true`
 - **Source evidence:** `src/lib/rate-limit.server.ts:12-24` (`IRateLimiterBackend`, `setRateLimiterBackend`); `src/server.ts` (startup guard via `warnInMemoryRateLimitInProduction`)
 - **Why it matters:** Single-node deployments work out of the box; multi-node operators are warned and can swap backends
 - **Suggested next step:** Ship a Cloudflare KV adapter for multi-Worker deployments
 
 ### Hardcoded cost rates
+
 - **Status:** Improved — now configurable via `setCostOverrides()`
 - **Source evidence:** `src/lib/tokens.ts:49-72` (`_COST_DEFAULTS`, `setCostOverrides`, `getCostRates`)
 - **Why it matters:** Operators can override stale rates through settings or server config
 - **Suggested next step:** Expose cost override UI in settings, or fetch rates from provider APIs
 
 ### Token estimation is heuristic
+
 - **Status:** Improved — exact usage extracted from upsteam responses when available
 - **Source evidence:** `src/lib/tokens.ts:132-176` (`extractProviderUsage` for OpenAI, Anthropic, Gemini formats)
 - **Why it matters:** Token counts are now exact when providers include usage metadata; falls back to heuristics
 - **Suggested next step:** Integrate a lightweight tokenizer (e.g., `gpt-tokenizer`) for unsupported models
 
 ### No provider-level tool testing
+
 - **Status:** Open / testing gap
 - **Source evidence:** Only `tools.test.ts` exists; no integration tests for tool calling through proxy routes
 - **Why it matters:** Tool serialization/parsing may break for specific providers without detection
 - **Suggested next step:** Add proxy-level tests for tool request bodies and response parsing
 
 ### Cross-tab sync gaps
+
 - **Status:** Open / limitation
 - **Source evidence:** `src/lib/cockpit-store.ts:492-514` (only `SETTINGS_KEY` and `THREADS_KEY` are synced)
 - **Why it matters:** Vector store and provider stats are not synced across tabs
 - **Suggested next step:** Extend cross-tab sync to stats and vector store, or move them to shared workers
 
 ### Dangerous tool guard
+
 - **Status:** Open / security consideration
 - **Source evidence:** `docs/roadmap/FUTURE_ENHANCEMENTS.md:103`
 - **Why it matters:** Only `isBuiltInTool` gates execution; user-defined tools are not yet supported but the guard may be insufficient
