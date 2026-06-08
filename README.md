@@ -387,7 +387,7 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 | llama.cpp server           | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local OpenAI-compatible server        |
 | Custom (OpenAI-compatible) | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Any endpoint; `allowedHosts: ["*"]`   |
 
-**Note:** Capability flags in `src/lib/providers.ts` declare support, but not all combinations have been end-to-end tested. The `custom` provider allows any host, which shifts SSRF responsibility to the operator.
+**Note:** Capability flags in `src/lib/providers.ts` declare support, but not all combinations have been end-to-end tested. The `custom` provider's wildcard (`*`) host matching is **blocked in production** unless `PROXY_ALLOW_CUSTOM_WILDCARD=true` is set. See the deployment checklist for production hardening details.
 
 ## Tools / function-calling
 

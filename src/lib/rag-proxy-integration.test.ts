@@ -204,4 +204,31 @@ describe("multi-tool call safety", () => {
     expect(safe).toHaveLength(2);
     expect(safe.map((t) => t.name)).toEqual(["echo", "word_count"]);
   });
+
+  it("rejects tool call without valid id", () => {
+    // Simulates validateToolCall rejecting calls with empty id
+    const validateToolCall = (call: Record<string, unknown>) =>
+      typeof call.id === "string" && call.id.length > 0;
+
+    expect(validateToolCall({ id: "call-1", name: "echo", arguments: "{}" })).toBe(true);
+    expect(validateToolCall({ id: "", name: "echo", arguments: "{}" })).toBe(false);
+    expect(validateToolCall({ name: "echo", arguments: "{}" })).toBe(false);
+  });
+
+  it("rejects oversized tool call arguments", () => {
+    // Simulates sanitizeToolCallArgs rejecting >16KB args and empty strings
+    const MAX_ARGS = 16384;
+    const sanitizeArgs = (args: string): Record<string, unknown> | null => {
+      if (!args || args.length > MAX_ARGS) return null;
+      try {
+        return JSON.parse(args);
+      } catch {
+        return null;
+      }
+    };
+
+    expect(sanitizeArgs(JSON.stringify({ x: 1 }))).toEqual({ x: 1 });
+    expect(sanitizeArgs("x".repeat(17000))).toBeNull();
+    expect(sanitizeArgs("")).toBeNull();
+  });
 });

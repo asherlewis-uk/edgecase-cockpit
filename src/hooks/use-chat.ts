@@ -22,6 +22,8 @@ import {
   BUILT_IN_TOOLS,
   StreamToolCallAccumulator,
   extractOpenAIToolCallDelta,
+  validateToolCall,
+  sanitizeToolCallArgs,
 } from "@/lib/tools";
 import { embedTexts } from "@/lib/embeddings";
 import { addVectorDocs, searchVectorStore, chunkText } from "@/lib/vector-store";
@@ -534,6 +536,30 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     async (messageId: string, call: ToolCall) => {
       const threadId = store.getState().activeThreadId;
       if (!threadId) return;
+
+      // ── Safety guards: validate tool call shape and arguments ──────
+      if (!validateToolCall(call)) {
+        store.addMessage(threadId, {
+          id: crypto.randomUUID(),
+          role: "tool",
+          content: `[Tool call rejected: invalid shape]`,
+          ts: Date.now(),
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      if (!sanitizeToolCallArgs(call.arguments)) {
+        store.addMessage(threadId, {
+          id: crypto.randomUUID(),
+          role: "tool",
+          content: `[Tool call rejected: invalid or oversized arguments]`,
+          ts: Date.now(),
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
       const result = await executeBuiltInTool(call.name, call.arguments);
       store.addMessage(threadId, {
         id: crypto.randomUUID(),
