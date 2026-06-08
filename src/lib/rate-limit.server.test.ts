@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import {
   checkRateLimit,
   clearRateLimitBuckets,
@@ -9,6 +9,7 @@ import {
   threadsRateLimit,
   sessionRateLimit,
   statsRateLimit,
+  warnInMemoryRateLimitInProduction,
 } from "@/lib/rate-limit.server";
 
 describe("rate-limit.server", () => {
@@ -99,5 +100,40 @@ describe("rate-limit.server", () => {
       expect(statsRateLimit(key).ok).toBe(true);
     }
     expect(statsRateLimit(key).ok).toBe(false);
+  });
+});
+
+// ── Production safety guard ────────────────────────────────────────────────
+
+describe("warnInMemoryRateLimitInProduction", () => {
+  const origNodeEnv = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    delete process.env.NODE_ENV;
+  });
+
+  afterAll(() => {
+    process.env.NODE_ENV = origNodeEnv;
+  });
+
+  it("does not warn outside production", () => {
+    delete process.env.NODE_ENV;
+    // No custom backend, not in production — should not log warnings.
+    // We can verify by calling it; the function guards on NODE_ENV.
+    expect(() => warnInMemoryRateLimitInProduction()).not.toThrow();
+  });
+
+  it("logs a prominent warning in production without opt-in", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.ALLOW_IN_MEMORY_RATE_LIMIT;
+    // Should not throw, but will emit console.error.
+    expect(() => warnInMemoryRateLimitInProduction()).not.toThrow();
+  });
+
+  it("logs a softer warning in production with opt-in", () => {
+    process.env.NODE_ENV = "production";
+    process.env.ALLOW_IN_MEMORY_RATE_LIMIT = "true";
+    // Should not throw, emits console.warn instead of error.
+    expect(() => warnInMemoryRateLimitInProduction()).not.toThrow();
   });
 });

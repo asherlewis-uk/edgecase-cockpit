@@ -42,6 +42,35 @@ function matchHost(pattern: string, host: string): boolean {
   return false;
 }
 
+/**
+ * Is a wildcard host pattern (*) allowed right now?
+ *
+ * In development: always allowed (local exploration).
+ * In production:  only allowed when PROXY_ALLOW_CUSTOM_WILDCARD=true
+ *                 is explicitly set (opt-in).  Without it, custom-provider
+ *                 wildcard targets are rejected — the operator must
+ *                 add explicit hosts to the provider's allowedHosts.
+ */
+export function isWildcardHostAllowed(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  return process.env.PROXY_ALLOW_CUSTOM_WILDCARD === "true";
+}
+
+/**
+ * Emit a startup log line so operators can see the effective policy.
+ * Call at module init time (server.ts already does).
+ */
+export function logCustomProviderPolicy(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  const allowed = isWildcardHostAllowed();
+  console.warn(
+    `[proxy-guard] Custom-provider wildcard hosts ("*") are ` +
+      `${allowed ? "ALLOWED" : "BLOCKED"} in production. ` +
+      `${allowed ? "" : "Set PROXY_ALLOW_CUSTOM_WILDCARD=true to opt in, "}` +
+      `or add explicit hosts to the custom provider's allowedHosts.`,
+  );
+}
+
 export function urlAllowedForProvider(providerId: string, url: string): boolean {
   const p = PROVIDERS.find((x) => x.id === providerId);
   if (!p) return false;
@@ -53,6 +82,20 @@ export function urlAllowedForProvider(providerId: string, url: string): boolean 
   } catch {
     return false;
   }
+
+  // Wildcard hosts require an explicit production opt-in.
+  if (allowed.includes("*")) {
+    if (!isWildcardHostAllowed()) {
+      console.warn(
+        `[proxy-guard] Custom-provider wildcard request blocked for host "${host}" ` +
+          `(PROXY_ALLOW_CUSTOM_WILDCARD not enabled).`,
+      );
+      return false;
+    }
+    // Wildcard is allowed — but still check explicit patterns first
+    // (so you can have both "*" and "specific.host.com").
+  }
+
   return allowed.some((pattern) => matchHost(pattern, host));
 }
 

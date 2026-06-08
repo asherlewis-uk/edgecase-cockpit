@@ -2,8 +2,38 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import { setPlatformEnv } from "./lib/platform.server";
+import { setPlatformEnv, getDB } from "./lib/platform.server";
 import { withCspHeaders } from "./lib/csp.server";
+import { validateEnv } from "./lib/env.server";
+import { warnInMemoryRateLimitInProduction } from "./lib/rate-limit.server";
+import { logCustomProviderPolicy } from "./lib/proxy-guard.server";
+
+// ── Startup guards (run once per cold start) ─────────────────────────────
+
+let envValid = false;
+try {
+  validateEnv();
+  envValid = true;
+} catch (e) {
+  console.error("[env]", e instanceof Error ? e.message : String(e));
+}
+
+// Warn about D1 binding at startup — the placeholder ID (00000000-...) in
+// wrangler.jsonc won't be caught here, but a missing binding will be.
+try {
+  getDB();
+} catch {
+  console.warn(
+    "[platform] D1 database binding 'DB' not available. " +
+      "Thread persistence and usage stats require a valid d1_databases entry in wrangler.jsonc.",
+  );
+}
+
+// Warn if in-memory rate limiting is used in production without acknowledgement.
+warnInMemoryRateLimitInProduction();
+
+// Log effective custom-provider wildcard policy.
+logCustomProviderPolicy();
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -71,6 +101,23 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      // ── Per-request startup guard ────────────────────────────────────
+      if (!envValid) {
+        return new Response(
+          JSON.stringify({
+            error: "Server misconfigured",
+            detail:
+              "Required environment variables are missing or invalid. " +
+              "Check server logs for the full diagnostic. " +
+              "At minimum, SESSION_SECRET must be set to a random string of 32+ characters.",
+          }),
+          {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
       setPlatformEnv(env);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

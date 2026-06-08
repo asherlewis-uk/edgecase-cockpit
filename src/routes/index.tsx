@@ -102,6 +102,7 @@ export function Cockpit() {
     messages,
     isStreaming,
     error,
+    ragError,
     sendMessage,
     stop,
     regenerate,
@@ -411,7 +412,7 @@ export function Cockpit() {
         </div>
       )}
       <CockpitErrorBoundary>
-        <StatusBar isOnline={isOnline} queueSize={queueSize} />
+        <StatusBar isOnline={isOnline} queueSize={queueSize} ragError={ragError} />
 
         <header className="relative z-10 flex items-center justify-between px-3 pt-3">
           <button

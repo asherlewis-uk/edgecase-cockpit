@@ -32,7 +32,7 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 - Voice input via `MediaRecorder` + Whisper-compatible transcription proxy
 - Screenshot capture via `getDisplayMedia`
 - Image/video attachment support
-- 288 tests across 20 test files
+- 319 tests across 20 test files
 
 **What remains limited or future work:**
 
@@ -302,6 +302,13 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 ## Security model
 
+### Environment validation
+
+- `validateEnv()` in `src/lib/env.server.ts` checks `SESSION_SECRET` (≥32 chars) at startup
+- Called from `server.ts` before any request is handled
+- Missing/invalid `SESSION_SECRET` returns 503 with a non-secret diagnostic message
+- Optional vars (`NODE_ENV`, `LOG_LEVEL`) are warned if missing
+
 ### CSRF double-submit cookie
 
 - `csrf.server.ts` generates a 32-byte hex token and sets it as a readable (`SameSite=Lax`, `Secure`) cookie
@@ -320,13 +327,15 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
   - Session: 30/min
   - Health: 120/min
 - Proxy routes: `proxy-guard.server.ts` with per-session sliding-window buckets (120/min)
-- **Limitation:** In-memory only; not suitable for distributed multi-node deployments
+- **Production guard:** In `production` mode without a custom backend, the server logs a prominent warning. Set `ALLOW_IN_MEMORY_RATE_LIMIT=true` to acknowledge single-node usage, or swap in a distributed adapter via `setRateLimiterBackend()`.
+- **Pluggable backend:** `IRateLimiterBackend` interface allows swapping in shared-storage adapters (KV, Durable Objects, Redis) for multi-node deployments.
 
 ### Proxy guard / URL allowlisting
 
 - `proxy-guard.server.ts` restricts proxy targets to provider-declared `allowedHosts`
-- The `custom` provider allows any host (`allowedHosts: ["*"]`), which creates potential SSRF risk if misconfigured
-- `urlAllowedForProvider` matches hosts against exact, wildcard, and `*` patterns
+- The `custom` provider has `allowedHosts: ["*"]` — full wildcard
+- **Production hardening:** In production, wildcard (`*`) host matching is **blocked** unless `PROXY_ALLOW_CUSTOM_WILDCARD=true` is explicitly set. In development, wildcards remain unrestricted for local exploration.
+- `urlAllowedForProvider` matches hosts against exact, wildcard subdomain (`*.host.com`), and `*` (opt-in in production) patterns
 
 ### CSP headers
 
@@ -476,10 +485,30 @@ Scripts (from `package.json`):
 | `NODE_ENV` | No | Runtime environment (development / production) | `src/routes/api/health.ts`, `src/server.ts` |
 | `LOG_LEVEL` | No | Structured JSON logger level | `src/lib/logger.server.ts` |
 | `DB` | Yes (platform) | Cloudflare D1 database binding | `src/lib/platform.server.ts`, `wrangler.jsonc` |
+| `ALLOW_IN_MEMORY_RATE_LIMIT` | Production | Set to `true` to acknowledge in-memory rate limiting in production (single-node only) | `src/lib/rate-limit.server.ts` |
+| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production | Set to `true` to opt in to wildcard (`*`) host matching for the custom provider | `src/lib/proxy-guard.server.ts` |
 
 **Important:** `wrangler.jsonc` contains a placeholder D1 database ID (`00000000-0000-0000-0000-000000000000`). You must update this with your actual D1 database ID before deployment.
 
-`validateEnv()` in `src/lib/env.server.ts` checks for `SESSION_SECRET` at runtime, but it is **not currently called** during server startup. The app will still fail at runtime if `SESSION_SECRET` is missing because `session.server.ts` throws directly.
+### Startup guards (cold-start)
+
+`server.ts` now runs three startup guards at module init:
+
+1. **`validateEnv()`**: Validates `SESSION_SECRET` is present and ≥32 chars at cold start. If it fails, a 503 error is returned for all requests with a non-secret diagnostic.
+2. **D1 binding check**: Warns if the `DB` platform binding is not available (missing `d1_databases` entry in `wrangler.jsonc`).
+3. **Rate-limit production guard**: In `production` mode without a custom backend or `ALLOW_IN_MEMORY_RATE_LIMIT=true`, emits a prominent `console.error` telling the operator in-memory rate limiting is not suitable for multi-node deployments.
+4. **Custom-provider wildcard policy**: In `production` mode, the custom provider's `allowedHosts: ["*"]` is **blocked** unless `PROXY_ALLOW_CUSTOM_WILDCARD=true` is set. The effective policy is logged at startup.
+
+### Deployment checklist
+
+Before deploying to production:
+
+- [ ] Set `SESSION_SECRET` to a random 32+ character string
+- [ ] Replace the placeholder D1 database ID in `wrangler.jsonc` with your real database ID
+- [ ] Ensure the `DB` binding is configured in `wrangler.jsonc`
+- [ ] Either swap in a distributed rate-limit backend via `setRateLimiterBackend()`, or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
+- [ ] If you need the custom provider to reach arbitrary hosts, set `PROXY_ALLOW_CUSTOM_WILDCARD=true` — otherwise configure explicit `allowedHosts` on the custom provider
+- [ ] Run `npm run test && npm run typecheck && npm run lint && npm run build`
 
 ## Testing
 
@@ -489,7 +518,7 @@ Scripts (from `package.json`):
 - **Naming:** Route-adjacent tests use `-` prefix (e.g., `-keys.test.ts`, `-proxy.test.ts`). Library and component tests are co-located.
 - **Run all:** `bun run test` (or `vitest run`)
 - **Run targeted:** `npx vitest run src/lib/tools.test.ts`
-- **Current focus:** 288 tests across 20 files covering CSRF, CSP, rate limiting, storage limits, proxy guard, providers, tools, vector store, tokens, cockpit store, chat hook, keyboard shortcuts, chat input, greeting, and API routes
+- **Current focus:** 319 tests across 20 files covering CSRF, CSP, rate limiting, storage limits, proxy guard, providers, tools, vector store, tokens, cockpit store, chat hook, keyboard shortcuts, chat input, greeting, and API routes
 
 ## Known limitations and future work
 
@@ -518,16 +547,15 @@ Scripts (from `package.json`):
 - **Suggested next step:** Auto-load server docs on session startup
 
 ### Embedding failure UI
-- **Status:** Partial — error state surfaced, minimal UI
-- **Source evidence:** `src/hooks/use-chat.ts:139` (`ragError` state); `src/hooks/use-chat.ts:549` (returned from useChat)
-- **Why it matters:** Users now receive feedback when RAG is unavailable
-- **Suggested next step:** Display `ragError` in StatusBar or ChatInput area
+- **Status:** Implemented — `ragError` surfaced in StatusBar
+- **Source evidence:** `src/hooks/use-chat.ts:139` (`ragError` state); `src/components/cockpit/StatusBar.tsx` (renders `ragError` alongside offline/queue status)
+- **Why it matters:** Users see a visible indicator when RAG retrieval or embedding fails, without blocking chat
 
 ### In-memory rate limiter not distributed
-- **Status:** Improved — pluggable `IRateLimiterBackend` interface; in-memory default
-- **Source evidence:** `src/lib/rate-limit.server.ts:12-24` (`IRateLimiterBackend`, `setRateLimiterBackend`)
-- **Why it matters:** Deployments needing shared state can plug in a KV/Durable Object adapter
-- **Suggested next step:** Ship a Cloudflare KV adapter if deployment requires it
+- **Status:** Hardened — pluggable `IRateLimiterBackend` interface; production guard warns unless `ALLOW_IN_MEMORY_RATE_LIMIT=true`
+- **Source evidence:** `src/lib/rate-limit.server.ts:12-24` (`IRateLimiterBackend`, `setRateLimiterBackend`); `src/server.ts` (startup guard via `warnInMemoryRateLimitInProduction`)
+- **Why it matters:** Single-node deployments work out of the box; multi-node operators are warned and can swap backends
+- **Suggested next step:** Ship a Cloudflare KV adapter for multi-Worker deployments
 
 ### Hardcoded cost rates
 - **Status:** Improved — now configurable via `setCostOverrides()`

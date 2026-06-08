@@ -1,5 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { rateLimit, urlAllowedForProvider, urlAllowedAnyProvider } from "@/lib/proxy-guard.server";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import {
+  rateLimit,
+  urlAllowedForProvider,
+  urlAllowedAnyProvider,
+  isWildcardHostAllowed,
+} from "@/lib/proxy-guard.server";
 
 describe("rateLimit", () => {
   beforeEach(() => {
@@ -140,5 +145,73 @@ describe("urlAllowedAnyProvider", () => {
 
   it("returns null for malformed URLs", () => {
     expect(urlAllowedAnyProvider("not-a-url")).toBeNull();
+  });
+});
+
+// ── Custom provider SSRF hardening ─────────────────────────────────────────
+
+describe("custom provider wildcard host policy", () => {
+  const origNodeEnv = process.env.NODE_ENV;
+  const origAllowWildcard = process.env.PROXY_ALLOW_CUSTOM_WILDCARD;
+
+  beforeEach(() => {
+    // Reset to a clean state before each test.
+    delete process.env.NODE_ENV;
+    delete process.env.PROXY_ALLOW_CUSTOM_WILDCARD;
+  });
+
+  afterAll(() => {
+    process.env.NODE_ENV = origNodeEnv;
+    if (origAllowWildcard !== undefined) {
+      process.env.PROXY_ALLOW_CUSTOM_WILDCARD = origAllowWildcard;
+    }
+  });
+
+  describe("isWildcardHostAllowed", () => {
+    it("returns true in development (default)", () => {
+      delete process.env.NODE_ENV;
+      expect(isWildcardHostAllowed()).toBe(true);
+    });
+
+    it("returns true when NODE_ENV is not production", () => {
+      process.env.NODE_ENV = "development";
+      expect(isWildcardHostAllowed()).toBe(true);
+    });
+
+    it("returns false in production without opt-in", () => {
+      process.env.NODE_ENV = "production";
+      expect(isWildcardHostAllowed()).toBe(false);
+    });
+
+    it("returns true in production with opt-in", () => {
+      process.env.NODE_ENV = "production";
+      process.env.PROXY_ALLOW_CUSTOM_WILDCARD = "true";
+      expect(isWildcardHostAllowed()).toBe(true);
+    });
+  });
+
+  describe("urlAllowedForProvider with custom provider", () => {
+    it("allows custom provider to any host in development", () => {
+      process.env.NODE_ENV = "development";
+      expect(urlAllowedForProvider("custom", "https://example.com/api")).toBe(true);
+      expect(urlAllowedForProvider("custom", "https://another.com/v1")).toBe(true);
+    });
+
+    it("blocks custom provider to arbitrary hosts in production without opt-in", () => {
+      process.env.NODE_ENV = "production";
+      expect(urlAllowedForProvider("custom", "https://example.com/api")).toBe(false);
+    });
+
+    it("allows custom provider to any host in production with opt-in", () => {
+      process.env.NODE_ENV = "production";
+      process.env.PROXY_ALLOW_CUSTOM_WILDCARD = "true";
+      expect(urlAllowedForProvider("custom", "https://example.com/api")).toBe(true);
+    });
+
+    it("still allows explicit hosts for non-custom providers in production", () => {
+      process.env.NODE_ENV = "production";
+      expect(urlAllowedForProvider("openai", "https://api.openai.com/v1")).toBe(true);
+      expect(urlAllowedForProvider("openai", "https://evil.com/api")).toBe(false);
+    });
   });
 });

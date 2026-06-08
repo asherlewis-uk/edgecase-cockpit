@@ -107,7 +107,7 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 ### Embeddings/RAG
 - **Chunking:** Sentence/paragraph-level chunking implemented via `chunkText` in `src/lib/vector-store.ts`. Splits on sentence boundaries (.!?) and paragraph breaks, merging short sentences.
 - **Cross-device sync:** Server-side sync implemented via D1 `vector_docs` table and `/api/vector-docs` endpoint. localStorage remains source of truth with local-first fallback.
-- **Embedding failure handling:** Failures are now surfaced via `ragError` state returned from `useChat`. UI display is minimal but functional.
+- **Embedding failure handling:** Failures are now surfaced via `ragError` state returned from `useChat` and displayed in the `StatusBar` component alongside offline/queue status.
 
 ### Non-goals for the next PR
 - Do not rewrite completed rate limiting/storage/CSP work.

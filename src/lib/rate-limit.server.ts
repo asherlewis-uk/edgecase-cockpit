@@ -66,6 +66,40 @@ export function clearRateLimitBuckets(): void {
 }
 
 /**
+ * Production safety guard: warn (or fail) if in-memory rate limiting is
+ * active in a production-like environment without explicit acknowledgement.
+ *
+ * In-memory rate limiting resets on every cold start and does not share
+ * state across multiple Workers / nodes.  This function emits a prominent
+ * warning and recommends setting ALLOW_IN_MEMORY_RATE_LIMIT=true when the
+ * operator has intentionally chosen the simpler single-node deployment path.
+ */
+export function warnInMemoryRateLimitInProduction(): void {
+  if (process.env.NODE_ENV !== "production") return;
+
+  // A custom backend has been plugged in — safe.
+  if (_backend !== null) return;
+
+  if (process.env.ALLOW_IN_MEMORY_RATE_LIMIT === "true") {
+    console.warn(
+      "[rate-limit] Using in-memory rate limiting in production " +
+        "(ALLOW_IN_MEMORY_RATE_LIMIT=true). Distributed deployments may see " +
+        "inconsistent enforcement.",
+    );
+    return;
+  }
+
+  console.error(
+    "[rate-limit] IN-MEMORY rate limiting is active in production. " +
+      "This is not suitable for multi-node deployments because buckets " +
+      "are not shared across Workers. " +
+      "Either swap in a distributed backend via setRateLimiterBackend(), " +
+      "or set ALLOW_IN_MEMORY_RATE_LIMIT=true if you have intentionally " +
+      "chosen a single-node deployment.",
+  );
+}
+
+/**
  * Build a standard rate-limited 429 Response.
  */
 export function rateLimitResponse(retryAfter: number): Response {
