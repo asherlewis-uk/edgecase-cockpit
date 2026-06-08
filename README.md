@@ -68,7 +68,7 @@ This is a **local-first, self-hosted** application. Provider keys are **user-con
 | Transcription | Implemented | `src/routes/api/proxy/transcribe.ts`, `src/lib/providers.ts` | Whisper-compatible proxy |
 | Embeddings/RAG | Implemented | `src/routes/api/proxy/embeddings.ts`, `src/lib/embeddings.ts`, `src/lib/vector-store.ts`, `src/routes/api/vector-docs.ts` | Sentence/paragraph chunking; server-side sync via D1; error state surfaced |
 | Tools/function-calling | Implemented | `src/lib/tools.ts`, `src/hooks/use-chat.ts`, `src/components/cockpit/MessageRow.tsx` | 4 safe built-ins; streaming tool-call deltas for OpenAI-compatible providers |
-| Token/cost usage | Implemented | `src/lib/tokens.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts` | Heuristic estimation, not exact provider usage |
+| Token/cost usage | Implemented | `src/lib/tokens.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts` | Exact usage from provider responses when available; falls back to heuristic estimation |
 | Stats | Implemented | `src/routes/api/stats.ts`, `src/components/cockpit/settings/UsageSection.tsx` | Per-provider calls, errors, tokens, cost |
 | CSP/security headers | Implemented | `src/lib/csp.server.ts`, `src/server.ts` | Attached to HTML responses only |
 | CSRF | Implemented | `src/lib/csrf.server.ts` | Double-submit cookie; all mutating routes |

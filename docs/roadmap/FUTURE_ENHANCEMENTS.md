@@ -95,7 +95,7 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 - **Chat context injection:** Retrieved context is prepended to the personalization system message. If no system message exists, a standalone system message is added.
 - **UI/settings:** Settings page has a "Retrieval (RAG)" section with an enable/disable toggle, embedding provider selector, and optional model override. A clear warning states that retrieval sends message text to the selected embedding provider.
 - **Tests:** `vector-store.test.ts` (6 tests) covering add, remove, search, and clear. `-embeddings.test.ts` (4 tests) covering CSRF, unsupported provider, empty input, and URL allowlisting.
-- **Limitations:** Chunking is whole-message only. Vector store is localStorage-backed and not shared across devices. Embedding failures are silently swallowed (best-effort RAG).
+- **Limitations:** Sentence/paragraph-level chunking implemented. Server-side D1 sync available with local-first fallback. Embedding failures surfaced via `ragError` state.
 
 ## Remaining gaps / limitations
 
