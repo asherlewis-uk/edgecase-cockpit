@@ -100,8 +100,8 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 ## Remaining gaps / limitations
 
 ### Tools/function-calling
-- **Streaming + tools:** Currently streaming is disabled when tools are present. Future work can implement streaming tool-call delta parsing.
-- **Dynamic tool schemas:** Only the built-in safe tool registry is implemented. Dynamic provider-specific tool registration is not yet supported.
+- **Streaming + tools:** Streaming tool-call delta parsing implemented for OpenAI-compatible providers (bodyStyle: "openai" + `streamingTools` flag). Anthropic/Gemini providers still fall back to non-streaming when tools are present.
+- **Dynamic tool schemas:** Only the built-in safe tool registry is implemented (4 tools: get_current_time, echo, word_count, calculator). Dynamic provider-specific tool registration is not yet supported.
 - **Dangerous tool guard:** Only `isBuiltInTool` gates execution. A more robust permission model may be needed for user-defined tools.
 
 ### Embeddings/RAG

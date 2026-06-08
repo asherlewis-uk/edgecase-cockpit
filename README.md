@@ -36,15 +36,15 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 
 **What remains limited or future work:**
 
-- Streaming is disabled when tools are present
-- Only 2 built-in safe tools exist; dynamic provider tool schemas are not fetched
+- Streaming with tools is now supported for OpenAI-compatible providers (OpenAI, Vercel AI Gateway, NVIDIA NIM, vLLM, Custom); other providers fall back to non-streaming
+- Built-in tool registry expanded to 4 safe tools (get_current_time, echo, word_count, calculator); dynamic provider tool schemas are not yet fetched
 - Vector store is `localStorage`-only with no cross-device sync
 - Embedding failures are silently swallowed with no UI indicator
 - Chunking is whole-message only
 - Token counts are heuristic estimates (~4 chars/token), not exact provider usage
 - Cost rates are hardcoded and may become stale
 - In-memory rate limiter is not suitable for distributed/multi-node deployments
-- Several provider capability flags overstate support (e.g., not all providers with `tools: true` have been end-to-end tested)
+- Provider capability flags now distinguish `tools` from `streamingTools`; `streamingTools: true` only for OpenAI-compatible body-style providers with tested delta parsing
 
 This is a **local-first, self-hosted** application. Provider keys are **user-configured** per session and stored server-side only.
 
@@ -67,7 +67,7 @@ This is a **local-first, self-hosted** application. Provider keys are **user-con
 | Model detection | Implemented | `src/routes/api/proxy/detect.ts`, `src/lib/providers.ts` | Server-side probe for local providers |
 | Transcription | Implemented | `src/routes/api/proxy/transcribe.ts`, `src/lib/providers.ts` | Whisper-compatible proxy |
 | Embeddings/RAG | Implemented | `src/routes/api/proxy/embeddings.ts`, `src/lib/embeddings.ts`, `src/lib/vector-store.ts` | Local vector store, cosine similarity |
-| Tools/function-calling | Implemented | `src/lib/tools.ts`, `src/hooks/use-chat.ts`, `src/components/cockpit/MessageRow.tsx` | Built-in safe registry only; streaming disabled |
+| Tools/function-calling | Implemented | `src/lib/tools.ts`, `src/hooks/use-chat.ts`, `src/components/cockpit/MessageRow.tsx` | 4 safe built-ins; streaming tool-call deltas for OpenAI-compatible providers |
 | Token/cost usage | Implemented | `src/lib/tokens.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts` | Heuristic estimation, not exact provider usage |
 | Stats | Implemented | `src/routes/api/stats.ts`, `src/components/cockpit/settings/UsageSection.tsx` | Per-provider calls, errors, tokens, cost |
 | CSP/security headers | Implemented | `src/lib/csp.server.ts`, `src/server.ts` | Attached to HTML responses only |
@@ -360,23 +360,23 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 ## Provider support
 
-| Provider / model family | Chat | Models | Tools | Embeddings | Vision | Transcription | Notes |
-|---|---|---|---|---|---|---|---|
-| OpenAI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | GPT-4o, GPT-5, embeddings, Whisper |
-| Anthropic | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | Claude Sonnet/Opus; native body style |
-| Google Gemini | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | OpenAI-compatible endpoint |
-| Moonshot / KimiCoding | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | OpenAI-compatible |
-| OpenRouter | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | Unified gateway |
-| Ollama Cloud | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | Managed Ollama |
-| NVIDIA NIM | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Hosted inference microservices |
-| Vercel AI Gateway | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Multi-provider gateway |
-| Ollama (local) | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Local daemon; base URL editable |
-| LM Studio | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Local server |
-| Hermes | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | Local gateway |
-| OpenClaw | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | Local agent gateway |
-| vLLM | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | OpenAI-compatible server |
-| llama.cpp server | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Local OpenAI-compatible server |
-| Custom (OpenAI-compatible) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Any endpoint; `allowedHosts: ["*"]` |
+| Provider / model family | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| OpenAI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | GPT-4o, GPT-5, embeddings, Whisper |
+| Anthropic | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | Claude Sonnet/Opus; native body style |
+| Google Gemini | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | OpenAI-compatible endpoint |
+| Moonshot / KimiCoding | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | OpenAI-compatible |
+| OpenRouter | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | Unified gateway |
+| Ollama Cloud | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Managed Ollama |
+| NVIDIA NIM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Hosted inference microservices |
+| Vercel AI Gateway | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Multi-provider gateway |
+| Ollama (local) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local daemon; base URL editable |
+| LM Studio | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local server |
+| Hermes | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | Local gateway |
+| OpenClaw | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | Local agent gateway |
+| vLLM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | OpenAI-compatible server |
+| llama.cpp server | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local OpenAI-compatible server |
+| Custom (OpenAI-compatible) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Any endpoint; `allowedHosts: ["*"]` |
 
 **Note:** Capability flags in `src/lib/providers.ts` declare support, but not all combinations have been end-to-end tested. The `custom` provider allows any host, which shifts SSRF responsibility to the operator.
 
@@ -393,10 +393,8 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 
 ### Current limitations
 
-- Streaming is disabled when tools are present (required for reliable parsing)
-- Only 2 built-in safe tools exist
-- Dynamic provider-specific tool schemas are not fetched
-- No robust permission model for user-defined tools
+- Streaming with tools supported for OpenAI-compatible providers (bodyStyle: "openai" + streamingTools flag); other providers fall back to non-streaming
+- 4 built-in safe tools exist (get_current_time, echo, word_count, calculator); dynamic provider tool schemas are not yet fetched
 
 ## Embeddings / RAG
 
@@ -497,10 +495,10 @@ Scripts (from `package.json`):
 ## Known limitations and future work
 
 ### Streaming + tools
-- **Status:** Open / limitation
-- **Source evidence:** `src/hooks/use-chat.ts:250` (`const useStream = !toolDefs || toolDefs.length === 0`)
-- **Why it matters:** Users cannot see assistant reasoning in real-time when tools are active
-- **Suggested next step:** Implement streaming tool-call delta parsing for providers that support it
+- **Status:** Partial (OpenAI-compatible providers only)
+- **Source evidence:** `src/hooks/use-chat.ts:254-260` (streams with tool-call deltas when `provider.supports.streamingTools`; falls back to non-streaming for others)
+- **Why it matters:** Users see real-time text for OpenAI-compatible providers; Anthropic/Gemini providers still require non-streaming for tools
+- **Suggested next step:** Add Anthropic streaming tool-use delta parsing
 
 ### Dynamic tool schemas / provider tool discovery
 - **Status:** Open / limitation

@@ -16,6 +16,7 @@ const CAP_LABELS: Record<Capability, string> = {
   embeddings: "Embeddings",
   vision: "Vision",
   tools: "Tools",
+  streamingTools: "Streaming Tools",
 };
 
 export function ProviderCard({

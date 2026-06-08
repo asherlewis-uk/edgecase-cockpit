@@ -3,7 +3,7 @@
 // (cloud + local). Runtime is OpenAI-compatible by default, with body-style
 // adapters for Anthropic and Gemini native APIs.
 
-export type Capability = "chat" | "embeddings" | "vision" | "tools";
+export type Capability = "chat" | "embeddings" | "vision" | "tools" | "streamingTools";
 
 export type BodyStyle = "openai" | "anthropic" | "gemini";
 export type AuthStyle = "bearer" | "x-api-key" | "none";
@@ -46,7 +46,8 @@ const cap = (
   embeddings = false,
   vision = false,
   tools = false,
-): Record<Capability, boolean> => ({ chat, embeddings, vision, tools });
+  streamingTools = false,
+): Record<Capability, boolean> => ({ chat, embeddings, vision, tools, streamingTools });
 
 export const PROVIDERS: ProviderDef[] = [
   // ───────────────────────── Cloud ─────────────────────────
@@ -57,7 +58,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "AI",
     accent: "from-emerald-400 to-teal-500",
     description: "GPT-5, GPT-4o, embeddings, vision and tools.",
-    supports: cap(true, true, true, true),
+    supports: cap(true, true, true, true, true),
     defaultBaseUrl: "https://api.openai.com",
     defaultModel: "gpt-4o-mini",
     needsApiKey: true,
@@ -78,7 +79,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "An",
     accent: "from-amber-500 to-orange-600",
     description: "Claude Sonnet & Opus with long context and tools.",
-    supports: cap(true, false, true, true),
+    supports: cap(true, false, true, true, false),
     defaultBaseUrl: "https://api.anthropic.com",
     defaultModel: "claude-3-5-sonnet-latest",
     needsApiKey: true,
@@ -96,7 +97,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Gm",
     accent: "from-sky-400 to-indigo-500",
     description: "Gemini 2.5 Flash & Pro with vision and tools.",
-    supports: cap(true, true, true, true),
+    supports: cap(true, true, true, true, false),
     defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     defaultModel: "gemini-2.5-flash",
     needsApiKey: true,
@@ -116,7 +117,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Ki",
     accent: "from-violet-500 to-fuchsia-600",
     description: "Kimi K2 coding models from Moonshot AI.",
-    supports: cap(true, false, false, true),
+    supports: cap(true, false, false, true, false),
     defaultBaseUrl: "https://api.moonshot.ai",
     defaultModel: "kimi-k2-0905-preview",
     needsApiKey: true,
@@ -134,7 +135,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Or",
     accent: "from-pink-500 to-rose-600",
     description: "Unified access to hundreds of models.",
-    supports: cap(true, false, true, true),
+    supports: cap(true, false, true, true, false),
     defaultBaseUrl: "https://openrouter.ai/api",
     defaultModel: "openai/gpt-4o-mini",
     needsApiKey: true,
@@ -152,7 +153,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Oc",
     accent: "from-stone-400 to-stone-700",
     description: "Managed Ollama-hosted open models.",
-    supports: cap(true, true, false, false),
+    supports: cap(true, true, false, false, false),
     defaultBaseUrl: "https://ollama.com/api",
     defaultModel: "llama3.2",
     needsApiKey: true,
@@ -171,7 +172,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Nv",
     accent: "from-lime-400 to-emerald-600",
     description: "NVIDIA-hosted inference microservices.",
-    supports: cap(true, true, true, true),
+    supports: cap(true, true, true, true, false),
     defaultBaseUrl: "https://integrate.api.nvidia.com",
     defaultModel: "meta/llama-3.1-70b-instruct",
     needsApiKey: true,
@@ -190,7 +191,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Vc",
     accent: "from-zinc-200 to-zinc-500",
     description: "Vercel-hosted multi-provider gateway.",
-    supports: cap(true, true, true, true),
+    supports: cap(true, true, true, true, false),
     defaultBaseUrl: "https://ai-gateway.vercel.sh",
     defaultModel: "openai/gpt-4o-mini",
     needsApiKey: true,
@@ -211,7 +212,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Ol",
     accent: "from-slate-400 to-slate-700",
     description: "Locally running Ollama daemon.",
-    supports: cap(true, true, true, false),
+    supports: cap(true, true, true, false, false),
     defaultBaseUrl: "http://localhost:11434",
     defaultModel: "llama3.2",
     baseUrlEditable: true,
@@ -230,7 +231,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Lm",
     accent: "from-cyan-400 to-blue-600",
     description: "LM Studio local server.",
-    supports: cap(true, true, true, false),
+    supports: cap(true, true, true, false, false),
     defaultBaseUrl: "http://localhost:1234",
     defaultModel: "lmstudio-community",
     baseUrlEditable: true,
@@ -249,7 +250,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Hr",
     accent: "from-purple-400 to-indigo-600",
     description: "Nous Hermes local gateway.",
-    supports: cap(true, true, false, true),
+    supports: cap(true, true, false, true, false),
     defaultBaseUrl: "http://localhost:8080",
     defaultModel: "hermes",
     baseUrlEditable: true,
@@ -268,7 +269,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Oc",
     accent: "from-orange-400 to-red-600",
     description: "OpenClaw local agent gateway.",
-    supports: cap(true, false, false, true),
+    supports: cap(true, false, false, true, false),
     defaultBaseUrl: "http://localhost:8787",
     defaultModel: "openclaw",
     baseUrlEditable: true,
@@ -286,7 +287,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "vL",
     accent: "from-teal-400 to-emerald-600",
     description: "vLLM OpenAI-compatible server.",
-    supports: cap(true, true, true, true),
+    supports: cap(true, true, true, true, false),
     defaultBaseUrl: "http://localhost:8000",
     defaultModel: "meta-llama/Llama-3.1-8B-Instruct",
     baseUrlEditable: true,
@@ -305,7 +306,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Lc",
     accent: "from-amber-300 to-yellow-600",
     description: "llama.cpp OpenAI-compatible server.",
-    supports: cap(true, true, true, false),
+    supports: cap(true, true, true, false, false),
     defaultBaseUrl: "http://localhost:8081",
     defaultModel: "default",
     baseUrlEditable: true,
@@ -324,7 +325,7 @@ export const PROVIDERS: ProviderDef[] = [
     badge: "Cu",
     accent: "from-neutral-400 to-neutral-700",
     description: "Any local or remote OpenAI-compatible endpoint.",
-    supports: cap(true, true, true, true),
+    supports: cap(true, true, true, true, false),
     defaultBaseUrl: "http://localhost:8000",
     defaultModel: "default",
     baseUrlEditable: true,
@@ -360,6 +361,11 @@ export type ProviderCallOpts = {
   onDelta?: (chunk: string) => void;
   stream?: boolean;
   tools?: { name: string; description: string; parameters?: unknown }[];
+  onToolCallDelta?: (delta: {
+    index: number;
+    id?: string;
+    function?: { name?: string; arguments?: string };
+  }) => void;
 };
 
 export class ProviderError extends Error {
@@ -603,7 +609,7 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
   text: string;
   raw: unknown;
 }> {
-  const { provider, baseUrl, model, messages, signal, onDelta, tools } = opts;
+  const { provider, baseUrl, model, messages, signal, onDelta, tools, onToolCallDelta } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
 
   const res = await fetch("/api/proxy/chat", {
@@ -666,6 +672,32 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
           if (delta) {
             acc += delta;
             onDelta?.(delta);
+          }
+          if (onToolCallDelta && provider.bodyStyle === "openai") {
+            const tcs = (j as { choices?: { delta?: { tool_calls?: unknown[] } }[] })?.choices;
+            if (tcs && Array.isArray(tcs)) {
+              for (const c of tcs) {
+                const d = (c as { delta?: { tool_calls?: unknown[] } })?.delta?.tool_calls;
+                if (d && Array.isArray(d)) {
+                  for (const tc of d) {
+                    const t = tc as {
+                      index?: number;
+                      id?: string;
+                      function?: { name?: string; arguments?: string };
+                    };
+                    if (typeof t.index === "number" && t.index !== undefined) {
+                      onToolCallDelta(
+                        t as {
+                          index: number;
+                          id?: string;
+                          function?: { name?: string; arguments?: string };
+                        },
+                      );
+                    }
+                  }
+                }
+              }
+            }
           }
         } catch {
           /* ignore partial */

@@ -20,6 +20,8 @@ import {
   parseAnthropicToolCalls,
   executeBuiltInTool,
   BUILT_IN_TOOLS,
+  StreamToolCallAccumulator,
+  extractOpenAIToolCallDelta,
 } from "@/lib/tools";
 import { embedTexts } from "@/lib/embeddings";
 import { addVectorDocs, searchVectorStore } from "@/lib/vector-store";
@@ -246,10 +248,16 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
           })),
       ];
 
-      // When tools are present, use non-streaming so we can parse tool_calls
-      const useStream = !toolDefs || toolDefs.length === 0;
+      // When tools are present, prefer streaming if the provider supports
+      // streaming tool-call deltas (OpenAI-compatible bodyStyle). Otherwise,
+      // fall back to non-streaming for reliable tool_calls parsing.
+      const hasTools = toolDefs && toolDefs.length > 0;
+      const supportsStreamingTools =
+        hasTools && provider.bodyStyle === "openai" && provider.supports.streamingTools;
+      const useStream = !hasTools || supportsStreamingTools;
 
       let acc = "";
+      const toolAccum = supportsStreamingTools ? new StreamToolCallAccumulator() : null;
       try {
         bumpProviderStat(provider.id, "call");
         const res = await retryWithBackoff(
@@ -272,15 +280,27 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
                     });
                   }
                 : undefined,
+              onToolCallDelta: supportsStreamingTools
+                ? (delta: {
+                    index: number;
+                    id?: string;
+                    function?: { name?: string; arguments?: string };
+                  }) => {
+                    toolAccum?.ingest(delta);
+                  }
+                : undefined,
             }),
           { maxRetries: 3 },
         );
         const finalText = (res.text || acc || "").trim();
         const assistantImages = extractImageUrls(finalText);
 
-        // Detect tool calls from non-streaming response
+        // Detect tool calls from response
         let toolCalls: ToolCall[] | undefined;
-        if (!useStream && typeof res.raw === "object" && res.raw !== null) {
+        if (supportsStreamingTools && toolAccum) {
+          toolCalls = toolAccum.complete();
+          if (toolCalls.length === 0) toolCalls = undefined;
+        } else if (!useStream && hasTools && typeof res.raw === "object" && res.raw !== null) {
           toolCalls =
             provider.bodyStyle === "anthropic"
               ? parseAnthropicToolCalls(res.raw)

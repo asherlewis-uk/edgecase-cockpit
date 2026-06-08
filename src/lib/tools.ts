@@ -50,6 +50,35 @@ export const BUILT_IN_TOOLS: ToolDef[] = [
       required: ["text"],
     },
   },
+  {
+    name: "word_count",
+    description: "Returns the number of words in the provided text.",
+    parameters: {
+      type: "object",
+      properties: {
+        text: {
+          type: "string",
+          description: "The text to count words in.",
+        },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "calculator",
+    description:
+      "Evaluates a safe arithmetic expression (+, -, *, /, %, **, parentheses) and returns the numeric result. Only arithmetic operations are allowed.",
+    parameters: {
+      type: "object",
+      properties: {
+        expression: {
+          type: "string",
+          description: "A simple arithmetic expression using +, -, *, /, %, **, and parentheses.",
+        },
+      },
+      required: ["expression"],
+    },
+  },
 ];
 
 export function isBuiltInTool(name: string): boolean {
@@ -66,6 +95,27 @@ export async function executeBuiltInTool(name: string, args: string): Promise<st
       return parsed.text ?? "";
     } catch {
       return args;
+    }
+  }
+  if (name === "word_count") {
+    try {
+      const parsed = JSON.parse(args) as { text?: string };
+      const text = parsed.text ?? "";
+      return String(text.split(/\s+/).filter(Boolean).length);
+    } catch {
+      return "0";
+    }
+  }
+  if (name === "calculator") {
+    try {
+      const parsed = JSON.parse(args) as { expression?: string };
+      const expr = parsed.expression ?? "";
+      if (!/^[0-9+\-*/().%\s]+$/.test(expr)) return "[Invalid expression]";
+      const result = Function(`"use strict"; return (${expr})`)();
+      if (typeof result !== "number" || !isFinite(result)) return "[Invalid result]";
+      return String(result);
+    } catch {
+      return "[Evaluation error]";
     }
   }
   return `[Tool "${name}" is not implemented]`;
@@ -136,4 +186,70 @@ export function parseAnthropicToolCalls(raw: unknown): ToolCall[] {
     }
   }
   return out;
+}
+
+/**
+ * Streaming tool-call delta accumulator for OpenAI-compatible SSE streams.
+ * Each chunk delta may contain a partial tool_call with index, id, name, and
+ * a fragment of arguments. This merges them into complete ToolCall[] once
+ * function arguments finish streaming.
+ */
+export type ToolCallDelta = {
+  index: number;
+  id?: string;
+  function?: {
+    name?: string;
+    arguments?: string;
+  };
+};
+
+export class StreamToolCallAccumulator {
+  private calls = new Map<number, { id: string; name: string; args: string }>();
+
+  ingest(delta: ToolCallDelta) {
+    const c = this.calls.get(delta.index) ?? { id: "", name: "", args: "" };
+    if (delta.id) c.id = delta.id;
+    if (delta.function?.name) c.name = delta.function.name;
+    if (delta.function?.arguments) c.args += delta.function.arguments;
+    this.calls.set(delta.index, c);
+  }
+
+  complete(): ToolCall[] {
+    const out: ToolCall[] = [];
+    for (const [, c] of this.calls) {
+      if (c.id && c.name) {
+        out.push({ id: c.id, name: c.name, arguments: c.args || "{}" });
+      }
+    }
+    return out;
+  }
+
+  reset() {
+    this.calls.clear();
+  }
+}
+
+/**
+ * Extract tool_call deltas from an OpenAI streaming chunk.
+ * Returns null if no tool_call delta is present.
+ */
+export function extractOpenAIToolCallDelta(chunk: unknown): ToolCallDelta[] {
+  const choices = (chunk as { choices?: unknown[] } | undefined)?.choices;
+  if (!Array.isArray(choices)) return [];
+  const deltas: ToolCallDelta[] = [];
+  for (const c of choices) {
+    const delta = (c as { delta?: { tool_calls?: unknown[] } })?.delta;
+    if (!delta?.tool_calls || !Array.isArray(delta.tool_calls)) continue;
+    for (const tc of delta.tool_calls) {
+      const t = tc as {
+        index?: number;
+        id?: string;
+        function?: { name?: string; arguments?: string };
+      };
+      if (typeof t.index === "number") {
+        deltas.push(t as ToolCallDelta);
+      }
+    }
+  }
+  return deltas;
 }
