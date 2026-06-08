@@ -7,6 +7,9 @@ import {
   estimateThreadCost,
   formatCost,
   formatTokens,
+  extractProviderUsage,
+  setCostOverrides,
+  getCostRates,
 } from "@/lib/tokens";
 
 describe("estimateTokens", () => {
@@ -92,5 +95,57 @@ describe("formatCost", () => {
 describe("formatTokens", () => {
   it("formats with locale grouping", () => {
     expect(formatTokens(1234)).toBe("1,234");
+  });
+});
+
+describe("extractProviderUsage", () => {
+  it("extracts OpenAI usage format", () => {
+    const raw = { usage: { prompt_tokens: 100, completion_tokens: 50 } };
+    const usage = extractProviderUsage(raw, "openai");
+    expect(usage).not.toBeNull();
+    expect(usage!.inputTokens).toBe(100);
+    expect(usage!.outputTokens).toBe(50);
+    expect(usage!.exact).toBe(true);
+  });
+
+  it("extracts Anthropic usage format", () => {
+    const raw = { usage: { input_tokens: 200, output_tokens: 75 } };
+    const usage = extractProviderUsage(raw, "anthropic");
+    expect(usage).not.toBeNull();
+    expect(usage!.inputTokens).toBe(200);
+    expect(usage!.outputTokens).toBe(75);
+    expect(usage!.exact).toBe(true);
+  });
+
+  it("returns null when no usage data present", () => {
+    const raw = { choices: [{ message: { content: "hi" } }] };
+    expect(extractProviderUsage(raw, "openai")).toBeNull();
+  });
+
+  it("returns null for non-object input", () => {
+    expect(extractProviderUsage("string", "openai")).toBeNull();
+    expect(extractProviderUsage(null, "openai")).toBeNull();
+  });
+});
+
+describe("getCostRates / setCostOverrides", () => {
+  it("returns defaults for known providers", () => {
+    const rates = getCostRates("openai");
+    expect(rates.input).toBeGreaterThan(0);
+    expect(rates.output).toBeGreaterThan(0);
+  });
+
+  it("falls back to openai for unknown providers", () => {
+    const unknown = getCostRates("unknown-xyz");
+    const openai = getCostRates("openai");
+    expect(unknown).toEqual(openai);
+  });
+
+  it("allows overriding cost rates", () => {
+    setCostOverrides({ openai: { input: 0.001, output: 0.002 } });
+    const rates = getCostRates("openai");
+    expect(rates.input).toBe(0.001);
+    expect(rates.output).toBe(0.002);
+    setCostOverrides({});
   });
 });

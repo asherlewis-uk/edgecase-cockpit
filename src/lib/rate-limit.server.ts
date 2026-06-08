@@ -1,51 +1,68 @@
-// Reusable in-memory rate limiter for non-proxy server-side routes.
-// Safe for single-node/self-hosted deployments. Not suitable for distributed
-// multi-node deployments without a shared store (Redis, etc.).
-
-const buckets = new Map<string, { count: number; resetAt: number }>();
-
-export const DEFAULT_WINDOW_MS = 60_000;
-export const DEFAULT_LIMIT = 60;
+// Rate limiter with in-memory default and pluggable backend abstraction.
+// In-memory is safe for single-node/self-hosted deployments.
+// For distributed/multi-node deployments, swap in a shared-storage adapter
+// implementing the IRateLimiterBackend interface.
 
 export type RateLimiterConfig = {
-  /** Bucket key suffix (prepended with route prefix automatically if omitted). */
   key: string;
-  /** Time window in milliseconds. */
   windowMs?: number;
-  /** Max requests allowed inside the window. */
   limit?: number;
 };
 
 export type RateLimitResult = { ok: true } | { ok: false; retryAfter: number };
 
-/**
- * Check whether a request is within rate limits for the given key.
- * In-memory buckets are lazily created and cleaned on expiration.
- */
+export interface IRateLimiterBackend {
+  checkLimit(key: string, windowMs: number, limit: number): RateLimitResult;
+  clearAll(): void;
+}
+
+let _backend: IRateLimiterBackend | null = null;
+
+export function setRateLimiterBackend(backend: IRateLimiterBackend) {
+  _backend = backend;
+}
+
+function getBackend(): IRateLimiterBackend {
+  if (_backend) return _backend;
+  return _defaultBackend;
+}
+
+// ── In-memory backend (default) ─────────────────────────────────────────────
+
+const buckets = new Map<string, { count: number; resetAt: number }>();
+
+const _defaultBackend: IRateLimiterBackend = {
+  checkLimit(key, windowMs, limit) {
+    const now = Date.now();
+    const bucket = buckets.get(key);
+    if (!bucket || bucket.resetAt < now) {
+      buckets.set(key, { count: 1, resetAt: now + windowMs });
+      return { ok: true };
+    }
+    if (bucket.count >= limit) {
+      return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
+    }
+    bucket.count++;
+    return { ok: true };
+  },
+  clearAll() {
+    buckets.clear();
+  },
+};
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+export const DEFAULT_WINDOW_MS = 60_000;
+export const DEFAULT_LIMIT = 60;
+
 export function checkRateLimit(config: RateLimiterConfig): RateLimitResult {
   const windowMs = config.windowMs ?? DEFAULT_WINDOW_MS;
   const limit = config.limit ?? DEFAULT_LIMIT;
-  const now = Date.now();
-
-  const bucket = buckets.get(config.key);
-  if (!bucket || bucket.resetAt < now) {
-    buckets.set(config.key, { count: 1, resetAt: now + windowMs });
-    return { ok: true };
-  }
-
-  if (bucket.count >= limit) {
-    return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
-  }
-
-  bucket.count++;
-  return { ok: true };
+  return getBackend().checkLimit(config.key, windowMs, limit);
 }
 
-/**
- * Clear all buckets. Exposed primarily for tests.
- */
 export function clearRateLimitBuckets(): void {
-  buckets.clear();
+  getBackend().clearAll();
 }
 
 /**

@@ -146,6 +146,7 @@ export async function syncTokenUsageToServer(
   outputTokens: number,
   model?: string,
   threadId?: string,
+  exactUsage?: boolean,
 ) {
   try {
     await fetch("/api/stats", {
@@ -158,6 +159,7 @@ export async function syncTokenUsageToServer(
         outputTokens,
         model,
         threadId,
+        exactUsage: exactUsage === true,
       }),
     });
   } catch {

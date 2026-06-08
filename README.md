@@ -41,9 +41,9 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 - Vector store has server-side sync support (D1) but local-first fallback when unavailable
 - Embedding failures are surfaced via `ragError` state but the UI display is minimal
 - Chunking is sentence/paragraph-level with configurable minimum length
-- Token counts are heuristic estimates (~4 chars/token), not exact provider usage
-- Cost rates are hardcoded and may become stale
-- In-memory rate limiter is not suitable for distributed/multi-node deployments
+- Exact token usage extracted from upsteam provider responses when available (OpenAI/Anthropic/Gemini); falls back to heuristic estimation
+- Cost rates are now configurable via `setCostOverrides()` and per-provider defaults
+- In-memory rate limiter has a pluggable `IRateLimiterBackend` interface for distributed adapters; in-memory is default
 - Provider capability flags now distinguish `tools` from `streamingTools`; `streamingTools: true` only for OpenAI-compatible body-style providers with tested delta parsing
 
 This is a **local-first, self-hosted** application. Provider keys are **user-configured** per session and stored server-side only.
@@ -524,40 +524,22 @@ Scripts (from `package.json`):
 - **Suggested next step:** Display `ragError` in StatusBar or ChatInput area
 
 ### In-memory rate limiter not distributed
-- **Status:** Open / architectural limitation
-- **Source evidence:** `src/lib/rate-limit.server.ts:1-3` ("Safe for single-node/self-hosted deployments. Not suitable for distributed multi-node deployments without a shared store")
-- **Why it matters:** Deployments with multiple Workers will have per-node rate limit buckets
-- **Suggested next step:** Integrate Redis or Cloudflare KV for shared rate limit state
+- **Status:** Improved — pluggable `IRateLimiterBackend` interface; in-memory default
+- **Source evidence:** `src/lib/rate-limit.server.ts:12-24` (`IRateLimiterBackend`, `setRateLimiterBackend`)
+- **Why it matters:** Deployments needing shared state can plug in a KV/Durable Object adapter
+- **Suggested next step:** Ship a Cloudflare KV adapter if deployment requires it
 
 ### Hardcoded cost rates
-- **Status:** Open / data staleness risk
-- **Source evidence:** `src/lib/tokens.ts:42-47` (`COST_PER_1K_TOKENS` with fixed rates for openai, anthropic, gemini, openrouter)
-- **Why it matters:** Provider pricing changes will make cost estimates inaccurate
-- **Suggested next step:** Fetch or configure rates dynamically; add UI warning about estimates
-
-### `custom` provider SSRF risk
-- **Status:** Open / security consideration
-- **Source evidence:** `src/lib/providers.ts:331` (`allowedHosts: ["*"]`)
-- **Why it matters:** The custom provider allows proxying to any host, creating potential SSRF if an attacker gains session access
-- **Suggested next step:** Require explicit host allowlist configuration for the custom provider
-
-### Placeholder D1 database ID
-- **Status:** Open / deployment blocker
-- **Source evidence:** `wrangler.jsonc:11` (`"database_id": "00000000-0000-0000-0000-000000000000"`)
-- **Why it matters:** Deployment will fail or use a non-existent database
-- **Suggested next step:** Replace with actual D1 database ID
-
-### `validateEnv()` not called at startup
-- **Status:** Open / operational gap
-- **Source evidence:** `src/lib/env.server.ts:7-31` (defined but not imported in `src/server.ts`)
-- **Why it matters:** Missing `SESSION_SECRET` is only detected when a session is first accessed, not at boot
-- **Suggested next step:** Call `validateEnv()` in `src/server.ts` before handling requests
+- **Status:** Improved — now configurable via `setCostOverrides()`
+- **Source evidence:** `src/lib/tokens.ts:49-72` (`_COST_DEFAULTS`, `setCostOverrides`, `getCostRates`)
+- **Why it matters:** Operators can override stale rates through settings or server config
+- **Suggested next step:** Expose cost override UI in settings, or fetch rates from provider APIs
 
 ### Token estimation is heuristic
-- **Status:** Open / accuracy limitation
-- **Source evidence:** `src/lib/tokens.ts:14-20` (combines char-based and word-based heuristics)
-- **Why it matters:** Token counts can be significantly off for non-English text or code
-- **Suggested next step:** Integrate a lightweight tokenizer (e.g., `gpt-tokenizer`) for supported models
+- **Status:** Improved — exact usage extracted from upsteam responses when available
+- **Source evidence:** `src/lib/tokens.ts:132-176` (`extractProviderUsage` for OpenAI, Anthropic, Gemini formats)
+- **Why it matters:** Token counts are now exact when providers include usage metadata; falls back to heuristics
+- **Suggested next step:** Integrate a lightweight tokenizer (e.g., `gpt-tokenizer`) for unsupported models
 
 ### No provider-level tool testing
 - **Status:** Open / testing gap

@@ -12,7 +12,7 @@ import {
 } from "@/lib/cockpit-store";
 import { callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
 import { retryWithBackoff } from "@/lib/retry";
-import { estimateTokens } from "@/lib/tokens";
+import { estimateTokens, extractProviderUsage } from "@/lib/tokens";
 import {
   type ToolDef,
   type ToolCall,
@@ -314,14 +314,37 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
           assistantImages: assistantImages.length ? assistantImages : undefined,
           toolCalls: toolCalls?.length ? toolCalls : undefined,
         });
-        // Estimate and record token usage
-        const inputTokens = history.reduce(
-          (sum, m) => sum + estimateTokens(typeof m.content === "string" ? m.content : ""),
-          0,
-        );
-        const outputTokens = estimateTokens(finalText);
+        // Record token usage — use exact provider usage when available
+        let inputTokens: number;
+        let outputTokens: number;
+        let exactUsage = false;
+
+        const providerUsage =
+          typeof res.raw === "object" && res.raw !== null
+            ? extractProviderUsage(res.raw, provider.bodyStyle)
+            : null;
+
+        if (providerUsage && providerUsage.exact) {
+          inputTokens = providerUsage.inputTokens;
+          outputTokens = providerUsage.outputTokens;
+          exactUsage = true;
+        } else {
+          inputTokens = history.reduce(
+            (sum, m) => sum + estimateTokens(typeof m.content === "string" ? m.content : ""),
+            0,
+          );
+          outputTokens = estimateTokens(finalText);
+        }
+
         recordTokenUsage(provider.id, inputTokens, outputTokens);
-        void syncTokenUsageToServer(provider.id, inputTokens, outputTokens, model, threadId);
+        void syncTokenUsageToServer(
+          provider.id,
+          inputTokens,
+          outputTokens,
+          model,
+          threadId,
+          exactUsage,
+        );
         backoffRef.current = 0;
         setStatus("idle");
       } catch (e) {

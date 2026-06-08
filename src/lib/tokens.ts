@@ -33,18 +33,33 @@ export function estimateThreadTokens(thread: { messages: Array<{ content: string
 
 /**
  * Provider cost rates per 1,000 tokens.
- * Based on current public pricing as of mid-2025:
- *   - openai (gpt-4o-mini):    $0.00015 input / $0.00060 output per 1K
- *   - anthropic (claude-3.5-sonnet): $0.003 input / $0.015 output per 1K
- *   - gemini (gemini-2.5-flash): $0.000075 input / $0.0003 output per 1K
- *   - openrouter: cost varies by routed model; default to openai rates
+ * Based on current public pricing as of mid-2025.
+ * Overridable per-provider via settings.rag.costOverrides or server config.
  */
-export const COST_PER_1K_TOKENS: Record<string, { input: number; output: number }> = {
+const _COST_DEFAULTS: Record<string, { input: number; output: number }> = {
   openai: { input: 0.00015, output: 0.0006 },
   anthropic: { input: 0.003, output: 0.015 },
   gemini: { input: 0.000075, output: 0.0003 },
   openrouter: { input: 0.00015, output: 0.0006 },
+  moonshot: { input: 0.001, output: 0.004 },
+  "nvidia-nim": { input: 0.00035, output: 0.0011 },
+  "vercel-ai": { input: 0.00015, output: 0.0006 },
 };
+
+let _costOverrides: Record<string, { input?: number; output?: number }> = {};
+
+export function setCostOverrides(overrides: Record<string, { input?: number; output?: number }>) {
+  _costOverrides = overrides;
+}
+
+export function getCostRates(providerId: string): { input: number; output: number } {
+  const defaults = _COST_DEFAULTS[providerId] ?? _COST_DEFAULTS.openai;
+  const overrides = _costOverrides[providerId] ?? {};
+  return {
+    input: overrides.input ?? defaults.input,
+    output: overrides.output ?? defaults.output,
+  };
+}
 
 /**
  * Estimate cost for a provider given input and output token counts.
@@ -55,7 +70,7 @@ export function estimateCost(
   inputTokens: number,
   outputTokens: number,
 ): number {
-  const rates = COST_PER_1K_TOKENS[providerId] ?? COST_PER_1K_TOKENS.openai;
+  const rates = getCostRates(providerId);
   return (inputTokens / 1000) * rates.input + (outputTokens / 1000) * rates.output;
 }
 
@@ -103,4 +118,69 @@ export function formatCost(cost: number): string {
  */
 export function formatTokens(tokens: number): string {
   return tokens.toLocaleString("en-US");
+}
+
+// ---------------------------------------------------------------------------
+// Exact usage extraction from provider responses
+// ---------------------------------------------------------------------------
+
+export type ProviderUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  exact: boolean;
+};
+
+/**
+ * Extract exact token usage from provider response data.
+ * Returns null when no usage data is present.
+ */
+export function extractProviderUsage(raw: unknown, bodyStyle: string): ProviderUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+
+  // OpenAI / OpenAI-compatible format: { usage: { prompt_tokens, completion_tokens } }
+  const oaUsage = (raw as { usage?: { prompt_tokens?: number; completion_tokens?: number } })
+    ?.usage;
+  if (
+    oaUsage &&
+    (typeof oaUsage.prompt_tokens === "number" || typeof oaUsage.completion_tokens === "number")
+  ) {
+    return {
+      inputTokens: oaUsage.prompt_tokens ?? 0,
+      outputTokens: oaUsage.completion_tokens ?? 0,
+      exact: true,
+    };
+  }
+
+  // Anthropic format: { usage: { input_tokens, output_tokens } }
+  if (bodyStyle === "anthropic") {
+    const anUsage = (raw as { usage?: { input_tokens?: number; output_tokens?: number } })?.usage;
+    if (
+      anUsage &&
+      (typeof anUsage.input_tokens === "number" || typeof anUsage.output_tokens === "number")
+    ) {
+      return {
+        inputTokens: anUsage.input_tokens ?? 0,
+        outputTokens: anUsage.output_tokens ?? 0,
+        exact: true,
+      };
+    }
+  }
+
+  // Gemini OpenAI-compat may return usage fields
+  const geminiUsage = (
+    raw as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } }
+  )?.usageMetadata;
+  if (
+    geminiUsage &&
+    (typeof geminiUsage.promptTokenCount === "number" ||
+      typeof geminiUsage.candidatesTokenCount === "number")
+  ) {
+    return {
+      inputTokens: geminiUsage.promptTokenCount ?? 0,
+      outputTokens: geminiUsage.candidatesTokenCount ?? 0,
+      exact: true,
+    };
+  }
+
+  return null;
 }
