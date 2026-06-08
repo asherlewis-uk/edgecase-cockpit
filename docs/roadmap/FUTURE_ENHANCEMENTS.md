@@ -1,5 +1,7 @@
 # GAPS.md
 
+> **Note:** The canonical "Known limitations and future work" section has been moved to the main [`README.md`](../../README.md#known-limitations-and-future-work). This file retains the historical record and may contain additional context not yet fully migrated.
+
 ## Status
 This document was rebased after PR #1 merged into `main`. It only tracks unresolved or partially verified work remaining after the merged PR.
 

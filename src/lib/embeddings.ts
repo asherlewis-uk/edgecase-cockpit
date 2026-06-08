@@ -1,6 +1,8 @@
 // Client-side embedding helper. Calls the server proxy so the browser never
 // sends API keys to third-party endpoints.
 
+import { csrfHeaders } from "@/lib/cockpit-store";
+
 export async function embedTexts(
   texts: string[],
   providerId = "openai",
@@ -8,7 +10,7 @@ export async function embedTexts(
 ): Promise<number[][]> {
   const res = await fetch("/api/proxy/embeddings", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({ providerId, model, input: texts }),
   });
   if (!res.ok) {
