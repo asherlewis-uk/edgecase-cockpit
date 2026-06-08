@@ -56,6 +56,10 @@ export type Settings = {
   activeProviderId: string;
   providers: Record<string, ProviderConfig>;
   pinnedProviderIds: string[];
+  /** Opt-in: sync chat messages/threads to D1. Default false. */
+  syncChatsToServer?: boolean;
+  /** Opt-in: sync RAG vector docs to D1. Default false. */
+  syncRagVectorsToServer?: boolean;
 };
 
 export type Message = {
@@ -225,6 +229,8 @@ export const defaultSettings: Settings = {
   activeProviderId: "openai",
   providers: {},
   pinnedProviderIds: [],
+  syncChatsToServer: false,
+  syncRagVectorsToServer: false,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -386,6 +392,14 @@ export function normalizeSettings(raw: Partial<Settings> | unknown): Settings {
     activeProviderId,
     providers: normalizeProviders(source.providers),
     pinnedProviderIds: normalizePinnedProviderIds(source.pinnedProviderIds),
+    syncChatsToServer:
+      typeof source.syncChatsToServer === "boolean"
+        ? source.syncChatsToServer
+        : defaultSettings.syncChatsToServer,
+    syncRagVectorsToServer:
+      typeof source.syncRagVectorsToServer === "boolean"
+        ? source.syncRagVectorsToServer
+        : defaultSettings.syncRagVectorsToServer,
   };
 }
 
@@ -969,9 +983,11 @@ export function csrfHeaders(): Record<string, string> {
   return token ? { "X-CSRF-Token": decodeURIComponent(token) } : {};
 }
 
-/** Sync a thread's current state to the server. Fire-and-forget; local state is source of truth. */
+/** Sync a thread's current state to the server. Fire-and-forget; local state is source of truth.
+ * Requires explicit opt-in via settings.syncChatsToServer (default false). */
 export async function syncThreadToServer(threadId: string): Promise<void> {
   if (typeof window === "undefined") return;
+  if (!store.getState().settings.syncChatsToServer) return;
   const thread = store.getState().threads.find((t) => t.id === threadId);
   if (!thread || thread.temporary) return;
   try {

@@ -544,7 +544,8 @@ describe("recordTokenUsage", () => {
 // syncThreadToServer
 // ---------------------------------------------------------------------------
 describe("syncThreadToServer", () => {
-  it("sends a PATCH request with thread messages", async () => {
+  it("sends a PATCH request with thread messages when syncChatsToServer is true", async () => {
+    store.updateSettings({ syncChatsToServer: true });
     const threadId = store.newThread();
     store.addMessage(threadId, { id: "msg-1", role: "user", content: "Hello", ts: 1 });
     const fetchMock = vi.mocked(globalThis.fetch);
@@ -559,7 +560,18 @@ describe("syncThreadToServer", () => {
     expect(body.messages[0].content).toBe("Hello");
   });
 
-  it("does not sync temporary threads", async () => {
+  it("does NOT sync when syncChatsToServer is false (default)", async () => {
+    store.updateSettings({ syncChatsToServer: false });
+    const threadId = store.newThread();
+    store.addMessage(threadId, { id: "msg-2", role: "user", content: "Private", ts: 1 });
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockClear();
+    await syncThreadToServer(threadId);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not sync temporary threads even when syncChatsToServer is true", async () => {
+    store.updateSettings({ syncChatsToServer: true });
     const threadId = store.newThread({ temporary: true });
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockClear();
@@ -568,6 +580,7 @@ describe("syncThreadToServer", () => {
   });
 
   it("swallows network errors gracefully", async () => {
+    store.updateSettings({ syncChatsToServer: true });
     const threadId = store.newThread();
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockRejectedValueOnce(new Error("network down"));
