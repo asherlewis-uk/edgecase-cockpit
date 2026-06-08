@@ -81,6 +81,159 @@ export const BUILT_IN_TOOLS: ToolDef[] = [
   },
 ];
 
+// ── Dynamic tool schema registry ────────────────────────────────────────────
+
+/** Where a tool schema was loaded from. */
+export type ToolSchemaSource = "built-in" | "local" | "provider";
+
+/** A registered tool with its source metadata. */
+export type RegisteredTool = ToolDef & {
+  source: ToolSchemaSource;
+  providerId?: string; // for provider-sourced schemas
+  registeredAt?: number; // timestamp when registered (local/provider only)
+};
+
+/** Maximum number of registered tools (excluding built-in). */
+const MAX_REGISTERED_TOOLS = 256;
+
+let _registeredTools: RegisteredTool[] = [];
+let _initialized = false;
+
+function initRegistry() {
+  if (_initialized) return;
+  _initialized = true;
+  _registeredTools = BUILT_IN_TOOLS.map((t) => ({
+    ...t,
+    source: "built-in" as const,
+  }));
+}
+
+/**
+ * Return all currently available tool schemas (built-in + registered).
+ * Built-in tools always come first.
+ */
+export function getAllToolSchemas(): RegisteredTool[] {
+  initRegistry();
+  return _registeredTools;
+}
+
+/**
+ * Return only schemas that can be serialized to providers.
+ * Built-in tools are always safe to include.
+ * Registered local/provider tools are included if they pass validation.
+ */
+export function getSerializableToolDefs(): ToolDef[] {
+  initRegistry();
+  return _registeredTools
+    .filter((t) => validateToolName(t.name))
+    .map(({ name, description, parameters }) => ({
+      name,
+      description,
+      parameters,
+    }));
+}
+
+/**
+ * Register a locally-configured tool schema.
+ * Returns true if registered, false if rejected (invalid, duplicate, or limit).
+ */
+export function registerLocalTool(tool: unknown): boolean {
+  initRegistry();
+  if (!validateToolDef(tool)) return false;
+  const t = tool as ToolDef;
+  if (!validateToolName(t.name)) return false;
+
+  // Check for duplicates
+  if (_registeredTools.some((r) => r.name === t.name)) return false;
+
+  // Enforce size limit on registered tools
+  const nonBuiltIn = _registeredTools.filter((r) => r.source !== "built-in");
+  if (nonBuiltIn.length >= MAX_REGISTERED_TOOLS) return false;
+
+  _registeredTools.push({
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
+    source: "local",
+    registeredAt: Date.now(),
+  });
+
+  return true;
+}
+
+/**
+ * Register provider-declared tool schemas (replaces old provider entries).
+ * Each tool is validated; unsafe names are silently dropped.
+ */
+export function registerProviderTools(providerId: string, tools: ToolDef[]): number {
+  initRegistry();
+
+  // Remove old entries for this provider
+  _registeredTools = _registeredTools.filter(
+    (r) => !(r.source === "provider" && r.providerId === providerId),
+  );
+
+  let added = 0;
+  const now = Date.now();
+  for (const tool of tools) {
+    if (!validateToolDef(tool)) continue;
+    if (!validateToolName(tool.name)) continue;
+    // Allow overwriting built-in? No — built-in always wins
+    if (_registeredTools.some((r) => r.source === "built-in" && r.name === tool.name)) continue;
+
+    const nonBuiltIn = _registeredTools.filter((r) => r.source !== "built-in");
+    if (nonBuiltIn.length >= MAX_REGISTERED_TOOLS) break;
+
+    _registeredTools.push({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+      source: "provider",
+      providerId,
+      registeredAt: now,
+    });
+    added++;
+  }
+
+  return added;
+}
+
+/**
+ * Remove all locally-registered and provider tools, leaving only built-ins.
+ */
+export function clearRegisteredTools(): void {
+  _registeredTools = BUILT_IN_TOOLS.map((t) => ({
+    ...t,
+    source: "built-in" as const,
+  }));
+}
+
+/** For tests: reset the registry to pristine state. */
+export function __resetToolRegistry(): void {
+  _initialized = false;
+  _registeredTools = [];
+}
+
+/**
+ * Schema count by source. Used for status display.
+ */
+export function getToolSchemaCounts(): {
+  builtIn: number;
+  local: number;
+  provider: Record<string, number>;
+} {
+  initRegistry();
+  const builtIn = _registeredTools.filter((t) => t.source === "built-in").length;
+  const local = _registeredTools.filter((t) => t.source === "local").length;
+  const provider: Record<string, number> = {};
+  for (const t of _registeredTools) {
+    if (t.source === "provider" && t.providerId) {
+      provider[t.providerId] = (provider[t.providerId] ?? 0) + 1;
+    }
+  }
+  return { builtIn, local, provider };
+}
+
 export function isBuiltInTool(name: string): boolean {
   return BUILT_IN_TOOLS.some((t) => t.name === name);
 }

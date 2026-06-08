@@ -22,6 +22,7 @@ import { Route as ApiStatsRouteImport } from './routes/api/stats'
 import { Route as ApiSessionRouteImport } from './routes/api/session'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiUsageThreadIdRouteImport } from './routes/api/usage.$threadId'
+import { Route as ApiToolsSchemasRouteImport } from './routes/api/tools/schemas'
 import { Route as ApiThreadsImportRouteImport } from './routes/api/threads.import'
 import { Route as ApiThreadsIdRouteImport } from './routes/api/threads.$id'
 import { Route as ApiProxyTranscribeRouteImport } from './routes/api/proxy/transcribe'
@@ -102,6 +103,11 @@ const ApiUsageThreadIdRoute = ApiUsageThreadIdRouteImport.update({
   id: '/$threadId',
   path: '/$threadId',
   getParentRoute: () => ApiUsageRoute,
+} as any)
+const ApiToolsSchemasRoute = ApiToolsSchemasRouteImport.update({
+  id: '/api/tools/schemas',
+  path: '/api/tools/schemas',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiThreadsImportRoute = ApiThreadsImportRouteImport.update({
   id: '/import',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
   '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/tools/schemas': typeof ApiToolsSchemasRoute
   '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
   '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
   '/api/threads/$id/export': typeof ApiThreadsIdExportRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
   '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/tools/schemas': typeof ApiToolsSchemasRoute
   '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
   '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
   '/api/threads/$id/export': typeof ApiThreadsIdExportRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
   '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/tools/schemas': typeof ApiToolsSchemasRoute
   '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
   '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
   '/api/threads/$id/export': typeof ApiThreadsIdExportRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
     | '/api/threads/import'
+    | '/api/tools/schemas'
     | '/api/usage/$threadId'
     | '/api/keys/validate/$providerId'
     | '/api/threads/$id/export'
@@ -327,6 +337,7 @@ export interface FileRouteTypes {
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
     | '/api/threads/import'
+    | '/api/tools/schemas'
     | '/api/usage/$threadId'
     | '/api/keys/validate/$providerId'
     | '/api/threads/$id/export'
@@ -357,6 +368,7 @@ export interface FileRouteTypes {
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
     | '/api/threads/import'
+    | '/api/tools/schemas'
     | '/api/usage/$threadId'
     | '/api/keys/validate/$providerId'
     | '/api/threads/$id/export'
@@ -386,6 +398,7 @@ export interface RootRouteChildren {
   ApiProxyEmbeddingsRoute: typeof ApiProxyEmbeddingsRoute
   ApiProxyModelsRoute: typeof ApiProxyModelsRoute
   ApiProxyTranscribeRoute: typeof ApiProxyTranscribeRoute
+  ApiToolsSchemasRoute: typeof ApiToolsSchemasRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -480,6 +493,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/usage/$threadId'
       preLoaderRoute: typeof ApiUsageThreadIdRouteImport
       parentRoute: typeof ApiUsageRoute
+    }
+    '/api/tools/schemas': {
+      id: '/api/tools/schemas'
+      path: '/api/tools/schemas'
+      fullPath: '/api/tools/schemas'
+      preLoaderRoute: typeof ApiToolsSchemasRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/threads/import': {
       id: '/api/threads/import'
@@ -665,6 +685,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProxyEmbeddingsRoute: ApiProxyEmbeddingsRoute,
   ApiProxyModelsRoute: ApiProxyModelsRoute,
   ApiProxyTranscribeRoute: ApiProxyTranscribeRoute,
+  ApiToolsSchemasRoute: ApiToolsSchemasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

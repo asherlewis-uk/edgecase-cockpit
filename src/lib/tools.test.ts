@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   validateToolDef,
   toOpenAITools,
@@ -482,5 +482,130 @@ describe("AnthropicStreamToolCallAccumulator", () => {
     acc.ingest({ deltaType: "start", index: 0, id: "t1", name: "echo" });
     acc.reset();
     expect(acc.complete()).toEqual([]);
+  });
+});
+
+// ── Dynamic tool schema registry ───────────────────────────────────────────
+
+import {
+  getAllToolSchemas,
+  getSerializableToolDefs,
+  registerLocalTool,
+  registerProviderTools,
+  clearRegisteredTools,
+  getToolSchemaCounts,
+  __resetToolRegistry,
+} from "@/lib/tools";
+
+describe("dynamic tool schema registry", () => {
+  beforeEach(() => {
+    __resetToolRegistry();
+  });
+
+  describe("getAllToolSchemas", () => {
+    it("returns built-in tools by default", () => {
+      const schemas = getAllToolSchemas();
+      const names = schemas.map((s) => s.name);
+      expect(names).toContain("echo");
+      expect(names).toContain("calculator");
+      expect(schemas.every((s) => s.source === "built-in")).toBe(true);
+    });
+  });
+
+  describe("getSerializableToolDefs", () => {
+    it("returns all built-in as serializable ToolDefs", () => {
+      const defs = getSerializableToolDefs();
+      expect(defs.length).toBeGreaterThanOrEqual(4);
+      expect(defs[0]).toHaveProperty("name");
+      expect(defs[0]).toHaveProperty("description");
+    });
+  });
+
+  describe("registerLocalTool", () => {
+    it("registers a valid local tool", () => {
+      const ok = registerLocalTool({
+        name: "my_tool",
+        description: "Custom tool",
+      });
+      expect(ok).toBe(true);
+      const schemas = getAllToolSchemas();
+      expect(schemas.some((s) => s.name === "my_tool" && s.source === "local")).toBe(true);
+    });
+
+    it("rejects tools with unsafe names", () => {
+      expect(registerLocalTool({ name: "rm -rf /", description: "bad" })).toBe(false);
+      expect(registerLocalTool({ name: "$(shell)", description: "bad" })).toBe(false);
+    });
+
+    it("rejects invalid tool defs (missing description)", () => {
+      expect(registerLocalTool({ name: "missing_desc" })).toBe(false);
+    });
+
+    it("rejects duplicate names", () => {
+      registerLocalTool({ name: "my_tool", description: "First" });
+      expect(registerLocalTool({ name: "my_tool", description: "Dup" })).toBe(false);
+    });
+
+    it("rejects tool with name matching built-in", () => {
+      expect(registerLocalTool({ name: "echo", description: "Override attempt" })).toBe(false);
+    });
+
+    it("does not allow local tools to execute (not a built-in)", () => {
+      registerLocalTool({ name: "fetch_url", description: "Fetches a URL" });
+      expect(isBuiltInTool("fetch_url")).toBe(false);
+    });
+  });
+
+  describe("registerProviderTools", () => {
+    it("registers valid provider tools and filters invalid ones", () => {
+      const added = registerProviderTools("openai", [
+        { name: "code_interpreter", description: "Run Python" },
+        { name: "rm -rf /", description: "bad" },
+        { name: "web_search", description: "Search web" },
+      ]);
+      expect(added).toBe(2);
+      const schemas = getAllToolSchemas();
+      const provider = schemas.filter((s) => s.source === "provider" && s.providerId === "openai");
+      expect(provider).toHaveLength(2);
+      expect(provider.map((s) => s.name)).toEqual(["code_interpreter", "web_search"]);
+    });
+
+    it("replaces old provider entries on re-registration", () => {
+      registerProviderTools("openai", [{ name: "old_tool", description: "Old" }]);
+      registerProviderTools("openai", [{ name: "new_tool", description: "New" }]);
+      const schemas = getAllToolSchemas();
+      const provider = schemas.filter((s) => s.source === "provider" && s.providerId === "openai");
+      expect(provider).toHaveLength(1);
+      expect(provider[0].name).toBe("new_tool");
+    });
+
+    it("does not override built-in tools", () => {
+      registerProviderTools("openai", [{ name: "echo", description: "Override" }]);
+      const schemas = getAllToolSchemas();
+      const echo = schemas.filter((s) => s.name === "echo");
+      expect(echo).toHaveLength(1);
+      expect(echo[0].source).toBe("built-in");
+    });
+  });
+
+  describe("clearRegisteredTools", () => {
+    it("removes all local and provider tools", () => {
+      registerLocalTool({ name: "local1", description: "A" });
+      registerProviderTools("openai", [{ name: "prov1", description: "B" }]);
+      clearRegisteredTools();
+      const schemas = getAllToolSchemas();
+      expect(schemas.every((s) => s.source === "built-in")).toBe(true);
+    });
+  });
+
+  describe("getToolSchemaCounts", () => {
+    it("shows correct breakdown by source", () => {
+      registerLocalTool({ name: "local1", description: "A" });
+      registerProviderTools("openai", [{ name: "code", description: "C" }]);
+      const counts = getToolSchemaCounts();
+      expect(counts.builtIn).toBe(4);
+      expect(counts.local).toBe(1);
+      expect(counts.provider.openai).toBe(1);
+    });
   });
 });
