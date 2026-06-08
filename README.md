@@ -223,16 +223,18 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 ### Thread persistence flow
 
 1. Threads live in `localStorage` via `cockpit-store.ts`
-2. Non-temporary threads are synced to D1 via `syncThreadToServer` (`PATCH /api/threads/$id`)
-3. Server-side: `src/routes/api/threads.$id.ts` validates CSRF, rate limit, storage limits, and sanitizes messages before DB update
-4. Temporary threads are never synced to the server
-5. Cross-tab sync: `storage` events update state in other tabs
+2. Server-side thread sync to D1 is **off by default** — gated behind `settings.syncChatsToServer` (explicit opt-in, default `false`)
+3. When enabled, non-temporary threads sync to D1 via `syncThreadToServer` (`PATCH /api/threads/$id`)
+4. Server-side: `src/routes/api/threads.$id.ts` validates CSRF, rate limit, storage limits, and sanitizes messages before DB update
+5. Temporary threads are never synced to the server
+6. Cross-tab sync: `storage` events update state in other tabs
+7. **Manual import/export (JSON/Markdown/TXT)** is the intended cross-device chat portability mechanism
 
 ### Message edit/delete sync flow
 
-1. Edit: `editMessage` in `use-chat.ts` updates local state, calls `syncThreadToServer`, then re-runs the assistant
-2. Delete: `deleteMessage` in `ChatMessages.tsx` calls `store.deleteMessage` then `syncThreadToServer`
-3. Server sync is fire-and-forget; network errors are swallowed. Local state is source of truth.
+1. Edit: `editMessage` in `use-chat.ts` updates local state, calls `syncThreadToServer` (no-op unless `syncChatsToServer` is enabled), then re-runs the assistant
+2. Delete: `deleteMessage` in `ChatMessages.tsx` calls `store.deleteMessage` then `syncThreadToServer` (no-op unless enabled)
+3. Local state is source of truth regardless of sync setting
 
 ### Token usage flow
 
