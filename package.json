@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "test:release": "npm run test && (test -n \"$OPENAI_API_KEY\" && npm run test:live || echo '[release] Live provider tests skipped (missing credentials).')"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
