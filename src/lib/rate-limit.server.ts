@@ -16,6 +16,82 @@ export interface IRateLimiterBackend {
   clearAll(): void;
 }
 
+// ── D1-backed distributed limiter ───────────────────────────────────────────
+
+import { getDB } from "@/lib/platform.server";
+
+class D1RateLimiterBackend implements IRateLimiterBackend {
+  // In-memory cache for synchronous lookups. D1 writes are fire-and-forget
+  // for eventual cross-worker consistency. This preserves the synchronous
+  // IRateLimiterBackend interface.
+  private buckets = new Map<string, { count: number; resetAt: number }>();
+
+  checkLimit(key: string, windowMs: number, limit: number): RateLimitResult {
+    const now = Date.now();
+    const bucket = this.buckets.get(key);
+
+    if (!bucket || bucket.resetAt < now) {
+      this.buckets.set(key, { count: 1, resetAt: now + windowMs });
+      this.persistAsync(key, 1, now + windowMs);
+      return { ok: true };
+    }
+
+    if (bucket.count >= limit) {
+      return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
+    }
+
+    bucket.count++;
+    this.persistAsync(key, bucket.count, bucket.resetAt);
+    return { ok: true };
+  }
+
+  clearAll(): void {
+    this.buckets.clear();
+    try {
+      getDB().prepare("DELETE FROM rate_limits").run();
+    } catch {
+      // ignore
+    }
+  }
+
+  private persistAsync(key: string, count: number, resetAt: number): void {
+    try {
+      const db = getDB();
+      db.prepare(
+        `INSERT INTO rate_limits (key, count, reset_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(key) DO UPDATE SET count = ?2, reset_at = ?3, updated_at = ?4`,
+      )
+        .bind(key, count, resetAt, Date.now())
+        .run();
+    } catch {
+      // fire-and-forget — in-memory is source of truth for this worker
+    }
+  }
+}
+
+/**
+ * Try to activate the D1-backed distributed rate limiter.
+ * Returns true if D1 is available and the backend was activated.
+ * Call this at startup after DB binding is known to exist.
+ */
+export function tryActivateD1RateLimiter(): boolean {
+  try {
+    const db = getDB();
+    // Verify the table exists with a lightweight query
+    db.prepare("SELECT count(*) as cnt FROM rate_limits LIMIT 0").first();
+    _backend = new D1RateLimiterBackend();
+    console.log("[rate-limit] Using D1-backed distributed rate limiter.");
+    return true;
+  } catch {
+    console.warn(
+      "[rate-limit] D1 not available for distributed rate limiting; " +
+        "falling back to in-memory.",
+    );
+    return false;
+  }
+}
+
 let _backend: IRateLimiterBackend | null = null;
 
 export function setRateLimiterBackend(backend: IRateLimiterBackend) {

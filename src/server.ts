@@ -5,7 +5,10 @@ import { renderErrorPage } from "./lib/error-page";
 import { setPlatformEnv, getDB } from "./lib/platform.server";
 import { withCspHeaders } from "./lib/csp.server";
 import { validateEnv } from "./lib/env.server";
-import { warnInMemoryRateLimitInProduction } from "./lib/rate-limit.server";
+import {
+  warnInMemoryRateLimitInProduction,
+  tryActivateD1RateLimiter,
+} from "./lib/rate-limit.server";
 import { logCustomProviderPolicy } from "./lib/proxy-guard.server";
 
 // ── Startup guards (run once per cold start) ─────────────────────────────
@@ -28,6 +31,10 @@ try {
       "Thread persistence and usage stats require a valid d1_databases entry in wrangler.jsonc.",
   );
 }
+
+// Try to activate D1-backed distributed rate limiter. Falls back to
+// in-memory silently if D1 is unavailable.
+tryActivateD1RateLimiter();
 
 // Warn if in-memory rate limiting is used in production without acknowledgement.
 warnInMemoryRateLimitInProduction();
