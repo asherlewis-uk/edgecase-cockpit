@@ -138,3 +138,25 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 - Do not rewrite completed rate limiting/storage/CSP work.
 - Do not combine unrelated redesign work.
 - Do not implement multi-device settings sync unless product requires it.
+
+## Device-local data boundary
+
+### Enforced privacy defaults
+
+- **Status:** Enforced — implemented in `src/lib/cockpit-store.ts`
+- **Chat/message/thread storage:** Device-local (`localStorage`) by default. `syncChatsToServer` defaults to `false`. No automatic D1 writes for chat data.
+- **RAG vector/text storage:** Device-local by default. `syncRagVectorsToServer` defaults to `false`. Server sync functions in `vector-store.ts` are dormant — not called by any production code path.
+- **Cross-device portability:** Manual export/import (JSON/Markdown/TXT) is the only supported cross-device chat transfer mechanism. This is intentional.
+- **Legacy migration:** `normalizeSettings()` migrates any stored settings that predate these fields — missing values are treated as `false`, not `true`.
+- **D1 allowed scope:** Distributed rate limiting, encrypted sessions, usage/stats (no full message content), and runtime operational data only.
+- **Tests:** `cockpit-store.test.ts` covers: default `false` for both sync flags, legacy migration to `false`, `syncThreadToServer` no-fetch when disabled, fetch when enabled, temporary thread skip.
+
+### Not a roadmap goal
+
+- Auto-loading server RAG docs on session startup is not planned — it conflicts with the device-local default.
+- Cross-device automatic chat sync is not planned — manual export/import is the product's intended portability path.
+- D1 should not be used for automatic chat/message storage without explicit user opt-in and privacy review.
+
+### D1 setup prerequisite
+
+The D1 database ID placeholder must be replaced before production deployment, but **only after confirming the data boundary is enforced**. Deploying D1 before confirming `syncChatsToServer === false` would allow inadvertent chat data writes. The device-local boundary is now enforced — D1 setup may proceed safely.

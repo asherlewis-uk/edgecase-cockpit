@@ -63,6 +63,29 @@ describe("normalizeSettings", () => {
     expect(result.pinnedProviderIds).toEqual([]);
   });
 
+  it("migrates legacy settings without syncChatsToServer to false", () => {
+    // Simulate stored settings that predate the field
+    const legacy = { profile: { displayName: "Alice" }, activeProviderId: "openai" };
+    const result = normalizeSettings(legacy);
+    expect(result.syncChatsToServer).toBe(false);
+  });
+
+  it("migrates legacy settings without syncRagVectorsToServer to false", () => {
+    const legacy = { profile: { displayName: "Alice" }, activeProviderId: "openai" };
+    const result = normalizeSettings(legacy);
+    expect(result.syncRagVectorsToServer).toBe(false);
+  });
+
+  it("preserves explicit syncChatsToServer: true when set", () => {
+    const result = normalizeSettings({ syncChatsToServer: true });
+    expect(result.syncChatsToServer).toBe(true);
+  });
+
+  it("preserves explicit syncRagVectorsToServer: true when set", () => {
+    const result = normalizeSettings({ syncRagVectorsToServer: true });
+    expect(result.syncRagVectorsToServer).toBe(true);
+  });
+
   it("returns default settings for null/undefined", () => {
     const result = normalizeSettings(null);
     expect(result.profile.displayName).toBe(defaultSettings.profile.displayName);
@@ -199,6 +222,14 @@ describe("defaultSettings", () => {
 
   it("has empty pinnedProviderIds by default", () => {
     expect(defaultSettings.pinnedProviderIds).toEqual([]);
+  });
+
+  it("defaults syncChatsToServer to false", () => {
+    expect(defaultSettings.syncChatsToServer).toBe(false);
+  });
+
+  it("defaults syncRagVectorsToServer to false", () => {
+    expect(defaultSettings.syncRagVectorsToServer).toBe(false);
   });
 });
 
@@ -585,5 +616,66 @@ describe("syncThreadToServer", () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockRejectedValueOnce(new Error("network down"));
     await expect(syncThreadToServer(threadId)).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Device-local import/export — no server calls required
+// ---------------------------------------------------------------------------
+describe("manual import/export locality", () => {
+  it("exportThread returns local data without any fetch calls", () => {
+    store.updateSettings({ syncChatsToServer: false });
+    const threadId = store.newThread();
+    store.addMessage(threadId, { id: "m1", role: "user", content: "Hello export", ts: 1 });
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockClear();
+    const exported = store.exportThread(threadId, "json");
+    expect(exported).not.toBeNull();
+    const parsed = JSON.parse(exported!);
+    // JSON format wraps the thread: { thread: { id, title, messages, ... } }
+    expect(parsed.thread).toHaveProperty("id", threadId);
+    expect(parsed.thread.messages[0].content).toBe("Hello export");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("importThreads writes to local state without any fetch calls", () => {
+    store.updateSettings({ syncChatsToServer: false });
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockClear();
+    const thread = {
+      id: "imported-1",
+      title: "Imported Thread",
+      messages: [{ id: "m1", role: "user" as const, content: "Imported msg", ts: 1 }],
+      ts: 1,
+      updatedAt: 1,
+      archived: false,
+      pinned: false,
+      temporary: false,
+    };
+    store.importThreads([thread]);
+    const found = store.getState().threads.find((t) => t.title === "Imported Thread");
+    expect(found).toBeDefined();
+    expect(found!.messages[0].content).toBe("Imported msg");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("importThreads does not call the server even when syncChatsToServer is true", async () => {
+    // Import is always local — the user controls when/if to sync
+    store.updateSettings({ syncChatsToServer: true });
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockClear();
+    const thread = {
+      id: "imported-2",
+      title: "Imported Thread 2",
+      messages: [],
+      ts: 2,
+      updatedAt: 2,
+      archived: false,
+      pinned: false,
+      temporary: false,
+    };
+    store.importThreads([thread]);
+    // importThreads itself must never call fetch — only explicit syncThreadToServer does
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

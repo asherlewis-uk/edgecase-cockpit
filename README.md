@@ -6,6 +6,8 @@
 
 `edgecase-cockpit` is a unified chat interface for both cloud LLM APIs and local/self-hosted inference endpoints. It is built as a **TanStack Start + React + Cloudflare Workers** application with SSR. The app stores API keys server-side in encrypted cookie sessions, proxies all provider traffic through same-origin `/api/proxy/*` routes, and keeps threads and settings in `localStorage` with optional server-side persistence via Cloudflare D1.
 
+**Data privacy model:** Chats, messages, and threads are **device-local by default** — stored in `localStorage` only. Server-side chat sync to D1 is explicit opt-in (`syncChatsToServer`, default `false`). Manual export/import (JSON/Markdown/TXT) is the intended cross-device portability path. RAG vector/text data is also device-local by default (`syncRagVectorsToServer`, default `false`). D1 is used for distributed rate limiting, session/security data, and usage statistics — not automatic chat storage.
+
 The current implementation supports streaming chat, multi-modal attachments (images, video notes, screenshots, voice transcription), message editing/deletion, thread CRUD with import/export/fork/pin, keyboard shortcuts, a command palette, markdown rendering with syntax highlighting, offline message queuing, token/cost usage tracking, safe built-in tool calling, and local RAG (retrieval-augmented generation) via an in-memory cosine-similarity vector store.
 
 ## Current status
@@ -38,7 +40,7 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 
 - Streaming with tools is now supported for OpenAI-compatible providers (OpenAI, Vercel AI Gateway, NVIDIA NIM, vLLM, Custom); other providers fall back to non-streaming
 - Built-in tool registry expanded to 4 safe tools (get_current_time, echo, word_count, calculator); dynamic provider tool schemas are not yet fetched
-- Vector store has server-side sync support (D1) but local-first fallback when unavailable
+- Vector store server-side sync (`syncRagVectorsToServer`) is implemented but **off by default** — RAG text/vectors stay device-local unless explicitly enabled; enabling it is privacy-sensitive
 - Embedding failures are surfaced via `ragError` state but the UI display is minimal
 - Chunking is sentence/paragraph-level with configurable minimum length
 - Exact token usage extracted from upsteam provider responses when available (OpenAI/Anthropic/Gemini); falls back to heuristic estimation
@@ -512,6 +514,8 @@ Before deploying to production:
 - [ ] Replace the placeholder D1 database ID in `wrangler.jsonc` with your real database ID
 - [ ] Ensure the `DB` binding is configured in `wrangler.jsonc`
 - [ ] Either swap in a distributed rate-limit backend via `setRateLimiterBackend()`, or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
+- [ ] Confirm `syncChatsToServer` (default `false`) and `syncRagVectorsToServer` (default `false`) settings match your data residency intent — **D1 is not automatic chat storage; chat sync is explicit opt-in only**
+- [ ] **Do not enable server chat/RAG sync until you have reviewed the privacy implications** — these settings store full message content and text chunks server-side
 - [ ] If you need the custom provider to reach arbitrary hosts, set `PROXY_ALLOW_CUSTOM_WILDCARD=true` — otherwise configure explicit `allowedHosts` on the custom provider
 - [ ] Run `npm run test && npm run typecheck && npm run lint && npm run build`
 
@@ -548,12 +552,12 @@ Before deploying to production:
 - **Why it matters:** Smaller chunks improve retrieval relevance for long messages
 - **Implementation:** Configurable minLength (default 80 chars); merges short sentences within paragraphs
 
-### localStorage-only vector store / no cross-device sync
+### RAG vector store — device-local by default
 
-- **Status:** Partial — server-side sync via D1, local-first fallback
-- **Source evidence:** `src/lib/vector-store.ts:124-148` (server sync functions); `src/routes/api/vector-docs.ts` (API endpoint); `src/lib/db/schema.sql:56-66` (vector_docs table)
-- **Why it matters:** RAG context can now be shared across devices when server sync is available
-- **Suggested next step:** Auto-load server docs on session startup
+- **Status:** Enforced — `syncRagVectorsToServer` defaults to `false`; RAG text and vectors stay in `localStorage` only
+- **Source evidence:** `src/lib/vector-store.ts:124-148` (server sync functions dormant); `src/routes/api/vector-docs.ts` (API endpoint exists but not called by default); `src/lib/db/schema.sql:56-66` (schema present for opt-in use)
+- **Privacy model:** Enabling `syncRagVectorsToServer` is explicit opt-in only. It stores ingested text chunks and embedding vectors server-side. Do not enable without understanding the privacy implications.
+- **Not a roadmap goal:** Auto-loading server RAG docs on session startup is not a planned feature — it would conflict with the device-local default.
 
 ### Embedding failure UI
 
