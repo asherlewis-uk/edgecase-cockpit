@@ -31,3 +31,14 @@ dist-ssr
 *.sln
 *.sw?
 .gitnexus
+
+# AI agent config artifacts (auto-generated, not repo source)
+.claude/
+.cursor/
+.continue/
+.gemini/
+.opencode/
+.mcp.json
+.rules
+GEMINI.md
+.github/copilot-instructions.md
