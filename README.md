@@ -43,10 +43,10 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 - Vector store server-side sync (`syncRagVectorsToServer`) is implemented but **off by default** — RAG text/vectors stay device-local unless explicitly enabled; enabling it is privacy-sensitive
 - Embedding failures are surfaced via `ragError` state but the UI display is minimal
 - Chunking is sentence/paragraph-level with configurable minimum length
-- Exact token usage extracted from upsteam provider responses when available (OpenAI/Anthropic/Gemini); falls back to heuristic estimation
+- Exact token usage extracted from upstream provider responses when available (OpenAI/Anthropic/Gemini); falls back to heuristic estimation
 - Cost rates are now configurable via `setCostOverrides()` and per-provider defaults
-- In-memory rate limiter has a pluggable `IRateLimiterBackend` interface for distributed adapters; in-memory is default
-- Provider capability flags now distinguish `tools` from `streamingTools`; `streamingTools: true` only for OpenAI-compatible body-style providers with tested delta parsing
+- D1-backed distributed rate limiter activates at startup when DB binding is available; in-memory is local-dev/fallback only
+- Provider capability flags distinguish `tools` from `streamingTools`; `streamingTools: true` for both OpenAI-compatible and Anthropic body-style providers with tested delta parsing
 
 This is a **local-first, self-hosted** application. Provider keys are **user-configured** per session and stored server-side only.
 
