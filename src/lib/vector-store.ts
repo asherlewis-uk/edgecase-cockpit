@@ -47,7 +47,30 @@ function saveDocs(docs: VectorDoc[]) {
 
 let memoryDocs: VectorDoc[] | null = null;
 
+let _crossTabSyncSetup = false;
+
+/**
+ * Lazily register a storage event listener that invalidates the in-memory
+ * cache when another same-origin tab writes to the vector-store key.
+ * This ensures the next getDocs() call reads fresh data from localStorage.
+ */
+function ensureVectorStoreCrossTabSync() {
+  if (_crossTabSyncSetup || typeof window === "undefined") return;
+  _crossTabSyncSetup = true;
+  window.addEventListener("storage", (e) => {
+    if (e.key === STORE_KEY) {
+      memoryDocs = null; // invalidate so next getDocs() re-reads localStorage
+    }
+  });
+}
+
+/** For tests: reset cross-tab sync setup state. */
+export function __resetVectorStoreCrossTabSync(): void {
+  _crossTabSyncSetup = false;
+}
+
 function getDocs(): VectorDoc[] {
+  ensureVectorStoreCrossTabSync();
   if (memoryDocs === null) memoryDocs = loadDocs();
   return memoryDocs;
 }
