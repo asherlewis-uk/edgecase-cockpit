@@ -2,87 +2,107 @@
 
 > A provider-native AI chat console — local-first, self-hosted, multi-provider.
 
-## Overview
+## 1. What is edgecase-cockpit?
 
-`edgecase-cockpit` is a unified chat interface for both cloud LLM APIs and local/self-hosted inference endpoints. It is built as a **TanStack Start + React + Cloudflare Workers** application with SSR. The app stores API keys server-side in encrypted cookie sessions, proxies all provider traffic through same-origin `/api/proxy/*` routes, and keeps threads and settings in `localStorage` with optional server-side persistence via Cloudflare D1.
+`edgecase-cockpit` is a unified chat interface for both cloud LLM APIs and local/self-hosted inference endpoints. It is a **TanStack Start + React + Cloudflare Workers** application with SSR.
 
-**Data privacy model:** Chats, messages, and threads are **device-local by default** — stored in `localStorage` only. Server-side chat sync to D1 is explicit opt-in (`syncChatsToServer`, default `false`). Manual export/import (JSON/Markdown/TXT) is the intended cross-device portability path. RAG vector/text data is also device-local by default (`syncRagVectorsToServer`, default `false`). D1 is used for distributed rate limiting, session/security data, and usage statistics — not automatic chat storage.
+**Device-local privacy model (default):** Chats, threads, and messages are stored in `localStorage` only. No chat data reaches the server unless you explicitly opt in. Manual export/import (JSON/Markdown/TXT) is the intended cross-device portability path. RAG vector/text data is also device-local by default. D1 is used for distributed rate limiting, encrypted session data, and usage statistics — not for automatic chat or vector storage.
 
-The current implementation supports streaming chat, multi-modal attachments (images, video notes, screenshots, voice transcription), message editing/deletion, thread CRUD with import/export/fork/pin, keyboard shortcuts, a command palette, markdown rendering with syntax highlighting, offline message queuing, token/cost usage tracking, safe built-in tool calling, and local RAG (retrieval-augmented generation) via an in-memory cosine-similarity vector store.
+**API key security:** Keys are stored server-side in encrypted cookie sessions. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`.
 
-## Current status
+Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`, `syncChatsToServer: false`, `syncRagVectorsToServer: false`), `src/lib/db/schema.sql`, `wrangler.jsonc`.
 
-**What is implemented:**
+---
 
-- Full chat cockpit with streaming responses, message editing/deletion, and regeneration from any point
-- 14 provider definitions (8 cloud + 6 local) with proxy-based routing
-- Server-side encrypted session storage for API keys (browser never sees plaintext keys)
+## 2. Current implementation status
+
+**Implemented and source-backed:**
+
+- Full chat cockpit: streaming responses, message editing/deletion, regeneration from any point
+- 15 provider definitions (8 cloud + 7 local) with proxy-based routing
+- Server-side encrypted session storage for API keys (browser never holds plaintext keys)
 - CSRF double-submit cookie protection on all mutating routes
-- In-memory rate limiting for both proxy and non-proxy routes
+- D1-backed distributed rate limiter (activates at startup when DB binding is available; falls back to in-memory)
 - Storage limits enforced server-side (threads, messages, content length, attachments)
 - CSP + security headers on HTML responses
-- Thread CRUD, import/export (JSON/Markdown/TXT), fork, pin, archive
+- Thread CRUD, import/export (JSON/Markdown/TXT), fork, pin, archive, color
 - Offline queue with `localStorage` persistence and auto-drain on reconnect
 - Keyboard shortcuts (Cmd/Ctrl+K palette, +N new thread, +Enter send, +/ help, Escape stop/close)
-- Command palette with thread/provider search and navigation
+- Command palette with thread/provider/action search and navigation
 - Markdown rendering via `react-markdown` with `remark-gfm`, `rehype-highlight`, tables, inline code
 - Model picker fetching live models from `/api/proxy/models`
 - Settings UI: profile, personalization, keyboard shortcuts, provider cards, RAG config, usage stats
-- Token and cost estimation with per-provider rates
-- Built-in tool registry (`get_current_time`, `echo`) with UI approval flow
-- RAG: embedding proxy, local vector store, context injection, settings controls
+- Exact token usage extracted from provider responses (OpenAI/Anthropic/Gemini formats); heuristic fallback for others
+- Cost estimation with per-provider default rates; configurable overrides via `setCostOverrides()`
+- 4 safe built-in executable tools (`get_current_time`, `echo`, `word_count`, `calculator`) with UI approval flow
+- Dynamic tool schema registry (`registerLocalTool`, `registerProviderTools`, `/api/tools/schemas`)
+- Streaming tool-call delta parsing for OpenAI-compatible and Anthropic body styles
+- RAG: embedding proxy, local in-memory + `localStorage` vector store, cosine similarity retrieval, context injection, error state surfaced in StatusBar
 - Voice input via `MediaRecorder` + Whisper-compatible transcription proxy
 - Screenshot capture via `getDisplayMedia`
 - Image/video attachment support
-- 359 tests across 21 test files
+- Cross-tab sync for settings, threads, provider stats, and vector store cache invalidation
+- **450 tests across 23 test files** (as of this writing; verified by `bun run test`)
 
-**What remains limited or future work:**
+Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test.ts`, `src/routes/api/*.test.ts`.
 
-- Streaming with tools is now supported for OpenAI-compatible providers (OpenAI, Vercel AI Gateway, NVIDIA NIM, vLLM, Custom); other providers fall back to non-streaming
-- Dynamic tool schema registry implemented (`registerLocalTool`, `registerProviderTools`, `/api/tools/schemas`); 4 built-in executable tools; auto-fetching from provider APIs not yet implemented
-- Vector store server-side sync (`syncRagVectorsToServer`) is implemented but **off by default** — RAG text/vectors stay device-local unless explicitly enabled; enabling it is privacy-sensitive
-- Embedding failures are surfaced via `ragError` state but the UI display is minimal
-- Chunking is sentence/paragraph-level with configurable minimum length
-- Exact token usage extracted from upstream provider responses when available (OpenAI/Anthropic/Gemini); falls back to heuristic estimation
-- Cost rates are now configurable via `setCostOverrides()` and per-provider defaults
-- D1-backed distributed rate limiter activates at startup when DB binding is available; in-memory is local-dev/fallback only
-- Provider capability flags distinguish `tools` from `streamingTools`; `streamingTools: true` for both OpenAI-compatible and Anthropic body-style providers with tested delta parsing
+---
 
-This is a **local-first, self-hosted** application. Provider keys are **user-configured** per session and stored server-side only.
+## 3. Privacy and data model
 
-## Feature map
+| Data | Default storage | Opt-in alternative |
+|---|---|---|
+| Chat threads and messages | `localStorage` (device-local) | D1 via `syncChatsToServer: true` |
+| Settings (profile, personalization, shortcuts, RAG) | `localStorage` | — (no server sync) |
+| Provider API keys | Encrypted server session cookie | — |
+| RAG vectors and text chunks | `localStorage` + in-memory | D1 via `syncRagVectorsToServer: true` |
+| Provider stats (counts, tokens, cost) | `localStorage` | Always synced to D1 `provider_stats` (no message content) |
+| Usage records (per-call model/token/cost) | D1 `usage_records` | — |
+| Rate limit state | In-memory (fallback) or D1 `rate_limits` | — |
+| Session/security data | D1 `sessions` | — |
 
-| Feature                       | Status      | Source files                                                                                                                                          | Notes                                                                                  |
-| ----------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Chat cockpit                  | Implemented | `src/routes/index.tsx`, `src/hooks/use-chat.ts`                                                                                                       | Streaming, attachments, screenshots, voice                                             |
-| Model picker                  | Implemented | `src/components/cockpit/ModelPicker.tsx`                                                                                                              | Fetches live models from `/api/proxy/models`                                           |
-| Keyboard shortcuts            | Implemented | `src/hooks/use-keyboard-shortcuts.ts`, `src/components/cockpit/ShortcutHelp.tsx`                                                                      | Configurable per-action                                                                |
-| Command palette               | Implemented | `src/components/cockpit/CommandPalette.tsx`                                                                                                           | Thread search, provider search, nav actions                                            |
-| Markdown rendering            | Implemented | `src/components/cockpit/MarkdownContent.tsx`                                                                                                          | `react-markdown`, `remark-gfm`, `rehype-highlight`                                     |
-| Message edit/delete           | Implemented | `src/components/cockpit/MessageRow.tsx`, `src/hooks/use-chat.ts`                                                                                      | Edit triggers re-run; delete syncs to server                                           |
-| Offline queue                 | Implemented | `src/hooks/use-chat.ts`                                                                                                                               | `localStorage`-backed, auto-drains on reconnect                                        |
-| Thread CRUD                   | Implemented | `src/lib/cockpit-store.ts`, `src/routes/api/threads.ts`, `src/routes/api/threads.$id.ts`                                                              | Local-first with server sync                                                           |
-| Thread import/export/fork/pin | Implemented | `src/routes/api/threads.import.ts`, `src/routes/api/threads.$id.export.ts`, `src/routes/api/threads.$id.fork.ts`, `src/routes/api/threads.$id.pin.ts` | JSON, Markdown, TXT formats                                                            |
-| Settings UI                   | Implemented | `src/routes/settings.tsx`, `src/components/cockpit/settings/*`                                                                                        | Profile, personalization, providers, RAG, usage                                        |
-| Provider key validation       | Implemented | `src/lib/validate-key.server.ts`, `src/routes/api/keys/validate.ts`                                                                                   | Lightweight ping to models endpoint                                                    |
-| Proxy chat                    | Implemented | `src/routes/api/proxy/chat.ts`, `src/lib/providers.ts`                                                                                                | SSE streaming, OpenAI/Anthropic/Gemini body styles                                     |
-| Model detection               | Implemented | `src/routes/api/proxy/detect.ts`, `src/lib/providers.ts`                                                                                              | Server-side probe for local providers                                                  |
-| Transcription                 | Implemented | `src/routes/api/proxy/transcribe.ts`, `src/lib/providers.ts`                                                                                          | Whisper-compatible proxy                                                               |
-| Embeddings/RAG                | Implemented | `src/routes/api/proxy/embeddings.ts`, `src/lib/embeddings.ts`, `src/lib/vector-store.ts`, `src/routes/api/vector-docs.ts`                             | Sentence/paragraph chunking; server-side sync via D1; error state surfaced             |
-| Tools/function-calling        | Implemented | `src/lib/tools.ts`, `src/hooks/use-chat.ts`, `src/components/cockpit/MessageRow.tsx`                                                                  | 4 safe built-ins; streaming tool-call deltas for OpenAI-compatible providers           |
-| Token/cost usage              | Implemented | `src/lib/tokens.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts`                                                                             | Exact usage from provider responses when available; falls back to heuristic estimation |
-| Stats                         | Implemented | `src/routes/api/stats.ts`, `src/components/cockpit/settings/UsageSection.tsx`                                                                         | Per-provider calls, errors, tokens, cost                                               |
-| CSP/security headers          | Implemented | `src/lib/csp.server.ts`, `src/server.ts`                                                                                                              | Attached to HTML responses only                                                        |
-| CSRF                          | Implemented | `src/lib/csrf.server.ts`                                                                                                                              | Double-submit cookie; all mutating routes                                              |
-| Rate limiting                 | Implemented | `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts`                                                                                       | In-memory; presets for keys, usage, health, threads, session, stats, proxy             |
-| Storage limits                | Implemented | `src/lib/storage-limits.server.ts`                                                                                                                    | Max threads, messages, content length, title, attachments                              |
+**Defaults proven by source:**
+- `syncChatsToServer: false` — `src/lib/cockpit-store.ts` (`defaultSettings`)
+- `syncRagVectorsToServer: false` — same
+- `_serverSyncAvailable = false` — `src/lib/vector-store.ts`; server sync functions are dormant unless explicitly enabled
+- `normalizeSettings()` migrates legacy settings so missing fields default to `false`, not `true`
+- Provider API keys stripped from `localStorage` in `persist()` before every write
 
-## Architecture
+**What D1 stores by default (without opt-in):**
+- `sessions`: encrypted session data (no message content)
+- `provider_stats`: aggregate call counts, token counts, and estimated cost per provider (no message content)
+- `usage_records`: per-call rows with model, token counts, and cost (no message content)
+- `rate_limits`: rate limiter window state
+
+**What D1 stores only with explicit opt-in:**
+- `threads`: full message content including all conversation history — requires `syncChatsToServer: true`
+- `vector_docs`: RAG text chunks and embedding vectors — requires `syncRagVectorsToServer: true`
+
+> **Privacy warning:** Enabling either server sync flag causes full message/text content to be stored on the Cloudflare D1 backend. Review your data residency requirements before enabling.
+
+Sources: `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`, `src/lib/db/schema.sql`, `src/lib/cockpit-store.test.ts`.
+
+---
+
+## 4. Manual chat portability
+
+Chat data is **not automatically shared across devices**. The supported cross-device transfer mechanism is manual export/import:
+
+- **Export formats:** JSON (full thread with all messages), Markdown, plain text
+- **Import:** `POST /api/threads/import` accepts a thread JSON payload (CSRF + rate-limit guarded, storage-limits enforced)
+- **Fork:** `/api/threads/$id/fork` creates a local copy of an existing thread
+- **Pin/archive:** local state, persisted in `localStorage`
+
+Sources: `src/routes/api/threads.import.ts`, `src/routes/api/threads.$id.export.ts`, `src/routes/api/threads.$id.fork.ts`.
+
+---
+
+## 5. Architecture
 
 ```
 src/
 ├── routes/                    # TanStack file-based routes
-│   ├── index.tsx              # Main chat cockpit (~950 lines)
+│   ├── index.tsx              # Main chat cockpit
 │   ├── settings.tsx           # Settings page
 │   ├── library.tsx            # Thread library
 │   ├── images.tsx             # Image gallery
@@ -100,11 +120,13 @@ src/
 │       ├── threads.$id.pin.ts
 │       ├── usage.ts
 │       ├── usage.$threadId.ts
+│       ├── vector-docs.ts
 │       ├── keys/set.ts
 │       ├── keys/clear.ts
 │       ├── keys/status.ts
 │       ├── keys/validate.ts
 │       ├── keys/validate.$providerId.ts
+│       ├── tools/schemas.ts
 │       └── proxy/
 │           ├── chat.ts
 │           ├── detect.ts
@@ -115,13 +137,13 @@ src/
 │   ├── ChatInput.tsx          # Input bar with attachments/voice/screenshot
 │   ├── ChatMessages.tsx       # Scrollable message list container
 │   ├── MessageRow.tsx         # Individual message bubble + tool cards
-│   ├── MarkdownContent.tsx    # react-markdown wrapper with dark theme
+│   ├── MarkdownContent.tsx    # react-markdown wrapper
 │   ├── ModelPicker.tsx        # Live model dropdown
 │   ├── CommandPalette.tsx     # Cmd+K search/nav palette
 │   ├── ShortcutHelp.tsx       # Keyboard shortcut overlay
-│   ├── StatusBar.tsx          # Offline/queue banner
+│   ├── StatusBar.tsx          # Offline/queue/ragError banner
 │   ├── ThreadOverflowMenu.tsx # Rename, export, archive, delete
-│   ├── CockpitErrorBoundary.tsx # Chat-area error boundary
+│   ├── CockpitErrorBoundary.tsx
 │   ├── Drawer.tsx             # Left slide-out nav + recent threads
 │   ├── Greeting.tsx           # Empty-state greeting
 │   ├── ProviderStatus.tsx     # Active provider readiness pill
@@ -131,23 +153,23 @@ src/
 │       ├── ProviderCard.tsx
 │       ├── UsageSection.tsx
 │       └── SharedFields.tsx
-├── hooks/                     # React hooks
-│   ├── use-chat.ts            # Core chat logic (~536 lines)
+├── hooks/
+│   ├── use-chat.ts            # Core chat logic (streaming, RAG, tools, queue, retry)
 │   ├── use-keyboard-shortcuts.ts
 │   └── use-mobile.tsx
 ├── lib/                       # Shared libraries
-│   ├── cockpit-store.ts       # Central client state (~989 lines)
-│   ├── providers.ts           # Provider catalog + chat call helpers (~688 lines)
-│   ├── tools.ts               # Tool schema, serialization, parsing, execution
-│   ├── tokens.ts              # Token estimation + cost estimation
+│   ├── cockpit-store.ts       # Central client state (Zustand-like, useSyncExternalStore)
+│   ├── providers.ts           # Provider catalog + chat call helpers
+│   ├── tools.ts               # Tool schema, validation, serialization, parsing, execution
+│   ├── tokens.ts              # Token estimation + exact usage extraction + cost
 │   ├── embeddings.ts          # Client helper for embedding proxy
-│   ├── vector-store.ts        # In-memory cosine-similarity vector store
+│   ├── vector-store.ts        # In-memory + localStorage cosine-similarity vector store
 │   ├── sanitize.ts            # Message sanitization before storage
 │   ├── retry.ts               # Exponential backoff with jitter
 │   ├── utils.ts               # cn() helper
 │   ├── db/
-│   │   ├── index.ts           # D1 database layer (~390 lines)
-│   │   └── schema.sql         # D1 schema (sessions, threads, provider_stats, usage_records)
+│   │   ├── index.ts           # D1 database layer
+│   │   └── schema.sql         # D1 schema
 │   └── *.server.ts            # Server-only modules
 │       ├── csrf.server.ts
 │       ├── csp.server.ts
@@ -159,489 +181,501 @@ src/
 │       ├── platform.server.ts
 │       ├── logger.server.ts
 │       └── env.server.ts
+├── live/
+│   └── providers.live.test.ts # Opt-in live provider tests (requires real keys)
 ├── test/
 │   └── setup.ts               # Vitest setup (jest-dom)
-├── server.ts                  # Custom SSR entry (~101 lines)
+├── server.ts                  # Custom SSR entry + startup guards
 ├── router.tsx                 # TanStack router creation
 └── routeTree.gen.ts           # Auto-generated route tree
 ```
 
-### Frontend / routes
+### Data flows
 
-TanStack Start with file-based routing. Page routes render the cockpit, settings, library, and media galleries. API routes use `createFileRoute` with `server.handlers` for server-side request handling.
-
-### Cockpit components
-
-The main chat UI is composed of `ChatInput`, `ChatMessages` (which renders `MessageRow` for each message), `Drawer`, `CommandPalette`, and `ShortcutHelp`. `MessageRow` handles user messages (edit/delete/attachments), assistant messages (streaming dot, copy, regenerate, tool call cards), and tool result bubbles.
-
-### Hooks / state
-
-`use-chat.ts` is the core chat hook. It manages streaming, offline queue, RAG retrieval, tool execution, message history, token usage tracking, retry with backoff, error deduplication, rate-limit cooldown, and personalization system prompt injection.
-
-### localStorage store
-
-`cockpit-store.ts` implements a Zustand-like store using `useSyncExternalStore`. It manages settings (profile, personalization, shortcuts, RAG, providers), threads (CRUD, search, merge, import/export), provider stats, active thread selection, and cross-tab sync via `storage` events. API keys are **never** persisted to `localStorage`; they are migrated server-side on hydration.
-
-### Server API routes
-
-All API routes are under `src/routes/api/`. They handle health checks, session bootstrap, thread CRUD, usage stats, key management, and provider proxying. Each mutating route enforces CSRF validation.
-
-### Provider proxy layer
-
-Every provider request (chat, embeddings, models, transcription, detection) is proxied through the server. This avoids CORS, mixed-content issues, and keeps keys secure. Each proxy route has URL allowlist validation (`proxy-guard.server.ts`) to prevent SSRF.
-
-### DB / persistence
-
-Cloudflare D1 persists threads, provider stats, and detailed usage records per session. Schema: `sessions`, `threads`, `provider_stats`, `usage_records`. Client-side `localStorage` is the source of truth for threads and settings; server sync is fire-and-forget.
-
-### Security layer
-
-- CSRF double-submit cookie (`csrf.server.ts`)
-- CSP + security headers (`csp.server.ts`, `server.ts`)
-- Rate limiting (`rate-limit.server.ts`, `proxy-guard.server.ts`)
-- Storage limits (`storage-limits.server.ts`)
-- Message sanitization (`sanitize.ts`)
-- Proxy URL allowlisting (`proxy-guard.server.ts`)
-
-### Testing layer
-
-Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are route-adjacent with `-` prefix (e.g., `-keys.test.ts`) or co-located with library files (e.g., `tools.test.ts`).
-
-## Data flow
-
-### Chat request flow
-
+**Chat request:**
 1. User sends a message in `ChatInput.tsx`
 2. `sendMessage` in `use-chat.ts` adds the user message to the active thread in `cockpit-store.ts`
 3. If RAG is enabled, the message text is embedded via `embedTexts` (`embeddings.ts` → `POST /api/proxy/embeddings`) and stored in `vector-store.ts`
 4. `runAssistant` builds the chat history including personalization system message and optional RAG context
-5. `callProviderChatViaProxy` (`providers.ts`) sends `POST /api/proxy/chat` with CSRF headers
+5. `callProviderChatViaProxy` sends `POST /api/proxy/chat` with CSRF headers
 6. `src/routes/api/proxy/chat.ts` validates CSRF, rate limit, URL allowlist, fetches API key from encrypted session, and proxies to the provider
-7. For streaming: SSE deltas are parsed client-side and patched into the placeholder message via `store.patchMessage`
-8. For non-streaming (tools present): the full response is parsed for tool calls
-9. On success: token usage is estimated and recorded locally + synced to server (`POST /api/stats`)
-10. On error: error is deduplicated, rate-limit cooldown may be set, offline messages are queued
+7. For streaming: SSE deltas are parsed and patched into the placeholder message via `store.patchMessage`
+8. On success: token usage is extracted from provider response (exact if available, heuristic otherwise) and recorded locally + synced to D1 `provider_stats`/`usage_records`
+9. On error: error is deduplicated, rate-limit cooldown may be set, offline messages are queued
 
-### Thread persistence flow
-
+**Thread persistence:**
 1. Threads live in `localStorage` via `cockpit-store.ts`
-2. Server-side thread sync to D1 is **off by default** — gated behind `settings.syncChatsToServer` (explicit opt-in, default `false`)
-3. When enabled, non-temporary threads sync to D1 via `syncThreadToServer` (`PATCH /api/threads/$id`)
-4. Server-side: `src/routes/api/threads.$id.ts` validates CSRF, rate limit, storage limits, and sanitizes messages before DB update
-5. Temporary threads are never synced to the server
-6. Cross-tab sync: `storage` events update state in other tabs
-7. **Manual import/export (JSON/Markdown/TXT)** is the intended cross-device chat portability mechanism
+2. Server sync to D1 is **off by default** — gated behind `settings.syncChatsToServer` (default `false`)
+3. When enabled, non-temporary threads sync via `syncThreadToServer` (`PATCH /api/threads/$id`)
+4. Temporary threads are never synced to the server
+5. Cross-tab sync via `storage` events propagates settings, threads, provider stats, and vector store cache invalidation
 
-### Message edit/delete sync flow
+**Tools/function-calling:**
+1. If tools are defined and the provider has `streamingTools: true`, streaming tool-call deltas are parsed in real time
+2. If `streamingTools` is `false`, tools disable streaming (non-streaming response is parsed for complete tool calls)
+3. `MessageRow.tsx` renders tool calls as cards; user must click "Execute"
+4. Only `isBuiltInTool`-gated tools execute; non-built-in names return `[Tool "{name}" is not implemented]`
+5. The assistant is re-run with the tool result injected as a `tool` role message
 
-1. Edit: `editMessage` in `use-chat.ts` updates local state, calls `syncThreadToServer` (no-op unless `syncChatsToServer` is enabled), then re-runs the assistant
-2. Delete: `deleteMessage` in `ChatMessages.tsx` calls `store.deleteMessage` then `syncThreadToServer` (no-op unless enabled)
-3. Local state is source of truth regardless of sync setting
+Sources: `src/hooks/use-chat.ts`, `src/lib/cockpit-store.ts`, `src/lib/providers.ts`, `src/lib/tools.ts`.
 
-### Token usage flow
+---
 
-1. After a successful assistant response, `use-chat.ts` estimates input tokens from history and output tokens from assistant text
-2. `recordTokenUsage` updates `localStorage` stats
-3. `syncTokenUsageToServer` sends `POST /api/stats` with token data
-4. `src/routes/api/stats.ts` updates `provider_stats` and inserts into `usage_records`
-5. `UsageSection.tsx` reads local stats and displays calls, errors, tokens, and estimated cost
+## 6. Provider support and capability matrix
 
-### Tools/function-calling flow
+| Provider | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Type | Body style |
+|---|---|---|---|---|---|---|---|---|---|
+| OpenAI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Cloud | openai |
+| Anthropic | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | Cloud | anthropic |
+| Google Gemini | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Cloud | openai |
+| Moonshot / KimiCoding | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud | openai |
+| OpenRouter | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | Cloud | openai |
+| Ollama Cloud | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Cloud | openai |
+| NVIDIA NIM | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Cloud | openai |
+| Vercel AI Gateway | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Cloud | openai |
+| Ollama (local) | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Local | openai |
+| LM Studio | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local | openai |
+| Hermes | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | Local | openai |
+| OpenClaw | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | Local | openai |
+| vLLM | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Local | openai |
+| llama.cpp server | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local | openai |
+| Custom (OpenAI-compatible) | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | Local | openai |
 
-1. When tools are present, streaming is disabled (`useStream = !toolDefs || toolDefs.length === 0`)
-2. Tools are serialized into the request body in OpenAI or Anthropic format
-3. The non-streaming response is parsed for tool calls (`parseOpenAIToolCalls` / `parseAnthropicToolCalls`)
-4. `MessageRow.tsx` renders tool calls as cards with tool name, arguments, and Execute/Show-args buttons
-5. Only `isBuiltInTool` gates execution; user must click "Execute"
-6. `executeBuiltInTool` runs the tool and injects the result as a `role: "tool"` message
-7. The assistant is re-run with the tool result in context
+**Streaming tools** is implemented client-side via `StreamToolCallAccumulator` (OpenAI body style) and `AnthropicStreamToolCallAccumulator` + `extractAnthropicToolCallDelta` (Anthropic body style). Gemini uses the OpenAI-compatible path. Providers without `streamingTools: true` in their capability flags fall back to non-streaming when tools are present.
 
-### Embeddings/RAG flow
+Source: `src/lib/providers.ts` (capability declarations), `src/hooks/use-chat.ts` (`supportsOpenAIStreamingTools`, `supportsAnthropicStreamingTools`), `src/lib/tools.ts` (accumulator implementations).
 
-1. User enables RAG in settings with a provider and optional model override
-2. On each user message: `sendMessage` embeds the message text and stores it in `vector-store.ts`
-3. On assistant run: `runAssistant` embeds the current prompt and searches `vector-store.ts` (top 3)
-4. Retrieved context is prepended to the personalization system message
-5. If no system message exists, a standalone system message is added
+**Capability flags are declarations in `providers.ts`.** Not all combinations have been end-to-end verified against real provider APIs. Live verification requires `RUN_LIVE_PROVIDER_TESTS=true` with real credentials (see Section 14).
 
-### API key validation flow
+**Custom provider wildcard policy:** The `custom` provider has `allowedHosts: ["*"]`. In production, wildcard host matching is **blocked** unless `PROXY_ALLOW_CUSTOM_WILDCARD=true` is explicitly set. In development, wildcards are unrestricted for local exploration. Source: `src/lib/proxy-guard.server.ts`.
 
-1. User enters an API key in a provider card in Settings
-2. `POST /api/keys/set` stores the key in the encrypted server session
-3. `POST /api/keys/validate` or `POST /api/keys/validate/$providerId` pings the provider's models endpoint
-4. `validate-key.server.ts` performs a lightweight GET with 5s timeout; 401/403 = invalid, anything else = valid
-5. Local providers (`authStyle: "none"`) always return valid
+---
 
-## API routes
+## 7. Tools and tool execution model
 
-| Route                            | Method | Purpose                     | Security / rate limit                         | Source                                        |
-| -------------------------------- | ------ | --------------------------- | --------------------------------------------- | --------------------------------------------- |
-| `/api/health`                    | GET    | Health check                | `healthRateLimit`                             | `src/routes/api/health.ts`                    |
-| `/api/session`                   | POST   | Bootstrap encrypted session | `sessionRateLimit`, CSRF                      | `src/routes/api/session.ts`                   |
-| `/api/threads`                   | GET    | List threads                | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.ts`                   |
-| `/api/threads`                   | POST   | Create thread               | `threadsRateLimit`, CSRF, storage limits      | `src/routes/api/threads.ts`                   |
-| `/api/threads`                   | DELETE | Delete all threads          | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.ts`                   |
-| `/api/threads/$id`               | GET    | Get single thread           | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.ts`               |
-| `/api/threads/$id`               | PATCH  | Update thread               | `threadsRateLimit`, CSRF, storage limits      | `src/routes/api/threads.$id.ts`               |
-| `/api/threads/$id`               | DELETE | Delete thread               | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.ts`               |
-| `/api/threads/import`            | POST   | Bulk import threads         | `threadsRateLimit`, CSRF, storage limits      | `src/routes/api/threads.import.ts`            |
-| `/api/threads/$id/export`        | GET    | Export thread (json/md/txt) | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.export.ts`        |
-| `/api/threads/$id/fork`          | POST   | Fork thread                 | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.fork.ts`          |
-| `/api/threads/$id/pin`           | POST   | Toggle pin                  | `threadsRateLimit`, CSRF                      | `src/routes/api/threads.$id.pin.ts`           |
-| `/api/usage`                     | GET    | Aggregate usage             | `usageRateLimit`, CSRF                        | `src/routes/api/usage.ts`                     |
-| `/api/usage/$threadId`           | GET    | Per-thread usage            | `usageRateLimit`, CSRF                        | `src/routes/api/usage.$threadId.ts`           |
-| `/api/stats`                     | GET    | Provider stats              | `statsRateLimit`, CSRF                        | `src/routes/api/stats.ts`                     |
-| `/api/stats`                     | POST   | Record usage                | `statsRateLimit`, CSRF                        | `src/routes/api/stats.ts`                     |
-| `/api/stats`                     | DELETE | Reset stats                 | `statsRateLimit`, CSRF                        | `src/routes/api/stats.ts`                     |
-| `/api/keys/set`                  | POST   | Store provider key          | `keysRateLimit`, CSRF                         | `src/routes/api/keys/set.ts`                  |
-| `/api/keys/clear`                | POST   | Clear provider keys         | `keysRateLimit`, CSRF                         | `src/routes/api/keys/clear.ts`                |
-| `/api/keys/status`               | GET    | Key status per provider     | `keysRateLimit`, CSRF                         | `src/routes/api/keys/status.ts`               |
-| `/api/keys/validate`             | POST   | Validate all keys           | `keysRateLimit`, CSRF                         | `src/routes/api/keys/validate.ts`             |
-| `/api/keys/validate/$providerId` | POST   | Validate single key         | `keysRateLimit`, CSRF                         | `src/routes/api/keys/validate.$providerId.ts` |
-| `/api/proxy/chat`                | POST   | Chat completions proxy      | `proxy-guard` rate limit, CSRF, URL allowlist | `src/routes/api/proxy/chat.ts`                |
-| `/api/proxy/detect`              | POST   | Provider reachability probe | `proxy-guard` rate limit, CSRF                | `src/routes/api/proxy/detect.ts`              |
-| `/api/proxy/embeddings`          | POST   | Embeddings proxy            | `proxy-guard` rate limit, CSRF, URL allowlist | `src/routes/api/proxy/embeddings.ts`          |
-| `/api/proxy/models`              | GET    | Fetch available models      | `proxy-guard` rate limit, CSRF                | `src/routes/api/proxy/models.ts`              |
-| `/api/proxy/transcribe`          | POST   | Audio transcription proxy   | `proxy-guard` rate limit, CSRF                | `src/routes/api/proxy/transcribe.ts`          |
+### Built-in executable tools
 
-## Security model
+Four tools are registered in `BUILT_IN_TOOLS` and can be executed by the user after provider delivery:
+
+| Tool name | Description |
+|---|---|
+| `get_current_time` | Returns current ISO date/time |
+| `echo` | Echoes provided text unchanged |
+| `word_count` | Returns word count of provided text |
+| `calculator` | Evaluates safe arithmetic expressions (`+`, `-`, `*`, `/`, `%`, `**`, parentheses) |
+
+Source: `src/lib/tools.ts` (`BUILT_IN_TOOLS`, `executeBuiltInTool`).
+
+### Dynamic schema registry
+
+Additional tool schemas can be registered at runtime without modifying the source:
+
+- **`registerLocalTool(tool)`** — register a locally-configured schema; validated for safe name pattern, deduplicated, capped at 256 non-built-in tools
+- **`registerProviderTools(providerId, tools[])`** — register schemas sourced from a provider; replaces existing entries for that provider on update; built-in names cannot be overwritten
+- **`GET /api/tools/schemas`** — list all registered schemas (CSRF + rate-limited)
+- **`POST /api/tools/schemas`** — register a new schema via API (CSRF + rate-limited)
+- **`getSerializableToolDefs()`** — returns schemas safe to serialize in provider request bodies
+
+**Registered non-built-in schemas are serializable to providers but are not executable.** Only tools in `BUILT_IN_TOOLS` can reach `executeBuiltInTool`. A registered local or provider schema produces `[Tool "{name}" is not implemented]` if the user attempts to execute it.
+
+Source: `src/lib/tools.ts`, `src/routes/api/tools/schemas.ts`.
+
+### Safety guards
+
+Three-layer validation in `executeTool` (`use-chat.ts`):
+1. **`validateToolCall(call)`** — enforces id/name/args shape
+2. **`sanitizeToolCallArgs(call.arguments)`** — validates JSON arguments as a plain object, ≤16 KB
+3. **`isBuiltInTool(name)`** gate before `executeBuiltInTool`
+
+At parse time, `validateToolName(name)` restricts tool names to `[a-zA-Z0-9][a-zA-Z0-9_.-]*` (≤128 chars). Unsafe names from provider responses are silently dropped in `parseOpenAIToolCalls`, `parseAnthropicToolCalls`, and `StreamToolCallAccumulator.complete()`.
+
+**Arbitrary shell/code/network execution is not implemented.** The `calculator` tool evaluates only arithmetic expressions matching `[0-9+\-*/(). %\s]+` via a sandboxed `Function` call; non-arithmetic patterns are rejected before evaluation.
+
+Source: `src/lib/tools.ts` (`validateToolName`, `sanitizeToolCallArgs`, `validateToolCall`), `src/hooks/use-chat.ts` (`executeTool`).
+
+---
+
+## 8. RAG / embeddings
+
+### How it works
+
+1. **Embedding proxy:** `POST /api/proxy/embeddings` forwards to any provider with `embeddingsPath` defined. CSRF headers are required. API key is fetched server-side from the encrypted session.
+2. **Client helper:** `embedTexts` in `src/lib/embeddings.ts` calls the proxy with CSRF headers from `csrfHeaders()`.
+3. **Ingestion:** When RAG is enabled, every user message is embedded via `embedTexts` and stored in `vector-store.ts` via `addVectorDocs`. Deduplication prevents re-embedding identical message IDs.
+4. **Chunking:** `chunkText` in `src/lib/vector-store.ts` splits text on paragraph breaks (`\n\n+`) and sentence punctuation (`.!?`). Short sentences within the same paragraph are merged up to `minLength` (default 80 chars).
+5. **Retrieval:** Before building chat history, `runAssistant` embeds the current prompt and calls `searchVectorStore(queryEmbedding, 3)` for top-3 cosine-similarity results.
+6. **Context injection:** Retrieved context is prepended to the personalization system message or added as a standalone system message if none exists.
+7. **Error state:** Embedding or retrieval failures set `ragError` state, which `StatusBar.tsx` renders alongside offline/queue status. Failures do not block chat.
+8. **Cross-tab sync:** `ensureVectorStoreCrossTabSync()` registers a `storage` event listener that invalidates the in-memory vector cache when another tab writes to the store key.
+
+### Privacy note
+
+The Settings RAG section explicitly warns that enabling retrieval sends message text to the selected embedding provider's API (via the server proxy).
+
+### Server sync (opt-in, off by default)
+
+- `_serverSyncAvailable` in `vector-store.ts` defaults to `false`; `syncVectorDocToServer` and `loadVectorDocsFromServer` are no-ops unless explicitly enabled
+- When enabled via `syncRagVectorsToServer: true`, text chunks and embedding vectors are stored in the D1 `vector_docs` table — this is privacy-sensitive
+- `localStorage` remains the source of truth with server sync as supplemental storage
+
+Source: `src/lib/vector-store.ts`, `src/lib/embeddings.ts`, `src/routes/api/proxy/embeddings.ts`, `src/routes/api/vector-docs.ts`, `src/hooks/use-chat.ts`.
+
+---
+
+## 9. Rate limiting
+
+### Architecture
+
+- **Backend selection:** `configureRateLimiterFromEnv()` runs at cold start. `RATE_LIMIT_BACKEND=auto` (default) tries D1, falls back to in-memory silently. `RATE_LIMIT_BACKEND=d1` requires D1. `RATE_LIMIT_BACKEND=memory` forces in-memory (dev/single-node).
+- **D1 backend (`D1RateLimiterBackend`):** Maintains in-memory buckets (synchronous, accurate within a single Worker request) and persists counts to D1 asynchronously (fire-and-forget). Cross-Worker count sharing is eventually consistent. At very high concurrency across multiple Workers, a small number of over-limit requests may slip through before D1 counts propagate. This is acceptable for Cloudflare's stateless-Worker model.
+- **In-memory backend (default/fallback):** Accurate within a single process. Does not share state across Worker instances. Suitable for local dev and acknowledged single-node deployments.
+- **Production guard:** In `production` mode without a custom backend or `ALLOW_IN_MEMORY_RATE_LIMIT=true`, `warnInMemoryRateLimitInProduction()` emits a prominent `console.error`. Set `ALLOW_IN_MEMORY_RATE_LIMIT=true` to acknowledge single-node usage.
+- **Pluggable:** `IRateLimiterBackend` interface; swap via `setRateLimiterBackend()`.
+
+### Non-proxy route limits (per session, per minute)
+
+| Route category | Limit |
+|---|---|
+| Keys (set/clear/validate) | 20/min |
+| Threads (create/update/delete/import/fork/pin) | 60/min |
+| Usage (read) | 60/min |
+| Stats (read/write/reset) | 60/min |
+| Session bootstrap | 30/min |
+| Health check | 120/min |
+
+### Proxy route limits
+
+Per-session sliding window: **120 requests/min** via `proxy-guard.server.ts`.
+
+Source: `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts`.
+
+---
+
+## 10. Security model
 
 ### Environment validation
 
-- `validateEnv()` in `src/lib/env.server.ts` checks `SESSION_SECRET` (≥32 chars) at startup
-- Called from `server.ts` before any request is handled
-- Missing/invalid `SESSION_SECRET` returns 503 with a non-secret diagnostic message
-- Optional vars (`NODE_ENV`, `LOG_LEVEL`) are warned if missing
+- `validateEnv()` in `src/lib/env.server.ts` checks `SESSION_SECRET` (≥32 chars) at module initialization in `server.ts`
+- If validation fails, all requests return HTTP 503 with a non-secret diagnostic message
+- Optional vars (`NODE_ENV`, `LOG_LEVEL`) emit warnings if missing
 
 ### CSRF double-submit cookie
 
-- `csrf.server.ts` generates a 32-byte hex token and sets it as a readable (`SameSite=Lax`, `Secure`) cookie
-- The client reads the cookie and sends it back as `X-CSRF-Token`
-- The server validates with constant-time comparison
-- Safe methods (GET, HEAD, OPTIONS) are skipped
+- `csrf.server.ts` generates a 32-byte hex token set as a readable `SameSite=Lax`, `Secure` cookie
+- Client reads the cookie and sends it back as `X-CSRF-Token`
+- Server validates with constant-time comparison
+- Safe methods (GET, HEAD, OPTIONS) are exempt
 - All mutating API routes enforce CSRF validation
-
-### Rate limiting
-
-- Non-proxy routes: `rate-limit.server.ts` with in-memory buckets
-  - Keys: 20/min
-  - Threads: 60/min
-  - Usage: 60/min
-  - Stats: 60/min
-  - Session: 30/min
-  - Health: 120/min
-- Proxy routes: `proxy-guard.server.ts` with per-session sliding-window buckets (120/min)
-- **Production guard:** In `production` mode without a custom backend, the server logs a prominent warning. Set `ALLOW_IN_MEMORY_RATE_LIMIT=true` to acknowledge single-node usage, or swap in a distributed adapter via `setRateLimiterBackend()`.
-- **Pluggable backend:** `IRateLimiterBackend` interface allows swapping in shared-storage adapters (KV, Durable Objects, Redis) for multi-node deployments.
-
-### Proxy guard / URL allowlisting
-
-- `proxy-guard.server.ts` restricts proxy targets to provider-declared `allowedHosts`
-- The `custom` provider has `allowedHosts: ["*"]` — full wildcard
-- **Production hardening:** In production, wildcard (`*`) host matching is **blocked** unless `PROXY_ALLOW_CUSTOM_WILDCARD=true` is explicitly set. In development, wildcards remain unrestricted for local exploration.
-- `urlAllowedForProvider` matches hosts against exact, wildcard subdomain (`*.host.com`), and `*` (opt-in in production) patterns
 
 ### CSP headers
 
-- `csp.server.ts` builds a strict CSP with mode-aware `script-src`/`style-src`
-- Development: `'self' 'unsafe-inline' 'unsafe-eval'`
-- Production: `'self' 'unsafe-inline'`
+- `csp.server.ts` builds a strict CSP attached to HTML responses only
+- Development: `script-src 'self' 'unsafe-inline' 'unsafe-eval'`; Production: `script-src 'self' 'unsafe-inline'`
 - Additional headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
-- Only attached to HTML responses in `server.ts`
+- API routes manage their own headers; static assets served by Cloudflare are not modified
 
-### Storage limits
+### Proxy guard / SSRF prevention
 
-- Max threads per session: 2,000
-- Max messages per thread: 2,000
-- Max message content length: 100,000 chars
-- Max thread title length: 512 chars
-- Max attachment URLs per message: 50
-- Max imported threads: 100
-- Returns HTTP 413 on violation
+- `proxy-guard.server.ts` restricts proxy targets to each provider's declared `allowedHosts`
+- Local providers use `["localhost", "127.0.0.1", "*.local"]`
+- Cloud providers use their specific hostnames (e.g., `["api.openai.com"]`)
+- Custom provider has `allowedHosts: ["*"]` — blocked in production unless `PROXY_ALLOW_CUSTOM_WILDCARD=true`
+- `urlAllowedForProvider` validates every proxy request before forwarding
+
+### Storage limits (HTTP 413 on violation)
+
+| Limit | Value |
+|---|---|
+| Max threads per session | 2,000 |
+| Max messages per thread | 2,000 |
+| Max message content length | 100,000 chars |
+| Max thread title length | 512 chars |
+| Max attachment URLs per message | 50 |
+| Max imported threads | 100 |
 
 ### API key handling
 
-- API keys are stored in encrypted cookie sessions server-side only (`session.server.ts`)
+- Keys stored in encrypted cookie sessions server-side only (`session.server.ts`)
 - Browser never sees plaintext keys after migration
 - `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`
-- Legacy keys in `localStorage` are auto-migrated to the server on hydration
+- Legacy keys in `localStorage` are auto-migrated to the server on first hydration
 
-### Sanitization
+### Message sanitization
 
 - `sanitize.ts` strips HTML tags, control characters, and normalizes whitespace before DB storage
-- `sanitizeMessage` walks nested content for tool-call payloads
+- `sanitizeMessage` walks nested content including tool-call payloads
 
-## Provider support
+Source: `src/lib/env.server.ts`, `src/lib/csrf.server.ts`, `src/lib/csp.server.ts`, `src/lib/proxy-guard.server.ts`, `src/lib/storage-limits.server.ts`, `src/lib/session.server.ts`, `src/lib/sanitize.ts`.
 
-| Provider / model family    | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Notes                                 |
-| -------------------------- | ---- | ------ | ----- | --------------- | ---------- | ------ | ------------- | ------------------------------------- |
-| OpenAI                     | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | GPT-4o, GPT-5, embeddings, Whisper    |
-| Anthropic                  | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Claude Sonnet/Opus; native body style |
-| Google Gemini              | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | OpenAI-compatible endpoint            |
-| Moonshot / KimiCoding      | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | OpenAI-compatible                     |
-| OpenRouter                 | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Unified gateway                       |
-| Ollama Cloud               | ✅   | ✅     | ❌    | ❌              | ✅         | ❌     | ❌            | Managed Ollama                        |
-| NVIDIA NIM                 | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Hosted inference microservices        |
-| Vercel AI Gateway          | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Multi-provider gateway                |
-| Ollama (local)             | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local daemon; base URL editable       |
-| LM Studio                  | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local server                          |
-| Hermes                     | ✅   | ✅     | ✅    | ❌              | ✅         | ❌     | ❌            | Local gateway                         |
-| OpenClaw                   | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Local agent gateway                   |
-| vLLM                       | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | OpenAI-compatible server              |
-| llama.cpp server           | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local OpenAI-compatible server        |
-| Custom (OpenAI-compatible) | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Any endpoint; `allowedHosts: ["*"]`   |
+---
 
-**Note:** Capability flags in `src/lib/providers.ts` declare support, but not all combinations have been end-to-end tested. The `custom` provider's wildcard (`*`) host matching is **blocked in production** unless `PROXY_ALLOW_CUSTOM_WILDCARD=true` is set. See the deployment checklist for production hardening details.
+## 11. Deployment / Cloudflare / D1 setup
 
-## Tools / function-calling
+### wrangler.jsonc
 
-- **Typed tool definitions:** `ToolDef`, `ToolCall`, `ToolResult` types in `src/lib/tools.ts`
-- **Validation:** `validateToolDef` checks name/description presence
-- **Safety guards:** `validateToolName` restricts tool names to safe `[a-zA-Z0-9][a-zA-Z0-9_.-]*` patterns (≤128 chars). `sanitizeToolCallArgs` validates JSON arguments as objects (≤16KB). `validateToolCall` validates complete tool call structures.
-- **Serialization:** `toOpenAITools` and `toAnthropicTools` adapt to provider body styles
-- **Parsing:** `parseOpenAIToolCalls` and `parseAnthropicToolCalls` extract tool calls from non-streaming responses — **now with `validateToolName` gating on each extracted call** (unsafe names are silently dropped)
-- **Stream accumulator:** `StreamToolCallAccumulator` applies `validateToolName` on `complete()`
-- **Built-in registry:** `BUILT_IN_TOOLS` contains `get_current_time`, `echo`, `word_count`, `calculator`
-- **Approval UI:** `MessageRow.tsx` renders tool calls as cards; user must click "Execute"
-- **Execution:** `executeBuiltInTool` runs only `isBuiltInTool`-gated tools; non-built-in tools return `[Tool "{name}" is not implemented]`
-- **Re-run:** After tool execution, the result is injected as a `tool` role message and the assistant is re-run with the result in context
-
-### Current limitations
-
-- Streaming with tools supported for OpenAI-compatible providers (bodyStyle: "openai" + streamingTools flag); other providers fall back to non-streaming
-- 4 built-in executable tools (get_current_time, echo, word_count, calculator); additional schemas registerable via `registerLocalTool` / `registerProviderTools` but non-built-in tools cannot execute without explicit safe-registry addition
-- Tool name safety is enforced at parse time — malicious provider responses with unsafe tool names are silently dropped rather than surfaced as errors
-
-## Embeddings / RAG
-
-- **Embedding proxy:** `POST /api/proxy/embeddings` forwards to any provider with `embeddingsPath`
-- **Client helper:** `embedTexts` in `src/lib/embeddings.ts` calls the proxy
-- **Vector store:** `src/lib/vector-store.ts` implements in-memory + `localStorage` persistence with cosine similarity search
-- **Ingestion:** When RAG is enabled, every user message is embedded and stored
-- **Retrieval:** Before building chat history, the current prompt is embedded and top-3 results are retrieved
-- **Context injection:** Retrieved context is prepended to the personalization system message
-- **Settings controls:** Settings page has a RAG section with enable/disable toggle, embedding provider selector, and optional model override
-- **Warning:** Settings UI explicitly warns that retrieval sends message text to the selected embedding provider
-
-### Current limitations
-
-- Sentence/paragraph-level chunking implemented; embedding failures surfaced via error state
-- Vector store has server-side DB sync (`vector_docs` table in D1) with local-first fallback
-- Embedding failures are now surfaced via `ragError` state (not silently swallowed)
-- Deduplication via stable IDs prevents re-embedding identical messages
-
-## Token and cost tracking
-
-- **Estimation:** `estimateTokens` uses a heuristic (~4 chars/token + words × 1.3, averaged). No WASM tokenizer dependency (Cloudflare Workers-safe).
-- **Exact usage:** Not extracted from upstream responses. Streaming makes exact extraction difficult.
-- **DB tables:** `provider_stats` (aggregated per session/provider) and `usage_records` (per-call rows with model, thread, tokens, cost)
-- **Usage records:** `POST /api/stats` records detailed usage after each successful assistant response
-- **Aggregate routes:** `GET /api/usage` and `GET /api/usage/$threadId` return totals and per-provider breakdowns
-- **UI display:** `UsageSection.tsx` shows calls, errors, input/output tokens, and estimated cost per provider
-- **Cost rates:** Hardcoded in `COST_PER_1K_TOKENS` (`src/lib/tokens.ts`). May become stale as provider pricing changes.
-- **Formatting:** `formatCost` shows ≥$0.01 with 2 decimals; sub-cent costs show up to 6 decimals. `formatTokens` uses locale grouping.
-
-## Local development
-
-This project uses **Bun** as the package manager (evidenced by `bun.lock` and `bunfig.toml`).
-
-```bash
-# Install dependencies
-bun install
-
-# Start dev server
-bun run dev
-
-# Build for production
-bun run build
-
-# Run tests
-bun run test
-
-# Type check
-bun run typecheck
-
-# Lint
-bun run lint
-
-# Format
-bun run format
-
-# Preview production build
-bun run preview
+```jsonc
+{
+  "name": "tanstack-start-app",
+  "compatibility_date": "2025-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/server.ts",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "edgecase-cockpit",
+      "database_id": "f89b278d-301f-4a98-a018-b92eeb279449"
+    }
+  ]
+}
 ```
 
-Scripts (from `package.json`):
+D1 is configured with a real database ID and `DB` binding. The device-local privacy boundary is enforced in code — D1 is used for rate limiting, encrypted sessions, and usage/stats only.
 
-| Script      | Command                         |
-| ----------- | ------------------------------- |
-| `dev`       | `vite dev`                      |
-| `build`     | `vite build`                    |
-| `build:dev` | `vite build --mode development` |
-| `preview`   | `vite preview`                  |
-| `lint`      | `eslint .`                      |
-| `format`    | `prettier --write .`            |
-| `typecheck` | `tsc --noEmit`                  |
-| `test`      | `vitest run`                    |
-
-## Environment and configuration
-
-| Name                          | Required       | Purpose                                                                               | Source file                                          |
-| ----------------------------- | -------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `SESSION_SECRET`              | **Yes**        | Encryption password for cookie sessions (≥32 chars)                                   | `src/lib/session.server.ts`, `src/lib/env.server.ts` |
-| `NODE_ENV`                    | No             | Runtime environment (development / production)                                        | `src/routes/api/health.ts`, `src/server.ts`          |
-| `LOG_LEVEL`                   | No             | Structured JSON logger level                                                          | `src/lib/logger.server.ts`                           |
-| `DB`                          | Yes (platform) | Cloudflare D1 database binding                                                        | `src/lib/platform.server.ts`, `wrangler.jsonc`       |
-| `ALLOW_IN_MEMORY_RATE_LIMIT`  | Production     | Set to `true` to acknowledge in-memory rate limiting in production (single-node only) | `src/lib/rate-limit.server.ts`                       |
-| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production     | Set to `true` to opt in to wildcard (`*`) host matching for the custom provider       | `src/lib/proxy-guard.server.ts`                      |
-
-**D1 is configured:** `wrangler.jsonc` has a real D1 database ID (`f89b278d-301f-4a98-a018-b92eeb279449`) and binding name `DB`. The device-local privacy boundary (`syncChatsToServer: false`, `syncRagVectorsToServer: false`) is enforced in code — D1 is used for rate limiting, sessions, and usage stats only; no automatic chat/vector sync occurs.
-
-### Startup guards (cold-start)
-
-`server.ts` now runs three startup guards at module init:
-
-1. **`validateEnv()`**: Validates `SESSION_SECRET` is present and ≥32 chars at cold start. If it fails, a 503 error is returned for all requests with a non-secret diagnostic.
-2. **D1 binding check**: Warns if the `DB` platform binding is not available (missing `d1_databases` entry in `wrangler.jsonc`).
-3. **Rate-limit production guard**: In `production` mode without a custom backend or `ALLOW_IN_MEMORY_RATE_LIMIT=true`, emits a prominent `console.error` telling the operator in-memory rate limiting is not suitable for multi-node deployments.
-4. **Custom-provider wildcard policy**: In `production` mode, the custom provider's `allowedHosts: ["*"]` is **blocked** unless `PROXY_ALLOW_CUSTOM_WILDCARD=true` is set. The effective policy is logged at startup.
-
-### Deployment checklist
-
-Before deploying to production:
-
-- [ ] Set `SESSION_SECRET` to a random 32+ character string
-- [x] D1 database ID (`f89b278d-301f-4a98-a018-b92eeb279449`) and `DB` binding are already configured in `wrangler.jsonc`
-- [ ] Either swap in a distributed rate-limit backend via `setRateLimiterBackend()`, or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
-- [ ] Confirm `syncChatsToServer` (default `false`) and `syncRagVectorsToServer` (default `false`) settings match your data residency intent — **D1 is not automatic chat storage; chat sync is explicit opt-in only**
-- [ ] **Do not enable server chat/RAG sync until you have reviewed the privacy implications** — these settings store full message content and text chunks server-side
-- [ ] If you need the custom provider to reach arbitrary hosts, set `PROXY_ALLOW_CUSTOM_WILDCARD=true` — otherwise configure explicit `allowedHosts` on the custom provider
-- [ ] Run `npm run test && npm run typecheck && npm run lint && npm run build`
-
-## Testing
-
-- **Framework:** Vitest with jsdom environment
-- **Setup:** `src/test/setup.ts` imports `@testing-library/jest-dom`
-- **Config:** `vitest.config.ts` — globals enabled, CSS disabled, `@/` alias resolved
-- **Naming:** Route-adjacent tests use `-` prefix (e.g., `-keys.test.ts`, `-proxy.test.ts`). Library and component tests are co-located.
-- **Run all:** `bun run test` (or `vitest run`)
-- **Run targeted:** `npx vitest run src/lib/tools.test.ts`
-- **Current focus:** 359 tests across 21 files covering CSRF, CSP, rate limiting, storage limits, proxy guard, providers, tools, vector store, tokens, cockpit store, chat hook, keyboard shortcuts, chat input, greeting, RAG/proxy integration, and API routes
-
-## Known limitations and future work
-
-### Streaming + tools
-
-- **Status:** Complete — OpenAI-compatible (openai body style: OpenAI, Gemini) and Anthropic body style both implemented
-- **Source evidence:** `src/hooks/use-chat.ts` (`supportsOpenAIStreamingTools` / `supportsAnthropicStreamingTools` flags); `src/lib/tools.ts` (`StreamToolCallAccumulator`, `AnthropicStreamToolCallAccumulator`, `extractAnthropicToolCallDelta`); `src/lib/providers.ts` (Anthropic has `streamingTools: true`)
-- **Why it matters:** All three tier-1 providers (OpenAI, Anthropic, Gemini) stream tool-call deltas in real time; other providers without `streamingTools: true` safely fall back to non-streaming
-- **Remaining caveat:** Live-provider streaming tool coverage is opt-in only (`RUN_LIVE_PROVIDER_TESTS=true`); synthetic unit tests cover delta parsing and accumulation for all body styles
-
-### Dynamic tool schemas / provider tool discovery
-
-- **Status:** Registry and API implemented; automatic provider API fetching pending
-- **Source evidence:** `src/lib/tools.ts` (`registerLocalTool`, `registerProviderTools`, `getAllToolSchemas`, `getSerializableToolDefs`, `getToolSchemaCounts`); `src/routes/api/tools/schemas.ts` (GET + POST REST endpoint, CSRF + rate-limited)
-- **What works:** Local tool schemas are registerable via POST `/api/tools/schemas`, listable via GET, validated for safe names and well-formed JSON. Provider-declared schemas are registerable per-provider and replace-on-update. Registered non-built-in tools are visible in the schema list and serializable to providers but correctly cannot execute without being in the built-in safe registry.
-- **Remaining gap:** Automatic fetching of tool schemas from provider APIs (e.g., OpenAI's tool discovery endpoint) is not implemented. The built-in safe execution registry still has exactly 4 tools.
-- **Release prerequisite:** Any extension of the executable tool set requires a permission model and explicit user approval before new tools can run.
-
-### Sentence/paragraph-level chunking
-
-- **Status:** Complete
-- **Source evidence:** `src/lib/vector-store.ts:98-120` (`chunkText` splits on sentence punctuation and paragraph breaks)
-- **Why it matters:** Smaller chunks improve retrieval relevance for long messages
-- **Implementation:** Configurable minLength (default 80 chars); merges short sentences within paragraphs
-
-### RAG vector store — device-local by default
-
-- **Status:** Enforced — `syncRagVectorsToServer` defaults to `false`; RAG text and vectors stay in `localStorage` only
-- **Source evidence:** `src/lib/vector-store.ts:124-148` (server sync functions dormant); `src/routes/api/vector-docs.ts` (API endpoint exists but not called by default); `src/lib/db/schema.sql:56-66` (schema present for opt-in use)
-- **Privacy model:** Enabling `syncRagVectorsToServer` is explicit opt-in only. It stores ingested text chunks and embedding vectors server-side. Do not enable without understanding the privacy implications.
-- **Not a roadmap goal:** Auto-loading server RAG docs on session startup is not a planned feature — it would conflict with the device-local default.
-
-### Embedding failure UI
-
-- **Status:** Implemented — `ragError` surfaced in StatusBar
-- **Source evidence:** `src/hooks/use-chat.ts:139` (`ragError` state); `src/components/cockpit/StatusBar.tsx` (renders `ragError` alongside offline/queue status)
-- **Why it matters:** Users see a visible indicator when RAG retrieval or embedding fails, without blocking chat
-
-### D1-backed distributed rate limiter
-
-- **Status:** Implemented — D1 backend activates at startup when DB binding is available
-- **Source evidence:** `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend`, `tryActivateD1RateLimiter`); `src/server.ts` (`tryActivateD1RateLimiter()` called at cold start before any request)
-- **Architecture:** Each Worker maintains an in-memory bucket cache (synchronous, single-request-cycle accurate) and persists counts to D1 asynchronously (fire-and-forget). On startup `tryActivateD1RateLimiter()` verifies the `rate_limits` table exists and activates the D1 backend; it logs `[rate-limit] Using D1-backed distributed rate limiter.` on success or falls back to in-memory with a warning.
-- **Caveat:** Cross-Worker count sharing is eventually consistent (async D1 writes). At very high concurrency across multiple Workers, a small number of over-limit requests may slip through before D1 counts propagate. This is an acceptable tradeoff for Cloudflare's stateless-Worker model. Local dev always uses in-memory.
-
-### Hardcoded cost rates
-
-- **Status:** Improved — now configurable via `setCostOverrides()`
-- **Source evidence:** `src/lib/tokens.ts:49-72` (`_COST_DEFAULTS`, `setCostOverrides`, `getCostRates`)
-- **Why it matters:** Operators can override stale rates through settings or server config
-- **Suggested next step:** Expose cost override UI in settings, or fetch rates from provider APIs
-
-### Token estimation is heuristic
-
-- **Status:** Improved — exact usage extracted from upstream responses when available
-- **Source evidence:** `src/lib/tokens.ts:132-176` (`extractProviderUsage` for OpenAI, Anthropic, Gemini formats)
-- **Why it matters:** Token counts are now exact when providers include usage metadata; falls back to heuristics
-- **Suggested next step:** Integrate a lightweight tokenizer (e.g., `gpt-tokenizer`) for unsupported models
-
-### No provider-level tool testing
-
-- **Status:** Complete — proxy-level tool serialization tests added
-- **Source evidence:** `src/routes/api/-proxy.test.ts` (tests verifying OpenAI-format and Anthropic-format tool payloads reach upstream, and that the proxy correctly adapts `tools` array by body style); `src/lib/tools.test.ts` (76 tests covering tool parsing, delta accumulation, validation, and the dynamic schema registry)
-- **Remaining caveat:** Tests are synthetic — they verify request body shape against a mocked upstream. End-to-end live tool execution against real provider APIs requires `RUN_LIVE_PROVIDER_TESTS=true`.
-
-### Cross-tab sync gaps
-
-- **Status:** Improved — provider stats and vector store local cache now sync across tabs
-- **Source evidence:** `src/lib/cockpit-store.ts` (`setupCrossTabSync` handles `SETTINGS_KEY`, `THREADS_KEY`, and `STATS_KEY`); `src/lib/vector-store.ts` (`ensureVectorStoreCrossTabSync` invalidates the in-memory cache on `STORE_KEY` storage events)
-- **What syncs:** Settings, threads, provider stats, and vector store cache invalidation all propagate to other same-origin tabs via the `storage` event.
-- **Remaining caveat:** Provider API keys are deliberately excluded from localStorage and never placed in storage events. Stats and vector docs remain device-local (no automatic D1 sync); this is intentional and matches the privacy defaults.
-
-### Dangerous tool guard
-
-- **Status:** Hardened — three-layer validation chain in `executeTool`
-- **Source evidence:** `src/hooks/use-chat.ts` (`executeTool`): (1) `validateToolCall(call)` — enforces id/name/args shape; (2) `sanitizeToolCallArgs(call.arguments)` — validates JSON object ≤16KB; (3) `executeBuiltInTool` — only `isBuiltInTool`-gated names run
-- **What is enforced:** Invalid call shape → safe rejection message. Oversized/malformed args → safe rejection. Unknown tool names → `[Tool "{name}" is not implemented]` result. No registered non-built-in tool can reach execution without explicit addition to the built-in safe registry.
-- **Remaining caveat:** The built-in safe registry is hardcoded (4 tools). User-defined tool execution requires a product decision on the permission model. Registered schemas (via `registerLocalTool`) are correctly visible but not executable.
-
-## Release gates
-
-Before pushing to production, run the full live-provider release gate with real API keys:
+### D1 schema setup
 
 ```bash
-# Run all live provider tests (requires valid API keys)
+wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql
+```
+
+Tables: `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`.
+
+### Startup guards (cold start)
+
+`server.ts` runs at module init:
+
+1. **`validateEnv()`** — validates `SESSION_SECRET` ≥32 chars; returns 503 for all requests if invalid
+2. **D1 binding check** — warns if the `DB` platform binding is not available
+3. **`configureRateLimiterFromEnv()`** — selects D1 or in-memory backend based on `RATE_LIMIT_BACKEND` env var
+4. **`warnInMemoryRateLimitInProduction()`** — emits `console.error` if in-memory is used in production without acknowledgement
+5. **`logCustomProviderPolicy()`** — logs whether custom-provider wildcard hosts are allowed or blocked
+
+### Environment variables
+
+| Name | Required | Purpose |
+|---|---|---|
+| `SESSION_SECRET` | **Yes** | Encryption key for cookie sessions (≥32 chars) |
+| `NODE_ENV` | No | Runtime environment (`development` / `production`) |
+| `LOG_LEVEL` | No | Structured logger level |
+| `DB` | Yes (platform binding) | Cloudflare D1 binding (configured in `wrangler.jsonc`) |
+| `RATE_LIMIT_BACKEND` | No | `auto` (default), `d1`, or `memory` |
+| `ALLOW_IN_MEMORY_RATE_LIMIT` | Production opt-in | Set `true` to acknowledge in-memory rate limiting in production |
+| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production opt-in | Set `true` to allow wildcard host matching for the custom provider |
+
+### Production deployment checklist
+
+- [ ] Set `SESSION_SECRET` to a random 32+ character string
+- [x] D1 database ID and `DB` binding configured in `wrangler.jsonc`
+- [ ] Run `wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql` to create tables
+- [ ] Either set `RATE_LIMIT_BACKEND=d1` (recommended for multi-node) or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
+- [ ] Confirm `syncChatsToServer` (default `false`) and `syncRagVectorsToServer` (default `false`) match your data residency intent — **D1 is not automatic chat storage**
+- [ ] **Do not enable server chat/RAG sync without reviewing privacy implications** — these settings write full message content and text chunks to D1
+- [ ] If the custom provider needs to reach arbitrary hosts, set `PROXY_ALLOW_CUSTOM_WILDCARD=true`; otherwise leave blocked
+- [ ] Run `bun run test && bun run typecheck && bun run lint && bun run build` before deploying
+
+---
+
+## 12. Settings and personalization
+
+Settings are persisted in `localStorage` under `cockpit.settings.v2`. API keys are never persisted there.
+
+| Setting area | Persisted fields | Source |
+|---|---|---|
+| Profile | displayName, handle, avatarDataUrl, initials, pronouns, roleLabel | `cockpit-store.ts` (`UserProfile`) |
+| Personalization | assistantName, preferredTone, visualMode, ambientIntensity, reduceMotion, showProviderInGreeting, showModelInGreeting, rememberLastProvider | `cockpit-store.ts` (`Personalization`) |
+| Keyboard shortcuts | per-action enabled flags, forceCtrl | `cockpit-store.ts` (`KeyboardShortcuts`) |
+| RAG | enabled, providerId, model override | `cockpit-store.ts` (`RagSettings`) |
+| Active provider | activeProviderId | `cockpit-store.ts` |
+| Pinned providers | pinnedProviderIds[] | `cockpit-store.ts` |
+| Cost overrides | per-provider { input, output } USD/1K tokens | `cockpit-store.ts` (`costOverrides`) |
+| Chat sync (opt-in) | syncChatsToServer (default false) | `cockpit-store.ts` |
+| RAG sync (opt-in) | syncRagVectorsToServer (default false) | `cockpit-store.ts` |
+
+The Settings UI (`src/routes/settings.tsx`) exposes all of these with immediate persistence. Cost override changes are applied instantly to future cost estimates via `setCostOverrides()`.
+
+---
+
+## 13. Usage and cost tracking
+
+### Token usage
+
+- **Exact extraction:** `extractProviderUsage` in `src/lib/tokens.ts` extracts from provider response data:
+  - OpenAI / OpenAI-compatible: `usage.prompt_tokens`, `usage.completion_tokens`
+  - Anthropic: `usage.input_tokens`, `usage.output_tokens`
+  - Gemini: `usageMetadata.promptTokenCount`, `usageMetadata.candidatesTokenCount`
+- **Heuristic fallback:** `estimateTokens` averages `text.length / 4` (chars-per-token) and `wordCount × 1.3` (words-per-token). Used when provider response contains no usage metadata. No WASM dependency (Cloudflare Workers-safe).
+- **`exactUsage: true/false`** flag is recorded in usage records and displayed in the usage UI
+
+### Cost estimation
+
+- **Default rates:** Defined in `_COST_DEFAULTS` in `src/lib/tokens.ts` (per 1,000 tokens, USD, as of mid-2025)
+- **Overridable:** Per-provider rates can be overridden via `setCostOverrides()` from `costOverrides` in settings; overrides take effect immediately
+- **Fallback:** Unknown providers fall back to OpenAI rates
+
+| Provider | Default input rate ($/1K) | Default output rate ($/1K) |
+|---|---|---|
+| openai | $0.00015 | $0.0006 |
+| anthropic | $0.003 | $0.015 |
+| gemini | $0.000075 | $0.0003 |
+| openrouter | $0.00015 | $0.0006 |
+| moonshot | $0.001 | $0.004 |
+| nvidia-nim | $0.00035 | $0.0011 |
+| vercel-ai | $0.00015 | $0.0006 |
+
+### Storage and display
+
+- **Local:** `cockpit.provider-stats.v1` in `localStorage` — calls, errors, inputTokens, outputTokens per provider
+- **D1:** `provider_stats` table (aggregated) and `usage_records` table (per-call with model, thread, tokens, cost)
+- **UI:** `UsageSection.tsx` reads local stats; displays calls, errors, input/output tokens, estimated cost per provider
+- **API:** `GET /api/usage` (aggregate) and `GET /api/usage/$threadId` (per-thread) return D1 totals; `GET /api/stats` returns provider stats
+
+Source: `src/lib/tokens.ts`, `src/lib/cockpit-store.ts`, `src/routes/api/stats.ts`, `src/routes/api/usage.ts`, `src/components/cockpit/settings/UsageSection.tsx`.
+
+---
+
+## 14. Testing and release gates
+
+### Normal test suite
+
+```bash
+bun run test          # Run all 450 tests (23 files)
+bun run typecheck     # tsc --noEmit
+bun run lint          # eslint .
+bun run build         # vite build
+```
+
+- **Framework:** Vitest with jsdom environment, globals enabled
+- **Setup:** `src/test/setup.ts` — imports `@testing-library/jest-dom`
+- **Current count:** 450 tests, 23 test files *(verified by `bun run test`)*
+- **Credential-free:** All normal tests run without any provider API keys
+- **Coverage areas:** CSRF, CSP, rate limiting (D1 backend + in-memory + preset limiters), storage limits, proxy guard, providers, tools (schema registry, name validation, arg sanitization, streaming accumulators), vector store (chunking, add/remove/search/clear, cross-tab sync), tokens (exact extraction, heuristic, cost estimation), cockpit store (defaults, normalization, sync flags, migration), chat hook, keyboard shortcuts, chat input, greeting, RAG/proxy integration, API routes
+
+### Live provider tests (opt-in)
+
+Live tests call real provider APIs and require real credentials:
+
+```bash
+# Run all live provider tests
 RUN_LIVE_PROVIDER_TESTS=true \
   OPENAI_API_KEY=sk-... \
   ANTHROPIC_API_KEY=sk-ant-... \
   GEMINI_API_KEY=AIza... \
-  bun run test
+  bun run test:live
 
-# Strict mode: fail if any expected provider key is absent
+# Strict mode: fail loudly if any expected key is absent
 STRICT_LIVE_PROVIDER_TESTS=true \
   RUN_LIVE_PROVIDER_TESTS=true \
   OPENAI_API_KEY=sk-... \
   ANTHROPIC_API_KEY=sk-ant-... \
   GEMINI_API_KEY=AIza... \
-  bun run test
+  bun run test:live
 ```
 
-Live tests cover:
-- OpenAI: chat completion, streaming, embeddings, streaming-with-tools
+Live test coverage (all in `src/live/providers.live.test.ts`):
+- OpenAI: chat completion, streaming, streaming-with-tools, embeddings
 - Anthropic: chat completion, streaming-with-tools (content_block events)
 - Gemini: chat completion, streaming (OpenAI-compat path), streaming-with-tools
 
-Normal `bun run test` runs without any provider credentials.
+Strict mode (`STRICT_LIVE_PROVIDER_TESTS=true`) throws an error when a required key is absent rather than silently skipping. Verified by a synthetic test in `providers.live.test.ts`.
 
-## Contributing / safe change workflow
+### Combined release gate
 
-1. Run tests, typecheck, lint, and build before opening a PR:
+```bash
+bun run test:release
+# Equivalent to: npm run test && (OPENAI_API_KEY present → run test:live || skip with message)
+```
+
+### Known accepted lint warnings
+
+7 pre-existing `react-refresh/only-export-components` warnings in shadcn/ui component files. These are accepted and do not block releases.
+
+---
+
+## 15. Source-backed limitations and intentional boundaries
+
+The following limitations and boundaries are proven by source code and tests. Each is accurate as of the current implementation.
+
+### Provider API tool schema auto-discovery is not implemented
+
+Provider APIs (e.g., OpenAI's tools endpoint) are not fetched automatically. Tool schemas must be registered manually via `registerLocalTool`, `registerProviderTools`, or `POST /api/tools/schemas`. Source: `src/lib/tools.ts` (no auto-fetch code path).
+
+### Arbitrary shell/code/network execution is intentionally unsupported
+
+`executeBuiltInTool` handles exactly 4 tools. Non-built-in tool names return `[Tool "{name}" is not implemented]`. The `calculator` tool evaluates only arithmetic expressions matching `[0-9+\-*/(). %\s]+`; any other input is rejected. Source: `src/lib/tools.ts` (`executeBuiltInTool`, `isBuiltInTool`).
+
+### User-defined tool execution requires an explicit safe-registry addition
+
+Schemas registered via `registerLocalTool` or `registerProviderTools` are visible and serializable to providers but cannot execute without being explicitly added to `BUILT_IN_TOOLS`. The built-in safe execution registry is hardcoded at 4 tools. Source: `src/lib/tools.ts`.
+
+### Live provider verification requires real credentials and opt-in env flags
+
+Default `bun run test` runs without credentials. Live provider behavior (streaming, tools, embeddings against real APIs) is only tested via `RUN_LIVE_PROVIDER_TESTS=true`. Source: `src/live/providers.live.test.ts`.
+
+### Server-side chat sync is off by default and privacy-sensitive
+
+`syncChatsToServer` defaults to `false`. When enabled, full thread message history is written to D1 `threads` table. Source: `src/lib/cockpit-store.ts` (`defaultSettings`), `src/routes/api/threads.$id.ts`.
+
+### Server-side RAG vector sync is off by default and privacy-sensitive
+
+`syncRagVectorsToServer` defaults to `false`. When enabled, text chunks and embedding vectors are written to D1 `vector_docs` table. Source: `src/lib/vector-store.ts` (`_serverSyncAvailable = false`), `src/routes/api/vector-docs.ts`.
+
+### D1 rate-limit counting is eventually consistent across multiple Workers
+
+The D1 backend maintains in-memory buckets per Worker (synchronous) and persists counts to D1 asynchronously (fire-and-forget). At high concurrency across multiple Workers, a small number of over-limit requests may slip through before counts propagate. In-memory rate limiting resets on every cold start and is not shared across Workers. Source: `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend.persistAsync`).
+
+### Cost rates are not fetched live from provider pricing APIs
+
+Default rates in `_COST_DEFAULTS` are static and may become stale as provider pricing changes. Per-provider overrides are supported via `setCostOverrides()` in settings. Source: `src/lib/tokens.ts`.
+
+### Token estimation is heuristic when provider response contains no usage metadata
+
+`estimateTokens` uses `text.length / 4` and `wordCount × 1.3` averaged. Exact counts are extracted when providers include usage metadata (OpenAI, Anthropic, Gemini). Local providers and providers that omit usage in their responses use heuristic estimation. Source: `src/lib/tokens.ts` (`extractProviderUsage`, `estimateTokens`).
+
+### Custom provider wildcard host matching is blocked in production by default
+
+The `custom` provider's `allowedHosts: ["*"]` is blocked in production without `PROXY_ALLOW_CUSTOM_WILDCARD=true`. This is an intentional security boundary, not a missing feature. Source: `src/lib/proxy-guard.server.ts` (`isWildcardHostAllowed`).
+
+### Tool name safety: unsafe provider-returned names are silently dropped
+
+Unsafe tool names from provider responses are dropped rather than surfaced as errors during parsing. This is intentional to prevent injection, but it means the user sees no notification when a provider returns an unsafe tool name. Source: `src/lib/tools.ts` (`parseOpenAIToolCalls`, `parseAnthropicToolCalls`, `StreamToolCallAccumulator.complete`).
+
+### Manual export/import is the only cross-device chat portability path
+
+There is no automatic cross-device chat sync. JSON/Markdown/TXT export and import via `POST /api/threads/import` is the intended mechanism. This is intentional — the device-local default is the product's privacy model. Source: `src/lib/cockpit-store.ts`, `src/routes/api/threads.import.ts`.
+
+---
+
+## 16. Safe change workflow
+
+1. **Before any edit:** run impact analysis on the symbol you plan to modify (see `AGENTS.md`)
+2. **Verify baseline:**
    ```bash
    bun run test && bun run typecheck && bun run lint && bun run build
    ```
-2. Avoid broad feature claims without corresponding tests
-3. Update this README and `docs/roadmap/FUTURE_ENHANCEMENTS.md` when changing capabilities
-4. Do not advertise provider support unless it is wired and tested end-to-end
-5. Run impact analysis on affected symbols before editing
-6. Do not rename symbols with find-and-replace; use graph-aware refactoring
+3. **Make changes** — keep normal tests credential-free; keep live tests opt-in
+4. **Verify again** after changes:
+   ```bash
+   bun run test && bun run typecheck && bun run lint && bun run build
+   ```
+5. **Update this README and `docs/roadmap/FUTURE_ENHANCEMENTS.md`** when changing capabilities — only document what source code proves
+6. Do not advertise provider support unless it is wired and verified end-to-end
+7. Do not rename symbols with find-and-replace; use graph-aware refactoring tools
+8. Do not push without passing all gates
+
+### Package manager
+
+This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun run dev`, `bun run test`, etc.
+
+### Scripts
+
+| Script | Command |
+|---|---|
+| `dev` | `vite dev` |
+| `build` | `vite build` |
+| `build:dev` | `vite build --mode development` |
+| `preview` | `vite preview` |
+| `lint` | `eslint .` |
+| `format` | `prettier --write .` |
+| `typecheck` | `tsc --noEmit` |
+| `test` | `vitest run` |
+| `test:live` | `vitest run --config vitest.live.config.ts` |
+| `test:release` | `npm run test && (OPENAI_API_KEY present → test:live)` |
