@@ -39,7 +39,7 @@ The current implementation supports streaming chat, multi-modal attachments (ima
 **What remains limited or future work:**
 
 - Streaming with tools is now supported for OpenAI-compatible providers (OpenAI, Vercel AI Gateway, NVIDIA NIM, vLLM, Custom); other providers fall back to non-streaming
-- Built-in tool registry expanded to 4 safe tools (get_current_time, echo, word_count, calculator); dynamic provider tool schemas are not yet fetched
+- Dynamic tool schema registry implemented (`registerLocalTool`, `registerProviderTools`, `/api/tools/schemas`); 4 built-in executable tools; auto-fetching from provider APIs not yet implemented
 - Vector store server-side sync (`syncRagVectorsToServer`) is implemented but **off by default** — RAG text/vectors stay device-local unless explicitly enabled; enabling it is privacy-sensitive
 - Embedding failures are surfaced via `ragError` state but the UI display is minimal
 - Chunking is sentence/paragraph-level with configurable minimum length
@@ -409,7 +409,7 @@ Vitest with jsdom, globals, `@testing-library/react`, and `jest-dom`. Tests are 
 ### Current limitations
 
 - Streaming with tools supported for OpenAI-compatible providers (bodyStyle: "openai" + streamingTools flag); other providers fall back to non-streaming
-- 4 built-in safe tools exist (get_current_time, echo, word_count, calculator); dynamic provider tool schemas are not yet fetched
+- 4 built-in executable tools (get_current_time, echo, word_count, calculator); additional schemas registerable via `registerLocalTool` / `registerProviderTools` but non-built-in tools cannot execute without explicit safe-registry addition
 - Tool name safety is enforced at parse time — malicious provider responses with unsafe tool names are silently dropped rather than surfaced as errors
 
 ## Embeddings / RAG
@@ -495,7 +495,7 @@ Scripts (from `package.json`):
 | `ALLOW_IN_MEMORY_RATE_LIMIT`  | Production     | Set to `true` to acknowledge in-memory rate limiting in production (single-node only) | `src/lib/rate-limit.server.ts`                       |
 | `PROXY_ALLOW_CUSTOM_WILDCARD` | Production     | Set to `true` to opt in to wildcard (`*`) host matching for the custom provider       | `src/lib/proxy-guard.server.ts`                      |
 
-**Important:** `wrangler.jsonc` contains a placeholder D1 database ID (`00000000-0000-0000-0000-000000000000`). You must update this with your actual D1 database ID before deployment.
+**D1 is configured:** `wrangler.jsonc` has a real D1 database ID (`f89b278d-301f-4a98-a018-b92eeb279449`) and binding name `DB`. The device-local privacy boundary (`syncChatsToServer: false`, `syncRagVectorsToServer: false`) is enforced in code — D1 is used for rate limiting, sessions, and usage stats only; no automatic chat/vector sync occurs.
 
 ### Startup guards (cold-start)
 
@@ -511,8 +511,7 @@ Scripts (from `package.json`):
 Before deploying to production:
 
 - [ ] Set `SESSION_SECRET` to a random 32+ character string
-- [ ] Replace the placeholder D1 database ID in `wrangler.jsonc` with your real database ID
-- [ ] Ensure the `DB` binding is configured in `wrangler.jsonc`
+- [x] D1 database ID (`f89b278d-301f-4a98-a018-b92eeb279449`) and `DB` binding are already configured in `wrangler.jsonc`
 - [ ] Either swap in a distributed rate-limit backend via `setRateLimiterBackend()`, or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
 - [ ] Confirm `syncChatsToServer` (default `false`) and `syncRagVectorsToServer` (default `false`) settings match your data residency intent — **D1 is not automatic chat storage; chat sync is explicit opt-in only**
 - [ ] **Do not enable server chat/RAG sync until you have reviewed the privacy implications** — these settings store full message content and text chunks server-side
@@ -533,17 +532,18 @@ Before deploying to production:
 
 ### Streaming + tools
 
-- **Status:** Partial (OpenAI-compatible providers only)
-- **Source evidence:** `src/hooks/use-chat.ts:254-260` (streams with tool-call deltas when `provider.supports.streamingTools`; falls back to non-streaming for others)
-- **Why it matters:** Users see real-time text for OpenAI-compatible providers; Anthropic/Gemini providers still require non-streaming for tools
-- **Suggested next step:** Add Anthropic streaming tool-use delta parsing
+- **Status:** Complete — OpenAI-compatible (openai body style: OpenAI, Gemini) and Anthropic body style both implemented
+- **Source evidence:** `src/hooks/use-chat.ts` (`supportsOpenAIStreamingTools` / `supportsAnthropicStreamingTools` flags); `src/lib/tools.ts` (`StreamToolCallAccumulator`, `AnthropicStreamToolCallAccumulator`, `extractAnthropicToolCallDelta`); `src/lib/providers.ts` (Anthropic has `streamingTools: true`)
+- **Why it matters:** All three tier-1 providers (OpenAI, Anthropic, Gemini) stream tool-call deltas in real time; other providers without `streamingTools: true` safely fall back to non-streaming
+- **Remaining caveat:** Live-provider streaming tool coverage is opt-in only (`RUN_LIVE_PROVIDER_TESTS=true`); synthetic unit tests cover delta parsing and accumulation for all body styles
 
 ### Dynamic tool schemas / provider tool discovery
 
-- **Status:** Open / limitation
-- **Source evidence:** `src/lib/tools.ts:34-53` (only `get_current_time` and `echo` in `BUILT_IN_TOOLS`); `src/lib/tools.ts:71` (non-built-in tools return "not implemented")
-- **Why it matters:** Users cannot use provider-native tools (e.g., OpenAI code interpreter, web search)
-- **Suggested next step:** Add dynamic tool schema fetching from providers that expose them
+- **Status:** Registry and API implemented; automatic provider API fetching pending
+- **Source evidence:** `src/lib/tools.ts` (`registerLocalTool`, `registerProviderTools`, `getAllToolSchemas`, `getSerializableToolDefs`, `getToolSchemaCounts`); `src/routes/api/tools/schemas.ts` (GET + POST REST endpoint, CSRF + rate-limited)
+- **What works:** Local tool schemas are registerable via POST `/api/tools/schemas`, listable via GET, validated for safe names and well-formed JSON. Provider-declared schemas are registerable per-provider and replace-on-update. Registered non-built-in tools are visible in the schema list and serializable to providers but correctly cannot execute without being in the built-in safe registry.
+- **Remaining gap:** Automatic fetching of tool schemas from provider APIs (e.g., OpenAI's tool discovery endpoint) is not implemented. The built-in safe execution registry still has exactly 4 tools.
+- **Release prerequisite:** Any extension of the executable tool set requires a permission model and explicit user approval before new tools can run.
 
 ### Sentence/paragraph-level chunking
 
@@ -565,12 +565,12 @@ Before deploying to production:
 - **Source evidence:** `src/hooks/use-chat.ts:139` (`ragError` state); `src/components/cockpit/StatusBar.tsx` (renders `ragError` alongside offline/queue status)
 - **Why it matters:** Users see a visible indicator when RAG retrieval or embedding fails, without blocking chat
 
-### In-memory rate limiter not distributed
+### D1-backed distributed rate limiter
 
-- **Status:** Hardened — pluggable `IRateLimiterBackend` interface; production guard warns unless `ALLOW_IN_MEMORY_RATE_LIMIT=true`
-- **Source evidence:** `src/lib/rate-limit.server.ts:12-24` (`IRateLimiterBackend`, `setRateLimiterBackend`); `src/server.ts` (startup guard via `warnInMemoryRateLimitInProduction`)
-- **Why it matters:** Single-node deployments work out of the box; multi-node operators are warned and can swap backends
-- **Suggested next step:** Ship a Cloudflare KV adapter for multi-Worker deployments
+- **Status:** Implemented — D1 backend activates at startup when DB binding is available
+- **Source evidence:** `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend`, `tryActivateD1RateLimiter`); `src/server.ts` (`tryActivateD1RateLimiter()` called at cold start before any request)
+- **Architecture:** Each Worker maintains an in-memory bucket cache (synchronous, single-request-cycle accurate) and persists counts to D1 asynchronously (fire-and-forget). On startup `tryActivateD1RateLimiter()` verifies the `rate_limits` table exists and activates the D1 backend; it logs `[rate-limit] Using D1-backed distributed rate limiter.` on success or falls back to in-memory with a warning.
+- **Caveat:** Cross-Worker count sharing is eventually consistent (async D1 writes). At very high concurrency across multiple Workers, a small number of over-limit requests may slip through before D1 counts propagate. This is an acceptable tradeoff for Cloudflare's stateless-Worker model. Local dev always uses in-memory.
 
 ### Hardcoded cost rates
 
@@ -581,31 +581,30 @@ Before deploying to production:
 
 ### Token estimation is heuristic
 
-- **Status:** Improved — exact usage extracted from upsteam responses when available
+- **Status:** Improved — exact usage extracted from upstream responses when available
 - **Source evidence:** `src/lib/tokens.ts:132-176` (`extractProviderUsage` for OpenAI, Anthropic, Gemini formats)
 - **Why it matters:** Token counts are now exact when providers include usage metadata; falls back to heuristics
 - **Suggested next step:** Integrate a lightweight tokenizer (e.g., `gpt-tokenizer`) for unsupported models
 
 ### No provider-level tool testing
 
-- **Status:** Open / testing gap
-- **Source evidence:** Only `tools.test.ts` exists; no integration tests for tool calling through proxy routes
-- **Why it matters:** Tool serialization/parsing may break for specific providers without detection
-- **Suggested next step:** Add proxy-level tests for tool request bodies and response parsing
+- **Status:** Complete — proxy-level tool serialization tests added
+- **Source evidence:** `src/routes/api/-proxy.test.ts` (tests verifying OpenAI-format and Anthropic-format tool payloads reach upstream, and that the proxy correctly adapts `tools` array by body style); `src/lib/tools.test.ts` (76 tests covering tool parsing, delta accumulation, validation, and the dynamic schema registry)
+- **Remaining caveat:** Tests are synthetic — they verify request body shape against a mocked upstream. End-to-end live tool execution against real provider APIs requires `RUN_LIVE_PROVIDER_TESTS=true`.
 
 ### Cross-tab sync gaps
 
-- **Status:** Open / limitation
-- **Source evidence:** `src/lib/cockpit-store.ts:492-514` (only `SETTINGS_KEY` and `THREADS_KEY` are synced)
-- **Why it matters:** Vector store and provider stats are not synced across tabs
-- **Suggested next step:** Extend cross-tab sync to stats and vector store, or move them to shared workers
+- **Status:** Improved — provider stats and vector store local cache now sync across tabs
+- **Source evidence:** `src/lib/cockpit-store.ts` (`setupCrossTabSync` handles `SETTINGS_KEY`, `THREADS_KEY`, and `STATS_KEY`); `src/lib/vector-store.ts` (`ensureVectorStoreCrossTabSync` invalidates the in-memory cache on `STORE_KEY` storage events)
+- **What syncs:** Settings, threads, provider stats, and vector store cache invalidation all propagate to other same-origin tabs via the `storage` event.
+- **Remaining caveat:** Provider API keys are deliberately excluded from localStorage and never placed in storage events. Stats and vector docs remain device-local (no automatic D1 sync); this is intentional and matches the privacy defaults.
 
 ### Dangerous tool guard
 
-- **Status:** Open / security consideration
-- **Source evidence:** `docs/roadmap/FUTURE_ENHANCEMENTS.md:103`
-- **Why it matters:** Only `isBuiltInTool` gates execution; user-defined tools are not yet supported but the guard may be insufficient
-- **Suggested next step:** Implement a permission model for user-defined tools
+- **Status:** Hardened — three-layer validation chain in `executeTool`
+- **Source evidence:** `src/hooks/use-chat.ts` (`executeTool`): (1) `validateToolCall(call)` — enforces id/name/args shape; (2) `sanitizeToolCallArgs(call.arguments)` — validates JSON object ≤16KB; (3) `executeBuiltInTool` — only `isBuiltInTool`-gated names run
+- **What is enforced:** Invalid call shape → safe rejection message. Oversized/malformed args → safe rejection. Unknown tool names → `[Tool "{name}" is not implemented]` result. No registered non-built-in tool can reach execution without explicit addition to the built-in safe registry.
+- **Remaining caveat:** The built-in safe registry is hardcoded (4 tools). User-defined tool execution requires a product decision on the permission model. Registered schemas (via `registerLocalTool`) are correctly visible but not executable.
 
 ## Contributing / safe change workflow
 

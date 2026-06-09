@@ -94,7 +94,7 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 - **UI rendering:** `MessageRow.tsx` renders tool calls as cards with tool name, arguments (collapsible), and Execute/Show-args buttons. `role: "tool"` messages render as tool result bubbles.
 - **Execution/approval behavior:** Only built-in safe tools (`echo`, `get_current_time`) can be executed. The user must click "Execute" to run the tool. The result is injected as a `tool` role message and the assistant is re-run with the result in context.
 - **Tests:** `tools.test.ts` (16 tests) covering validation, serialization, parsing, and execution.
-- **Limitations:** Streaming is disabled when tools are sent. Tool execution is limited to the built-in safe registry. Real-world tool schemas from providers are not yet dynamically fetched.
+- **Current state:** Streaming with tools is supported for OpenAI-compatible and Anthropic body styles. Dynamic schema registry (`registerLocalTool`, `registerProviderTools`) implemented. Tool execution is limited to the 4 built-in safe tools; a permission model for user-defined execution is a product decision. Auto-fetching from provider APIs is not yet implemented.
 
 ### 6. Embeddings/RAG
 
@@ -112,9 +112,9 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 
 ### Tools/function-calling
 
-- **Streaming + tools:** Streaming tool-call delta parsing implemented for OpenAI-compatible providers (bodyStyle: "openai" + `streamingTools` flag). Anthropic/Gemini providers still fall back to non-streaming when tools are present.
-- **Dynamic tool schemas:** Only the built-in safe tool registry is implemented (4 tools: get_current_time, echo, word_count, calculator). Dynamic provider-specific tool registration is not yet supported.
-- **Dangerous tool guard:** Only `isBuiltInTool` gates execution. A more robust permission model may be needed for user-defined tools.
+- **Streaming + tools:** Streaming tool-call delta parsing implemented for all supported body styles. OpenAI-compatible providers (bodyStyle: "openai") use `StreamToolCallAccumulator`. Anthropic providers (bodyStyle: "anthropic") use `AnthropicStreamToolCallAccumulator` with `extractAnthropicToolCallDelta`. Gemini uses the OpenAI-compatible path. Providers without `streamingTools: true` safely fall back to non-streaming.
+- **Dynamic tool schemas:** Dynamic schema registry implemented — `registerLocalTool`, `registerProviderTools`, `getAllToolSchemas`, `getSerializableToolDefs`, `/api/tools/schemas` (GET + POST, CSRF + rate-limited). Registered schemas are visible and serializable to providers. Automatic fetching from provider APIs (e.g., OpenAI's tool discovery) is not yet implemented. Registered non-built-in tools correctly cannot execute without explicit safe-registry addition.
+- **Dangerous tool guard:** Three-layer guard chain in `executeTool`: `validateToolCall` (shape), `sanitizeToolCallArgs` (JSON ≤16KB), then `executeBuiltInTool` (only built-in names run). Registered non-built-in tools produce a safe `[Tool "{name}" is not implemented]` result. A permission model for user-defined tool execution remains a product decision.
 - **Tool name safety:** `validateToolName` restricts parsed tool names to `[a-zA-Z0-9][a-zA-Z0-9_.-]*` (≤128 chars). Unsafe names in provider responses are silently dropped during parsing (`parseOpenAIToolCalls`, `parseAnthropicToolCalls`, `StreamToolCallAccumulator.complete`).
 - **Tool argument safety:** `sanitizeToolCallArgs` validates JSON arguments as objects ≤16KB. `validateToolCall` enforces the full shape (id, name, args).
 - **Tool safety tests:** `tools.test.ts` expanded from 25 to 53 tests covering name validation (12 cases), args sanitization (7 cases), call validation (4 cases), and integrated parser safety (5 cases) across OpenAI, Anthropic, and streaming paths.
@@ -129,9 +129,9 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 ### Remaining caveats
 
 - **No live-provider RAG/tool tests:** All RAG and tool-call integration tests are synthetic — they verify request shapes, error propagation, and safety guards without hitting real provider endpoints. End-to-end tests against live providers would require API keys.
-- **Anthropic/Gemini streaming tool deltas:** Parsing streaming tool-use deltas for non-OpenAI body styles is still not implemented. Providers without `streamingTools: true` fall back to non-streaming when tools are present.
-- **Dynamic provider tool schemas:** Tool schemas from provider APIs (e.g., OpenAI's `tools` endpoint) are not fetched dynamically. The built-in registry (4 tools) is the only source of tool definitions.
-- **Tool call argument validation not wired to execution:** `sanitizeToolCallArgs` and `validateToolCall` exist as guard functions but are not yet called in the `executeTool` flow in `use-chat.ts`. Current execution relies on `isBuiltInTool` only.
+- **Streaming tool deltas:** Implemented for OpenAI-compatible (via `StreamToolCallAccumulator`) and Anthropic (via `AnthropicStreamToolCallAccumulator` + `extractAnthropicToolCallDelta`). Gemini uses the OpenAI-compatible path. Providers without `streamingTools: true` safely fall back to non-streaming. Live end-to-end streaming tool tests are opt-in (`RUN_LIVE_PROVIDER_TESTS=true`).
+- **Dynamic provider tool schemas:** Tool schemas from provider APIs (e.g., OpenAI's `tools` endpoint) are not fetched automatically. Local and provider schemas are registerable via `registerLocalTool` / `registerProviderTools` and the `/api/tools/schemas` API. The built-in safe execution registry still has exactly 4 tools; auto-fetching provider APIs is the remaining gap.
+- **Tool call validation fully wired:** `validateToolCall` and `sanitizeToolCallArgs` are both called in `executeTool` (`use-chat.ts`) before `executeBuiltInTool`. Invalid shape and oversized/malformed args produce safe rejection messages without crashing.
 
 ### Non-goals for the next PR
 
@@ -159,4 +159,4 @@ This document was rebased after PR #1 merged into `main`. It only tracks unresol
 
 ### D1 setup prerequisite
 
-The D1 database ID placeholder must be replaced before production deployment, but **only after confirming the data boundary is enforced**. Deploying D1 before confirming `syncChatsToServer === false` would allow inadvertent chat data writes. The device-local boundary is now enforced — D1 setup may proceed safely.
+D1 is configured with a real database ID (`f89b278d-301f-4a98-a018-b92eeb279449`, binding `DB`) in `wrangler.jsonc`. The device-local privacy boundary is enforced in code — `syncChatsToServer` and `syncRagVectorsToServer` default to `false`. D1 is used exclusively for rate limiting, encrypted sessions, and usage/stats aggregation. No automatic chat or vector sync occurs.
