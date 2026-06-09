@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- test mocks commonly use any for route handler stubs */
 
@@ -268,5 +268,237 @@ describe("POST /api/proxy/transcribe", () => {
     });
     const res = await handler({ request: req });
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/proxy/chat — tool serialization
+// ---------------------------------------------------------------------------
+describe("POST /api/proxy/chat — tool serialization", () => {
+  let handler: (ctx: { request: Request }) => Promise<Response>;
+
+  beforeEach(async () => {
+    const mod = await import("@/routes/api/proxy/chat");
+    handler = (mod.Route.options as any).server.handlers.POST;
+    // Provide a fake API key so the handler reaches the upstream fetch call
+    vi.mocked(getProviderCreds).mockResolvedValue({ apiKey: "sk-test-key" } as any);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("serializes tools in OpenAI function format for openai provider", async () => {
+    const capturedBodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        capturedBodies.push(init.body as string);
+        return Promise.resolve(
+          new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }),
+    );
+
+    const req = new Request("http://localhost/api/proxy/chat", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({
+        providerId: "openai",
+        messages: [{ role: "user", content: "What time is it?" }],
+        tools: [{ name: "get_current_time", description: "Returns current time" }],
+      }),
+    });
+
+    await handler({ request: req });
+
+    expect(capturedBodies).toHaveLength(1);
+    const sentBody = JSON.parse(capturedBodies[0]);
+    expect(sentBody.tools).toBeDefined();
+    expect(sentBody.tools).toHaveLength(1);
+    // OpenAI format wraps in { type: "function", function: { ... } }
+    expect(sentBody.tools[0].type).toBe("function");
+    expect(sentBody.tools[0].function.name).toBe("get_current_time");
+    expect(sentBody.tools[0].function.description).toBe("Returns current time");
+  });
+
+  it("serializes tools in Anthropic input_schema format for anthropic provider", async () => {
+    const capturedBodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        capturedBodies.push(init.body as string);
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              content: [{ type: "text", text: "ok" }],
+              stop_reason: "end_turn",
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        );
+      }),
+    );
+
+    const req = new Request("http://localhost/api/proxy/chat", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({
+        providerId: "anthropic",
+        messages: [{ role: "user", content: "Use the calculator" }],
+        tools: [
+          {
+            name: "calculator",
+            description: "Evaluates arithmetic",
+            parameters: {
+              type: "object",
+              properties: { expression: { type: "string" } },
+              required: ["expression"],
+            },
+          },
+        ],
+      }),
+    });
+
+    await handler({ request: req });
+
+    expect(capturedBodies).toHaveLength(1);
+    const sentBody = JSON.parse(capturedBodies[0]);
+    expect(sentBody.tools).toBeDefined();
+    expect(sentBody.tools).toHaveLength(1);
+    // Anthropic format: { name, description, input_schema } — NO "type: function" wrapper
+    expect(sentBody.tools[0].name).toBe("calculator");
+    expect(sentBody.tools[0].description).toBe("Evaluates arithmetic");
+    expect(sentBody.tools[0].input_schema).toBeDefined();
+    expect(sentBody.tools[0].input_schema.type).toBe("object");
+    // Must NOT have the OpenAI "type: function" wrapper
+    expect(sentBody.tools[0].type).toBeUndefined();
+    expect(sentBody.tools[0].function).toBeUndefined();
+  });
+
+  it("omits tools key from upstream body when tools array is empty", async () => {
+    const capturedBodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        capturedBodies.push(init.body as string);
+        return Promise.resolve(
+          new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }),
+    );
+
+    const req = new Request("http://localhost/api/proxy/chat", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({
+        providerId: "openai",
+        messages: [{ role: "user", content: "Hello" }],
+        tools: [],
+      }),
+    });
+
+    await handler({ request: req });
+
+    expect(capturedBodies).toHaveLength(1);
+    const sentBody = JSON.parse(capturedBodies[0]);
+    // Empty tools array must not add a "tools" key to the upstream body
+    expect(sentBody.tools).toBeUndefined();
+  });
+
+  it("omits tools key when no tools field is provided", async () => {
+    const capturedBodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        capturedBodies.push(init.body as string);
+        return Promise.resolve(
+          new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }),
+    );
+
+    const req = new Request("http://localhost/api/proxy/chat", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({
+        providerId: "openai",
+        messages: [{ role: "user", content: "Hello" }],
+      }),
+    });
+
+    await handler({ request: req });
+
+    expect(capturedBodies).toHaveLength(1);
+    const sentBody = JSON.parse(capturedBodies[0]);
+    expect(sentBody.tools).toBeUndefined();
+  });
+
+  it("uses default parameters object when tool has no parameters", async () => {
+    const capturedBodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        capturedBodies.push(init.body as string);
+        return Promise.resolve(
+          new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }),
+    );
+
+    const req = new Request("http://localhost/api/proxy/chat", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({
+        providerId: "openai",
+        messages: [{ role: "user", content: "Test" }],
+        tools: [{ name: "get_current_time", description: "Get time" }],
+      }),
+    });
+
+    await handler({ request: req });
+
+    const sentBody = JSON.parse(capturedBodies[0]);
+    // Parameters should default to { type: "object" } when omitted
+    expect(sentBody.tools[0].function.parameters).toEqual({ type: "object" });
+  });
+
+  it("sets x-provider-body-style response header to the provider body style", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    const req = new Request("http://localhost/api/proxy/chat", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({
+        providerId: "openai",
+        messages: [{ role: "user", content: "Test" }],
+      }),
+    });
+
+    const res = await handler({ request: req });
+    expect(res.headers.get("x-provider-body-style")).toBe("openai");
   });
 });
