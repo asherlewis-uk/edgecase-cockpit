@@ -2,6 +2,23 @@
 
 > A provider-native AI chat console — local-first, self-hosted, multi-provider.
 
+## Release targets
+
+> [!IMPORTANT]
+> V1 is **NOT READY**. V1 requires Desktop native, iOS native, and Android native. None of these exist yet.
+
+| Target | V1 required | Status | Notes |
+|---|---|---|---|
+| Desktop native | **Yes** | ❌ Not implemented | No Tauri, Electron, or Capacitor configured |
+| iOS native | **Yes** | ❌ Not implemented | No Xcode project, Capacitor, or Tauri mobile target |
+| Android native | **Yes** | ❌ Not implemented | No Gradle project, Capacitor, or Tauri mobile target |
+| Web build (Vite) | Supporting surface | ✅ Builds | `bun run build` passes — client + SSR artifacts in `dist/` |
+| Cloudflare Workers backend | Supporting surface | ✅ Configured | `wrangler.jsonc` + D1 configured; deployment is a separate step |
+
+**V1 is not achieved by a passing web build.** A passing web/Cloudflare build is a prerequisite for the backend surface only. V1 requires packaged, installable native applications for Desktop, iOS, and Android.
+
+Native packaging tooling (Tauri, Capacitor, or equivalent) has not been selected or added. See [`docs/roadmap/FUTURE_ENHANCEMENTS.md`](docs/roadmap/FUTURE_ENHANCEMENTS.md) for the V1 native blocker tracking.
+
 ## 1. What is edgecase-cockpit?
 
 `edgecase-cockpit` is a unified chat interface for both cloud LLM APIs and local/self-hosted inference endpoints. It is a **TanStack Start + React + Cloudflare Workers** application with SSR.
@@ -679,3 +696,62 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 | `test` | `vitest run` |
 | `test:live` | `vitest run --config vitest.live.config.ts` |
 | `test:release` | `npm run test && (OPENAI_API_KEY present → test:live)` |
+
+---
+
+## 17. V1 native release status
+
+**V1 requires Desktop native, iOS native, and Android native. None are implemented.**
+
+The following native packaging tooling does not exist in this repository:
+
+| Item | Status |
+|---|---|
+| Native packaging framework (Tauri / Electron / Capacitor) | ❌ Not present |
+| Desktop build command | ❌ Does not exist |
+| Desktop install/run command | ❌ Does not exist |
+| macOS app bundle / signing / notarization config | ❌ Does not exist |
+| iOS Xcode project or Capacitor/Tauri iOS target | ❌ Does not exist |
+| iOS bundle ID | ❌ Not configured |
+| iOS app icon / permissions | ❌ Not configured |
+| Android Gradle project or Capacitor/Tauri Android target | ❌ Does not exist |
+| Android application ID | ❌ Not configured |
+| Android app icon / permissions | ❌ Not configured |
+| PWA manifest / service worker | ❌ Not present |
+| Native release scripts / CI jobs | ❌ Do not exist |
+
+### What exists (web/backend surface only)
+
+```bash
+# Install dependencies
+bun install
+
+# Dev server (web)
+bun run dev
+
+# Production build (web + SSR — not a native build)
+bun run build
+
+# Typecheck
+bun run typecheck
+
+# Lint
+bun run lint
+
+# Tests
+bun run test
+```
+
+These commands build and test the **web application only**. They do not produce Desktop, iOS, or Android artifacts.
+
+### Native packaging decision required
+
+Before any native tooling can be added, a framework must be selected. Options relative to this stack (Vite + React + TanStack Start):
+
+| Option | Desktop | iOS | Android | Notes |
+|---|---|---|---|---|
+| **Capacitor** | ✅ (via Electron plugin) | ✅ | ✅ | Wraps existing `dist/` web build; lowest migration cost |
+| **Tauri v2** | ✅ | ✅ | ✅ | Rust runtime; smaller binaries; more complex setup |
+| **Electron** | ✅ | ❌ | ❌ | Desktop only |
+
+No framework has been selected. Do not add native tooling without an explicit decision. See `docs/roadmap/FUTURE_ENHANCEMENTS.md`.
