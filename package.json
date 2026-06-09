@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:release": "npm run test && (test -n \"$OPENAI_API_KEY\" && npm run test:live || echo '[release] Live provider tests skipped (missing credentials).')",
-    "native:build": "vite build",
+    "native:build": "vite build && node scripts/native-shell.mjs",
     "native:sync": "npx cap sync",
     "native:ios:sync": "npx cap sync ios",
     "native:ios:open": "npx cap open ios",
