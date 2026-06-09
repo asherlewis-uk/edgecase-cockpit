@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, afterEach, vi } from "vitest";
 import {
   checkRateLimit,
   clearRateLimitBuckets,
@@ -10,7 +10,15 @@ import {
   sessionRateLimit,
   statsRateLimit,
   warnInMemoryRateLimitInProduction,
+  tryActivateD1RateLimiter,
+  __resetRateLimiterBackend,
 } from "@/lib/rate-limit.server";
+
+vi.mock("@/lib/platform.server", () => ({
+  getDB: vi.fn(),
+}));
+
+import { getDB } from "@/lib/platform.server";
 
 describe("rate-limit.server", () => {
   beforeEach(() => {
@@ -135,5 +143,80 @@ describe("warnInMemoryRateLimitInProduction", () => {
     process.env.ALLOW_IN_MEMORY_RATE_LIMIT = "true";
     // Should not throw, emits console.warn instead of error.
     expect(() => warnInMemoryRateLimitInProduction()).not.toThrow();
+  });
+});
+
+// ── D1-backed distributed rate limiter ────────────────────────────────────
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- D1 mock objects use any for minimal stubs */
+describe("tryActivateD1RateLimiter", () => {
+  afterEach(() => {
+    __resetRateLimiterBackend();
+    vi.mocked(getDB).mockReset();
+  });
+
+  it("returns true and activates D1 backend when DB is available", () => {
+    const mockDb = {
+      prepare: vi.fn().mockReturnValue({
+        first: vi.fn().mockReturnValue(null),
+      }),
+    };
+    vi.mocked(getDB).mockReturnValue(mockDb as any);
+
+    const result = tryActivateD1RateLimiter();
+    expect(result).toBe(true);
+  });
+
+  it("returns false and leaves in-memory backend when DB throws", () => {
+    vi.mocked(getDB).mockImplementation(() => {
+      throw new Error("D1 not available");
+    });
+
+    const result = tryActivateD1RateLimiter();
+    expect(result).toBe(false);
+  });
+
+  it("after D1 activation, rate limiting still functions correctly", () => {
+    const mockDb = {
+      prepare: vi.fn().mockReturnValue({
+        first: vi.fn().mockReturnValue(null),
+        bind: vi.fn().mockReturnThis(),
+        run: vi.fn(),
+      }),
+    };
+    vi.mocked(getDB).mockReturnValue(mockDb as any);
+
+    tryActivateD1RateLimiter();
+    clearRateLimitBuckets();
+
+    // Should allow requests up to limit
+    const r1 = checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
+    expect(r1.ok).toBe(true);
+    const r2 = checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
+    expect(r2.ok).toBe(true);
+    const r3 = checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
+    expect(r3.ok).toBe(false);
+  });
+
+  it("production warning is silent after D1 backend activates", () => {
+    const mockDb = {
+      prepare: vi.fn().mockReturnValue({
+        first: vi.fn().mockReturnValue(null),
+      }),
+    };
+    vi.mocked(getDB).mockReturnValue(mockDb as any);
+
+    tryActivateD1RateLimiter();
+
+    // When a custom backend is active, warnInMemoryRateLimitInProduction is silent
+    process.env.NODE_ENV = "production";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    warnInMemoryRateLimitInProduction();
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
+    delete process.env.NODE_ENV;
   });
 });

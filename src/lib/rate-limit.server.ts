@@ -94,6 +94,11 @@ export function tryActivateD1RateLimiter(): boolean {
 
 let _backend: IRateLimiterBackend | null = null;
 
+/** For tests: reset the active backend to in-memory default. */
+export function __resetRateLimiterBackend(): void {
+  _backend = null;
+}
+
 export function setRateLimiterBackend(backend: IRateLimiterBackend) {
   _backend = backend;
 }
