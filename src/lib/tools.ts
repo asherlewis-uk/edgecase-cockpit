@@ -1,7 +1,8 @@
-// Provider-agnostic tool schema and safe built-in tool registry.
-// For this pass, tools are parsed, rendered, and executed only for
-// explicitly registered safe local functions. Cloud provider tool
-// execution is not yet wired.
+// Provider-agnostic tool schema, safe built-in tool registry, dynamic schema
+// registry, and streaming tool-call accumulator.
+// Built-in tool execution is implemented for 4 safe tools (get_current_time,
+// echo, word_count, calculator). Registered non-built-in schemas are
+// serializable to providers but require explicit safe-registry addition to execute.
 
 export type ToolParameter = {
   type: string;
