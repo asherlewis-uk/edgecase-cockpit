@@ -13,7 +13,16 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "test:release": "npm run test && (test -n \"$OPENAI_API_KEY\" && npm run test:live || echo '[release] Live provider tests skipped (missing credentials).')"
+    "test:release": "npm run test && (test -n \"$OPENAI_API_KEY\" && npm run test:live || echo '[release] Live provider tests skipped (missing credentials).')",
+    "native:build": "vite build",
+    "native:sync": "npx cap sync",
+    "native:ios:sync": "npx cap sync ios",
+    "native:ios:open": "npx cap open ios",
+    "native:android:sync": "npx cap sync android",
+    "native:android:open": "npx cap open android",
+    "native:desktop:compile": "tsc --project electron/tsconfig.json",
+    "native:desktop:dev": "bun run native:build && bun run native:desktop:compile && ELECTRON_DEV=true npx electron electron/dist/main.js",
+    "native:desktop:build": "bun run native:build && bun run native:desktop:compile && npx electron-builder build"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
@@ -75,6 +84,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
     "@eslint/js": "^9.32.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -84,6 +97,8 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.15.2",
     "eslint": "^10.4.1",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
