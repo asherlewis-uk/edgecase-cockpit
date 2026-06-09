@@ -461,6 +461,11 @@ let state: State = {
 };
 let hydrated = false;
 
+/** For tests: reset hydration state so setupCrossTabSync can be re-exercised. */
+export function __resetHydration(): void {
+  hydrated = false;
+}
+
 function hydrate() {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
@@ -526,6 +531,11 @@ function setupCrossTabSync() {
       } catch {
         /* ignore */
       }
+    }
+    if (e.key === STATS_KEY) {
+      // Another tab wrote new stats — notify local subscribers so their
+      // UI reflects the updated counts without a page reload.
+      statsListeners.forEach((l) => l());
     }
   });
 }

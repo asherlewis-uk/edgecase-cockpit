@@ -10,7 +10,9 @@ import {
   recordTokenUsage,
   syncThreadToServer,
   getProviderStats,
+  subscribeProviderStats,
   store,
+  __resetHydration,
 } from "@/lib/cockpit-store";
 import { PROVIDERS } from "@/lib/providers";
 
@@ -677,5 +679,81 @@ describe("manual import/export locality", () => {
     store.importThreads([thread]);
     // importThreads itself must never call fetch — only explicit syncThreadToServer does
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-tab sync
+// ---------------------------------------------------------------------------
+describe("cross-tab stats sync", () => {
+  it("subscribeProviderStats is notified when stats change locally", () => {
+    let notified = false;
+    const unsub = subscribeProviderStats(() => {
+      notified = true;
+    });
+    bumpProviderStat("test-cross-tab", "call");
+    expect(notified).toBe(true);
+    unsub();
+  });
+
+  it("subscribeProviderStats unsubscribe stops notifications", () => {
+    let count = 0;
+    const unsub = subscribeProviderStats(() => {
+      count++;
+    });
+    bumpProviderStat("test-unsub", "call");
+    unsub();
+    bumpProviderStat("test-unsub", "call");
+    expect(count).toBe(1); // only notified once before unsub
+  });
+
+  it("provider keys are not stored in the STATS_KEY localStorage entry", () => {
+    bumpProviderStat("openai", "call");
+    recordTokenUsage("openai", 100, 50);
+    const raw = storage.get("cockpit.provider-stats.v1");
+    expect(raw).toBeDefined();
+    const parsed = JSON.parse(raw!);
+    // Stats must only contain call counts and token numbers — no API key material
+    const statsEntry = parsed.openai;
+    expect(statsEntry).not.toHaveProperty("apiKey");
+    expect(statsEntry).not.toHaveProperty("key");
+    expect(statsEntry).not.toHaveProperty("secret");
+    expect(statsEntry.calls).toBeDefined();
+  });
+
+  it("STATS_KEY storage event triggers statsListeners in setupCrossTabSync", () => {
+    // Capture the storage handler by providing a window that records the callback
+    let capturedStorageHandler: ((e: StorageEvent) => void) | null = null;
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn((event: string, cb: (e: StorageEvent) => void) => {
+        if (event === "storage") capturedStorageHandler = cb;
+      }),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    });
+
+    // Reset hydration so setupCrossTabSync runs again with our new window mock
+    __resetHydration();
+    store.getState(); // triggers hydrate() → setupCrossTabSync()
+
+    // Verify the storage handler was registered
+    expect(capturedStorageHandler).not.toBeNull();
+
+    // Set up a stats subscriber
+    let notifiedCount = 0;
+    const unsub = subscribeProviderStats(() => {
+      notifiedCount++;
+    });
+
+    // Simulate a STATS_KEY change event from another tab
+    capturedStorageHandler!(
+      new StorageEvent("storage", {
+        key: "cockpit.provider-stats.v1",
+        newValue: JSON.stringify({ openai: { calls: 3, errors: 0 } }),
+      }),
+    );
+
+    expect(notifiedCount).toBe(1);
+    unsub();
   });
 });
