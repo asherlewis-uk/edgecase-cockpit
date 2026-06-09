@@ -85,21 +85,21 @@ These are enhancements that are **not yet implemented** and would require new wo
 > [!IMPORTANT]
 > The following are **V1 blockers**, not optional future enhancements. V1 is not achieved until all three are resolved.
 
-### V1-BLOCKER-1: Desktop native packaging
+### V1-BLOCKER-1: macOS native packaging
 
-**What is missing:** No native desktop packaging framework exists in this repository. There is no Tauri config (`src-tauri/`, `tauri.conf.json`), no Electron entry point, and no Capacitor config (`capacitor.config.ts`).
+**What is missing:** No native macOS packaging framework exists in this repository. There is no Tauri config (`src-tauri/`, `tauri.conf.json`), no Electron entry point, and no Capacitor config (`capacitor.config.ts`).
 
 **Source proof of absence:** `find . -name 'tauri.conf*' -o -name 'electron*' -o -name 'capacitor.config*'` returns nothing.
 
 **Required for V1:**
 - Framework selection: Tauri v2, Electron, or Capacitor
-- Desktop build command producing an installable artifact (`.dmg`, `.exe`, `.deb`)
-- Desktop run/install command documented
+- macOS build command producing an installable artifact (`.dmg`)
+- macOS run/install command documented
 - App name and icon configured
 - macOS signing/notarization status documented
 - README updated with real build commands
 
-**Do not claim V1 readiness for Desktop until all of the above exist and are verified.**
+**Do not claim V1 readiness for macOS until all of the above exist and are verified.**
 
 ---
 
@@ -151,7 +151,7 @@ Before any native work begins, a framework must be chosen. No framework has been
 |---|---|---|---|---|
 | **Capacitor** | ✅ (via Electron plugin) | ✅ | ✅ | Lowest — wraps existing `dist/` build directly |
 | **Tauri v2** | ✅ | ✅ | ✅ | Medium — Rust sidecar, requires Rust toolchain |
-| **Electron** | ✅ | ❌ | ❌ | Low, but desktop-only; does not cover iOS/Android |
+| **Electron** | ✅ (macOS) | ❌ | ❌ | V1 desktop scope is macOS only |
 
 Do not add any native framework without an explicit decision. Raise a decision in the project before implementation.
 

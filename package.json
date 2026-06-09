@@ -1,8 +1,12 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "edgecase-cockpit",
+  "version": "1.0.0",
+  "description": "A provider-native AI chat console",
+  "author": "Asher Lewis",
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "main": "electron/dist/main.js",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",

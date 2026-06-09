@@ -3,8 +3,6 @@
 # Phase 4 checklist before signed release:
 #  - macOS: set CSC_LINK + CSC_KEY_PASSWORD (Developer ID cert) and
 #    APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD for notarization.
-#  - Windows: set CSC_LINK + CSC_KEY_PASSWORD (EV or Standard cert).
-#  - Linux: no signing required.
 #
 # Run: bun run native:desktop:build
 
@@ -14,8 +12,6 @@ copyright: Copyright © 2025 Asher Lewis
 
 # electron/main.ts is compiled to electron/dist/main.js before packaging.
 # See native:desktop:build script in package.json.
-main: electron/dist/main.js
-
 directories:
   buildResources: electron/resources
   output: electron/release
@@ -38,20 +34,6 @@ mac:
         - x64
   icon: electron/resources/icon.icns
 
-win:
-  target:
-    - target: nsis
-      arch:
-        - x64
-  icon: electron/resources/icon.ico
-
-linux:
-  target:
-    - target: AppImage
-      arch:
-        - x64
-  icon: electron/resources/icon.png
-  category: Office
 
 # DMG window layout (macOS).
 dmg:

@@ -5,17 +5,17 @@
 ## Release targets
 
 > [!IMPORTANT]
-> V1 is **NOT READY**. V1 requires Desktop native, iOS native, and Android native. None of these exist yet.
+> V1 is **NOT READY**. V1 requires macOS native, iOS native, and Android native. None of these exist yet.
 
 | Target | V1 required | Status | Notes |
 |---|---|---|---|
-| Desktop native | **Yes** | ❌ Not implemented | No Tauri, Electron, or Capacitor configured |
+| macOS native | **Yes** | ❌ Not implemented | No Electron wrapper configured |
 | iOS native | **Yes** | ❌ Not implemented | No Xcode project, Capacitor, or Tauri mobile target |
 | Android native | **Yes** | ❌ Not implemented | No Gradle project, Capacitor, or Tauri mobile target |
 | Web build (Vite) | Supporting surface | ✅ Builds | `bun run build` passes — client + SSR artifacts in `dist/` |
 | Cloudflare Workers backend | Supporting surface | ✅ Configured | `wrangler.jsonc` + D1 configured; deployment is a separate step |
 
-**V1 is not achieved by a passing web build.** A passing web/Cloudflare build is a prerequisite for the backend surface only. V1 requires packaged, installable native applications for Desktop, iOS, and Android.
+**V1 is not achieved by a passing web build.** A passing web/Cloudflare build is a prerequisite for the backend surface only. V1 requires packaged, installable native applications for macOS, iOS, and Android.
 
 Native packaging tooling (Tauri, Capacitor, or equivalent) has not been selected or added. See [`docs/roadmap/FUTURE_ENHANCEMENTS.md`](docs/roadmap/FUTURE_ENHANCEMENTS.md) for the V1 native blocker tracking.
 
@@ -701,15 +701,15 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 
 ## 17. V1 native release status
 
-**V1 requires Desktop native, iOS native, and Android native. None are implemented.**
+**V1 requires macOS native, iOS native, and Android native. None are implemented.**
 
 The following native packaging tooling does not exist in this repository:
 
 | Item | Status |
 |---|---|
 | Native packaging framework (Tauri / Electron / Capacitor) | ❌ Not present |
-| Desktop build command | ❌ Does not exist |
-| Desktop install/run command | ❌ Does not exist |
+| macOS build command | ❌ Does not exist |
+| macOS install/run command | ❌ Does not exist |
 | macOS app bundle / signing / notarization config | ❌ Does not exist |
 | iOS Xcode project or Capacitor/Tauri iOS target | ❌ Does not exist |
 | iOS bundle ID | ❌ Not configured |
@@ -742,7 +742,7 @@ bun run lint
 bun run test
 ```
 
-These commands build and test the **web application only**. They do not produce Desktop, iOS, or Android artifacts.
+These commands build and test the **web application only**. They do not produce macOS, iOS, or Android artifacts.
 
 ### Native packaging decision required
 
@@ -752,6 +752,6 @@ Before any native tooling can be added, a framework must be selected. Options re
 |---|---|---|---|---|
 | **Capacitor** | ✅ (via Electron plugin) | ✅ | ✅ | Wraps existing `dist/` web build; lowest migration cost |
 | **Tauri v2** | ✅ | ✅ | ✅ | Rust runtime; smaller binaries; more complex setup |
-| **Electron** | ✅ | ❌ | ❌ | Desktop only |
+| **Electron** | ✅ (macOS) | ❌ | ❌ | V1 desktop scope is macOS only |
 
 No framework has been selected. Do not add native tooling without an explicit decision. See `docs/roadmap/FUTURE_ENHANCEMENTS.md`.
