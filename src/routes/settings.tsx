@@ -134,6 +134,8 @@ function SettingsPage() {
 
         <ExtractedUsageSection />
 
+        <CostSection />
+
         <Section title="Danger">
           <Button
             variant="outline"
@@ -825,6 +827,95 @@ function ProviderCard({
         </Button>
       </div>
     </div>
+  );
+}
+
+function CostSection() {
+  const settings = useStore((s) => s.settings);
+  const overrides = settings.costOverrides ?? {};
+
+  // Only show cloud providers that support chat
+  const relevantProviders = PROVIDERS.filter((p) => p.type === "cloud" && p.supports.chat);
+
+  function parseRate(raw: string): number | undefined {
+    if (!raw.trim()) return undefined;
+    const n = parseFloat(raw);
+    return !isNaN(n) && isFinite(n) && n >= 0 ? n : undefined;
+  }
+
+  function setOverride(providerId: string, field: "input" | "output", raw: string) {
+    const value = parseRate(raw);
+    const current = overrides[providerId] ?? {};
+    const updated: { input?: number; output?: number } = { ...current, [field]: value };
+    // Remove field if undefined to keep the object clean
+    if (updated.input === undefined) delete updated.input;
+    if (updated.output === undefined) delete updated.output;
+    store.updateSettings({
+      costOverrides: {
+        ...overrides,
+        [providerId]: updated,
+      },
+    });
+  }
+
+  function resetAll() {
+    store.updateSettings({ costOverrides: {} });
+  }
+
+  return (
+    <Section title="Cost rates">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+        <p className="text-xs text-white/50">
+          Override per-provider cost rates (USD per 1,000 tokens). Leave blank to use built-in
+          defaults. Values must be non-negative numbers.
+        </p>
+        <div className="space-y-3">
+          {relevantProviders.map((p) => {
+            const ov = overrides[p.id] ?? {};
+            return (
+              <div key={p.id} className="space-y-1.5">
+                <p className="text-sm font-medium text-white/80">{p.name}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-white/50">Input / 1K tokens ($)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={ov.input !== undefined ? String(ov.input) : ""}
+                      onChange={(e) => setOverride(p.id, "input", e.target.value)}
+                      placeholder="Default"
+                      className="h-8 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-white/50">Output / 1K tokens ($)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={ov.output !== undefined ? String(ov.output) : ""}
+                      onChange={(e) => setOverride(p.id, "output", e.target.value)}
+                      placeholder="Default"
+                      className="h-8 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={resetAll}
+          className="border-white/10 bg-transparent text-white/70 hover:bg-white/10"
+        >
+          <RotateCcw className="mr-2 size-3.5" />
+          Reset to defaults
+        </Button>
+      </div>
+    </Section>
   );
 }
 

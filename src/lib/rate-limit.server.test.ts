@@ -11,6 +11,8 @@ import {
   statsRateLimit,
   warnInMemoryRateLimitInProduction,
   tryActivateD1RateLimiter,
+  configureRateLimiterFromEnv,
+  getActiveRateLimiterBackend,
   __resetRateLimiterBackend,
 } from "@/lib/rate-limit.server";
 
@@ -220,3 +222,79 @@ describe("tryActivateD1RateLimiter", () => {
     delete process.env.NODE_ENV;
   });
 });
+
+// ── configureRateLimiterFromEnv ────────────────────────────────────────────
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- D1 mock objects use any */
+describe("configureRateLimiterFromEnv", () => {
+  const origEnv = process.env.RATE_LIMIT_BACKEND;
+
+  afterEach(() => {
+    __resetRateLimiterBackend();
+    vi.mocked(getDB).mockReset();
+    if (origEnv !== undefined) {
+      process.env.RATE_LIMIT_BACKEND = origEnv;
+    } else {
+      delete process.env.RATE_LIMIT_BACKEND;
+    }
+  });
+
+  it("RATE_LIMIT_BACKEND=memory uses in-memory backend without touching D1", () => {
+    process.env.RATE_LIMIT_BACKEND = "memory";
+    const result = configureRateLimiterFromEnv();
+    expect(result).toBe("memory");
+    expect(getActiveRateLimiterBackend()).toBe("memory");
+    // getDB should not have been called
+    expect(vi.mocked(getDB)).not.toHaveBeenCalled();
+  });
+
+  it("RATE_LIMIT_BACKEND=d1 activates D1 when DB is available", () => {
+    process.env.RATE_LIMIT_BACKEND = "d1";
+    const mockDb = {
+      prepare: vi.fn().mockReturnValue({ first: vi.fn().mockReturnValue(null) }),
+    };
+    vi.mocked(getDB).mockReturnValue(mockDb as any);
+
+    const result = configureRateLimiterFromEnv();
+    expect(result).toBe("d1");
+    expect(getActiveRateLimiterBackend()).toBe("d1");
+  });
+
+  it("RATE_LIMIT_BACKEND=d1 falls back to memory when D1 unavailable", () => {
+    process.env.RATE_LIMIT_BACKEND = "d1";
+    vi.mocked(getDB).mockImplementation(() => {
+      throw new Error("DB not available");
+    });
+
+    const result = configureRateLimiterFromEnv();
+    expect(result).toBe("memory");
+    expect(getActiveRateLimiterBackend()).toBe("memory");
+  });
+
+  it("RATE_LIMIT_BACKEND=auto tries D1 and succeeds", () => {
+    process.env.RATE_LIMIT_BACKEND = "auto";
+    const mockDb = {
+      prepare: vi.fn().mockReturnValue({ first: vi.fn().mockReturnValue(null) }),
+    };
+    vi.mocked(getDB).mockReturnValue(mockDb as any);
+
+    const result = configureRateLimiterFromEnv();
+    expect(result).toBe("d1");
+  });
+
+  it("unset RATE_LIMIT_BACKEND behaves as auto", () => {
+    delete process.env.RATE_LIMIT_BACKEND;
+    vi.mocked(getDB).mockImplementation(() => {
+      throw new Error("no D1");
+    });
+
+    const result = configureRateLimiterFromEnv();
+    expect(result).toBe("memory");
+  });
+
+  it("getActiveRateLimiterBackend returns memory before any activation", () => {
+    // No D1 backend set
+    expect(getActiveRateLimiterBackend()).toBe("memory");
+  });
+});
+/* eslint-enable @typescript-eslint/no-explicit-any */

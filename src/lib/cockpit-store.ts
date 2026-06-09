@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { PROVIDERS, getProvider, type ProviderDef } from "@/lib/providers";
 import type { ToolCall, ToolResult } from "@/lib/tools";
+import { setCostOverrides } from "@/lib/tokens";
 
 export type ProviderConfig = {
   apiKey: string;
@@ -60,6 +61,8 @@ export type Settings = {
   syncChatsToServer?: boolean;
   /** Opt-in: sync RAG vector docs to D1. Default false. */
   syncRagVectorsToServer?: boolean;
+  /** Per-provider cost rate overrides (USD per 1,000 tokens). Persisted locally only. */
+  costOverrides?: Record<string, { input?: number; output?: number }>;
 };
 
 export type Message = {
@@ -231,6 +234,7 @@ export const defaultSettings: Settings = {
   pinnedProviderIds: [],
   syncChatsToServer: false,
   syncRagVectorsToServer: false,
+  costOverrides: {},
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -400,6 +404,12 @@ export function normalizeSettings(raw: Partial<Settings> | unknown): Settings {
       typeof source.syncRagVectorsToServer === "boolean"
         ? source.syncRagVectorsToServer
         : defaultSettings.syncRagVectorsToServer,
+    costOverrides:
+      typeof source.costOverrides === "object" &&
+      source.costOverrides !== null &&
+      !Array.isArray(source.costOverrides)
+        ? (source.costOverrides as Record<string, { input?: number; output?: number }>)
+        : defaultSettings.costOverrides,
   };
 }
 
@@ -479,6 +489,9 @@ function hydrate() {
   };
   setupCrossTabSync();
   persist();
+  // Apply persisted cost overrides immediately so token cost estimates
+  // are correct before the first emit().
+  setCostOverrides(state.settings.costOverrides ?? {});
   // Migrate any legacy apiKeys persisted in localStorage to the server session,
   // then keep local settings stripped. Fire-and-forget; UI updates via emit().
   void migrateLocalKeysToServer(legacyProviderKeys);
@@ -488,6 +501,9 @@ function hydrate() {
 
 const listeners = new Set<() => void>();
 function emit() {
+  // Keep cost overrides in sync with current settings so estimateCost()
+  // always uses the latest user-configured rates.
+  setCostOverrides(state.settings.costOverrides ?? {});
   listeners.forEach((l) => l());
 }
 

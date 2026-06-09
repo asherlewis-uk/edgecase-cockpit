@@ -92,11 +92,54 @@ export function tryActivateD1RateLimiter(): boolean {
   }
 }
 
+/**
+ * Configure the rate limiter backend from the RATE_LIMIT_BACKEND environment
+ * variable. Called once at cold start.
+ *
+ *   RATE_LIMIT_BACKEND=auto   (default) — try D1, fall back to in-memory
+ *   RATE_LIMIT_BACKEND=d1    — require D1; log error and fall back if unavailable
+ *   RATE_LIMIT_BACKEND=memory — use in-memory explicitly (dev/single-node)
+ *
+ * Returns the name of the active backend for startup diagnostics.
+ */
+export function configureRateLimiterFromEnv(): "d1" | "memory" {
+  const mode = (process.env.RATE_LIMIT_BACKEND ?? "auto").toLowerCase();
+
+  if (mode === "memory") {
+    console.log(
+      "[rate-limit] RATE_LIMIT_BACKEND=memory: using in-memory backend explicitly. " +
+        "Suitable for local dev and single-node deployments.",
+    );
+    return "memory";
+  }
+
+  if (mode === "d1") {
+    const ok = tryActivateD1RateLimiter();
+    if (!ok) {
+      console.error(
+        "[rate-limit] RATE_LIMIT_BACKEND=d1 but D1 is unavailable. " +
+          "Falling back to in-memory rate limiting. " +
+          "Verify that the DB binding is configured in wrangler.jsonc.",
+      );
+    }
+    return ok ? "d1" : "memory";
+  }
+
+  // "auto" or unset: try D1, silently fall back to in-memory
+  const ok = tryActivateD1RateLimiter();
+  return ok ? "d1" : "memory";
+}
+
 let _backend: IRateLimiterBackend | null = null;
 
 /** For tests: reset the active backend to in-memory default. */
 export function __resetRateLimiterBackend(): void {
   _backend = null;
+}
+
+/** Return the name of the currently active rate-limiter backend. */
+export function getActiveRateLimiterBackend(): "d1" | "memory" {
+  return _backend !== null ? "d1" : "memory";
 }
 
 export function setRateLimiterBackend(backend: IRateLimiterBackend) {

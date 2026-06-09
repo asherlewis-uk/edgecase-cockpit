@@ -606,6 +606,34 @@ Before deploying to production:
 - **What is enforced:** Invalid call shape → safe rejection message. Oversized/malformed args → safe rejection. Unknown tool names → `[Tool "{name}" is not implemented]` result. No registered non-built-in tool can reach execution without explicit addition to the built-in safe registry.
 - **Remaining caveat:** The built-in safe registry is hardcoded (4 tools). User-defined tool execution requires a product decision on the permission model. Registered schemas (via `registerLocalTool`) are correctly visible but not executable.
 
+## Release gates
+
+Before pushing to production, run the full live-provider release gate with real API keys:
+
+```bash
+# Run all live provider tests (requires valid API keys)
+RUN_LIVE_PROVIDER_TESTS=true \
+  OPENAI_API_KEY=sk-... \
+  ANTHROPIC_API_KEY=sk-ant-... \
+  GEMINI_API_KEY=AIza... \
+  bun run test
+
+# Strict mode: fail if any expected provider key is absent
+STRICT_LIVE_PROVIDER_TESTS=true \
+  RUN_LIVE_PROVIDER_TESTS=true \
+  OPENAI_API_KEY=sk-... \
+  ANTHROPIC_API_KEY=sk-ant-... \
+  GEMINI_API_KEY=AIza... \
+  bun run test
+```
+
+Live tests cover:
+- OpenAI: chat completion, streaming, embeddings, streaming-with-tools
+- Anthropic: chat completion, streaming-with-tools (content_block events)
+- Gemini: chat completion, streaming (OpenAI-compat path), streaming-with-tools
+
+Normal `bun run test` runs without any provider credentials.
+
 ## Contributing / safe change workflow
 
 1. Run tests, typecheck, lint, and build before opening a PR:

@@ -7,7 +7,7 @@ import { withCspHeaders } from "./lib/csp.server";
 import { validateEnv } from "./lib/env.server";
 import {
   warnInMemoryRateLimitInProduction,
-  tryActivateD1RateLimiter,
+  configureRateLimiterFromEnv,
 } from "./lib/rate-limit.server";
 import { logCustomProviderPolicy } from "./lib/proxy-guard.server";
 
@@ -32,9 +32,10 @@ try {
   );
 }
 
-// Try to activate D1-backed distributed rate limiter. Falls back to
-// in-memory silently if D1 is unavailable.
-tryActivateD1RateLimiter();
+// Configure rate limiter backend from RATE_LIMIT_BACKEND env var.
+// Defaults to "auto": tries D1, falls back to in-memory silently.
+// Set RATE_LIMIT_BACKEND=d1 to require D1 or RATE_LIMIT_BACKEND=memory for dev.
+configureRateLimiterFromEnv();
 
 // Warn if in-memory rate limiting is used in production without acknowledgement.
 warnInMemoryRateLimitInProduction();

@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- test mocks commonly use any */
-
 // ── Mock dependencies ────────────────────────────────────────────────────────
 
 vi.mock("@/lib/cockpit-store", () => ({

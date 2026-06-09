@@ -757,3 +757,56 @@ describe("cross-tab stats sync", () => {
     unsub();
   });
 });
+
+// ---------------------------------------------------------------------------
+// costOverrides
+// ---------------------------------------------------------------------------
+describe("costOverrides", () => {
+  it("defaults costOverrides to empty object", () => {
+    expect(defaultSettings.costOverrides).toEqual({});
+  });
+
+  it("normalizeSettings preserves valid costOverrides", () => {
+    const result = normalizeSettings({
+      costOverrides: { openai: { input: 0.001, output: 0.002 } },
+    });
+    expect(result.costOverrides?.openai?.input).toBe(0.001);
+    expect(result.costOverrides?.openai?.output).toBe(0.002);
+  });
+
+  it("normalizeSettings falls back to empty object for invalid costOverrides", () => {
+    const result = normalizeSettings({ costOverrides: "invalid" });
+    expect(result.costOverrides).toEqual({});
+  });
+
+  it("normalizeSettings falls back to empty object for null costOverrides", () => {
+    const result = normalizeSettings({ costOverrides: null });
+    expect(result.costOverrides).toEqual({});
+  });
+
+  it("store.updateSettings persists costOverrides", () => {
+    store.updateSettings({ costOverrides: { anthropic: { input: 0.005 } } });
+    const state = store.getState();
+    expect(state.settings.costOverrides?.anthropic?.input).toBe(0.005);
+  });
+
+  it("resetting costOverrides to empty clears all overrides", () => {
+    store.updateSettings({ costOverrides: { openai: { input: 0.001 } } });
+    store.updateSettings({ costOverrides: {} });
+    const state = store.getState();
+    expect(Object.keys(state.settings.costOverrides ?? {})).toHaveLength(0);
+  });
+
+  it("provider keys are not included in costOverrides", () => {
+    store.updateSettings({
+      costOverrides: { openai: { input: 0.001 } },
+    });
+    const raw = storage.get("cockpit.settings.v2");
+    expect(raw).toBeDefined();
+    const parsed = JSON.parse(raw!);
+    // Cost overrides should not contain API key material
+    const costJson = JSON.stringify(parsed.costOverrides ?? {});
+    expect(costJson).not.toContain("apiKey");
+    expect(costJson).not.toContain("secret");
+  });
+});
