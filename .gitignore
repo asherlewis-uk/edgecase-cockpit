@@ -42,4 +42,24 @@ dist-ssr
 .rules
 GEMINI.md
 .github/copilot-instructions.md
+
+# Environment files (never commit secrets)
+.env
 .env.local
+.env.*.local
+
+# Signing material (never commit)
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.keystore
+*.jks
+android/key.properties
+
+# Electron build output
+electron/release/
+
+# Capacitor native assets
+ios/App/App/public/
+android/app/src/main/assets/public/
