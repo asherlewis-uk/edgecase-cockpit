@@ -42,3 +42,4 @@ dist-ssr
 .rules
 GEMINI.md
 .github/copilot-instructions.md
+.env.local
