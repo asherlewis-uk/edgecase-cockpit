@@ -32,6 +32,12 @@
 	<array>
 		<string>armv7</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is used for attaching images to chat messages.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is used for voice messages and audio transcription.</string>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
