@@ -22,7 +22,7 @@ android {
             // Read from environment (preferred) or key.properties (ignored, never committed).
             // If nothing is configured the signingConfig is empty and release builds
             // will be unsigned — safe for debug; release signing blocked until configured.
-            storeFile = (System.getenv("ANDROID_KEYSTORE_PATH") ?: null)
+            storeFile = (System.getenv("ANDROID_KEYSTORE_PATH") ? file(System.getenv("ANDROID_KEYSTORE_PATH")) : null)
             storePassword = (System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: null)
             keyAlias = (System.getenv("ANDROID_KEY_ALIAS") ?: null)
             keyPassword = (System.getenv("ANDROID_KEY_PASSWORD") ?: null)
