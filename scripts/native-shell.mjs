@@ -10,6 +10,9 @@
  *   node scripts/native-shell.mjs
  *
  * Called automatically by `bun run native:build`.
+ *
+ * Asset paths are written as relative (./assets/…) so they resolve under
+ * both file:// (Electron production) and http:// (Vite dev / CF Worker).
  */
 
 import { readFileSync, writeFileSync, readdirSync } from "fs";
@@ -37,19 +40,21 @@ const clientEntryMatch = manifestContent.match(/clientEntry:\s*["']([^"']+)["']/
 if (!clientEntryMatch) {
   throw new Error("[native-shell] Could not find clientEntry in manifest.");
 }
-const clientEntry = clientEntryMatch[1]; // e.g. "/assets/index-C918henm.js"
+// Manifest returns absolute paths like "/assets/index-C918henm.js".
+// Convert to relative "./assets/…" so they resolve under file:// (Electron).
+const clientEntry = "." + clientEntryMatch[1]; // e.g. "./assets/index-C918henm.js"
 
 // Extract all stylesheet href values from the root route assets.
 const stylesheetMatches = [
   ...manifestContent.matchAll(/rel:\s*["']stylesheet["'][^}]*href:\s*["']([^"']+)["']/g),
 ];
-const stylesheets = stylesheetMatches.map((m) => m[1]);
+const stylesheets = stylesheetMatches.map((m) => "." + m[1]);
 
 // Also pick up any CSS files directly in dist/client/assets that aren't in the manifest.
 const allClientAssets = readdirSync(`${distClient}/assets`);
 const cssFiles = allClientAssets
   .filter((f) => f.endsWith(".css"))
-  .map((f) => `/assets/${f}`)
+  .map((f) => `./assets/${f}`)
   .filter((href) => !stylesheets.includes(href)); // avoid duplicates
 
 const allStylesheets = [...stylesheets, ...cssFiles];
