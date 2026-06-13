@@ -31,7 +31,7 @@ function createWindow(): void {
     win.loadURL(DEV_URL);
     win.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, "..", "dist", "client", "index.html"));
+    win.loadFile(path.join(__dirname, "..", "..", "dist", "client", "index.html"));
   }
 
   // Open external links in the system browser, not inside Electron.
