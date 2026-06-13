@@ -1,0 +1,12 @@
+{
+  "id": "native-api-base-url",
+  "title": "Native-safe API base URL — fix all relative /api/* calls for native shells",
+  "status": "in_progress",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "implementation",
+  "nextAction": "Create api-base.ts, update all call sites, add server-side CSRF bypass",
+  "createdAt": "2026-06-13T16:46:00Z",
+  "branch": "main"
+}
