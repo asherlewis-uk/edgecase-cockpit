@@ -25,6 +25,7 @@ import {
   resetProviderStats,
   deriveInitials,
 } from "@/lib/cockpit-store";
+import { apiFetch } from "@/lib/api-base";
 import {
   detectProvider,
   type ProviderDef,
@@ -643,7 +644,7 @@ function ProviderCard({
     if (!keyDraft.trim()) return;
     setSaving(true);
     try {
-      await fetch("/api/keys/set", {
+      await apiFetch("/api/keys/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -663,7 +664,7 @@ function ProviderCard({
   const clearKey = async () => {
     setSaving(true);
     try {
-      await fetch("/api/keys/clear", {
+      await apiFetch("/api/keys/clear", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ providerId: p.id }),

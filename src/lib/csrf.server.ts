@@ -5,9 +5,14 @@
 //
 // Security: only same-origin JavaScript can read the cookie, so a cross-origin
 // attacker cannot forge the matching header.
+//
+// Native apps (Electron, Capacitor) load from file:// or capacitor:// and make
+// cross-origin API calls to the deployed Worker. They cannot read the Worker's
+// cookies, so CSRF validation is skipped when the X-Native-App: 1 header is present.
 
 const CSRF_COOKIE = "csrf-token";
 const CSRF_HEADER = "X-CSRF-Token";
+const NATIVE_APP_HEADER = "X-Native-App";
 const TOKEN_BYTES = 32;
 const EXPECTED_TOKEN_LENGTH = TOKEN_BYTES * 2; // hex encoding
 
@@ -58,7 +63,11 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 /**
  * Validate a CSRF token from the X-CSRF-Token header against the csrf-token cookie.
- * For safe methods (GET, HEAD, OPTIONS), validation is skipped.
+ *
+ * Skipped for:
+ * - Safe methods (GET, HEAD, OPTIONS)
+ * - Native app requests (X-Native-App: 1) — native shells cannot read Worker cookies
+ *
  * Returns true if valid, or a Response object with a 403 error if invalid.
  */
 export function validateCsrfToken(request: Request): true | Response {
@@ -66,6 +75,10 @@ export function validateCsrfToken(request: Request): true | Response {
 
   // Safe methods don't need CSRF protection
   if (["GET", "HEAD", "OPTIONS"].includes(method)) return true;
+
+  // Native apps (Electron, Capacitor) make cross-origin requests and
+  // cannot read the Worker's cookies. Skip CSRF for these clients.
+  if (request.headers.get(NATIVE_APP_HEADER) === "1") return true;
 
   const headerToken = request.headers.get(CSRF_HEADER)?.trim();
   if (!headerToken) {
@@ -88,4 +101,4 @@ export function validateCsrfToken(request: Request): true | Response {
   return true;
 }
 
-export { CSRF_COOKIE, CSRF_HEADER };
+export { CSRF_COOKIE, CSRF_HEADER, NATIVE_APP_HEADER };

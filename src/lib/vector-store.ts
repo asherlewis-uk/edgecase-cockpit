@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api-base";
 // Lightweight local vector store using cosine similarity.
 // Persists to localStorage so indexed data survives reloads.
 // Supports sentence-level chunking and server-side sync via D1.
@@ -166,7 +167,7 @@ export function isServerSyncAvailable(): boolean {
 export async function syncVectorDocToServer(doc: VectorDoc): Promise<void> {
   if (!_serverSyncAvailable) return;
   try {
-    await fetch("/api/vector-docs", {
+    await apiFetch("/api/vector-docs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(doc),
@@ -179,7 +180,7 @@ export async function syncVectorDocToServer(doc: VectorDoc): Promise<void> {
 export async function loadVectorDocsFromServer(): Promise<VectorDoc[]> {
   if (!_serverSyncAvailable) return [];
   try {
-    const res = await fetch("/api/vector-docs");
+    const res = await apiFetch("/api/vector-docs");
     if (!res.ok) return [];
     const json = (await res.json()) as { docs: VectorDoc[] };
     return json.docs ?? [];

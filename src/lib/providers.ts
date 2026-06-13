@@ -569,12 +569,13 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
 export type DetectResult = { ok: boolean; status?: number; error?: string };
 
 import { csrfHeaders } from "@/lib/cockpit-store";
+import { apiFetch } from "@/lib/api-base";
 
 /** Server-side reachability probe via the same-origin proxy route. */
 export async function detectProvider(p: ProviderDef): Promise<DetectResult> {
   if (!p.detectUrl) return { ok: false, error: "No detect URL" };
   try {
-    const res = await fetch("/api/proxy/detect", {
+    const res = await apiFetch("/api/proxy/detect", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...csrfHeaders() },
       body: JSON.stringify({ url: p.detectUrl }),
@@ -595,7 +596,7 @@ export async function transcribeAudioViaProxy(
   const fd = new FormData();
   fd.append("providerId", providerId);
   fd.append("file", blob, "speech.webm");
-  const res = await fetch("/api/proxy/transcribe", {
+  const res = await apiFetch("/api/proxy/transcribe", {
     method: "POST",
     headers: csrfHeaders(),
     body: fd,
@@ -616,7 +617,7 @@ export async function callProviderChatViaProxy(opts: ProviderCallOpts): Promise<
   const { provider, baseUrl, model, messages, signal, onDelta, tools, onToolCallDelta } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
 
-  const res = await fetch("/api/proxy/chat", {
+  const res = await apiFetch("/api/proxy/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({

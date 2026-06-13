@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { apiFetch } from "@/lib/api-base";
 import { PROVIDERS, getProvider, type ProviderDef } from "@/lib/providers";
 import type { ToolCall, ToolResult } from "@/lib/tools";
 import { setCostOverrides } from "@/lib/tokens";
@@ -156,7 +157,7 @@ export async function syncTokenUsageToServer(
   exactUsage?: boolean,
 ) {
   try {
-    await fetch("/api/stats", {
+    await apiFetch("/api/stats", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...csrfHeaders() },
       body: JSON.stringify({
@@ -921,7 +922,7 @@ export const store = {
     };
     persist();
     emit();
-    void fetch("/api/keys/clear", { method: "POST" });
+    void apiFetch("/api/keys/clear", { method: "POST" });
   },
 };
 
@@ -929,7 +930,7 @@ async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
   if (entries.length === 0) return;
   await Promise.all(
     entries.map((cfg) =>
-      fetch("/api/keys/set", {
+      apiFetch("/api/keys/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -948,7 +949,7 @@ async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
 
 export async function refreshProviderKeyStatus() {
   try {
-    const res = await fetch("/api/keys/status");
+    const res = await apiFetch("/api/keys/status");
     if (!res.ok) return;
     const json = (await res.json()) as { providers: Record<string, { hasKey: boolean }> };
     const map: Record<string, boolean> = {};
@@ -1017,7 +1018,7 @@ export async function syncThreadToServer(threadId: string): Promise<void> {
   const thread = store.getState().threads.find((t) => t.id === threadId);
   if (!thread || thread.temporary) return;
   try {
-    await fetch(`/api/threads/${threadId}`, {
+    await apiFetch(`/api/threads/${threadId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...csrfHeaders() },
       body: JSON.stringify({

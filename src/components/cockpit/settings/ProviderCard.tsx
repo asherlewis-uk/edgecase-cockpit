@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "@/lib/api-base";
 import { Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2 } from "lucide-react";
 import {
   useStore,
@@ -41,7 +42,7 @@ export function ProviderCard({
     if (!keyDraft.trim()) return;
     setSaving(true);
     try {
-      await fetch("/api/keys/set", {
+      await apiFetch("/api/keys/set", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({
@@ -61,7 +62,7 @@ export function ProviderCard({
   const clearKey = async () => {
     setSaving(true);
     try {
-      await fetch("/api/keys/clear", {
+      await apiFetch("/api/keys/clear", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({ providerId: p.id }),

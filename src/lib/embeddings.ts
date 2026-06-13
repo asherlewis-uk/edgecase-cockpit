@@ -2,13 +2,14 @@
 // sends API keys to third-party endpoints.
 
 import { csrfHeaders } from "@/lib/cockpit-store";
+import { apiFetch } from "@/lib/api-base";
 
 export async function embedTexts(
   texts: string[],
   providerId = "openai",
   model?: string,
 ): Promise<number[][]> {
-  const res = await fetch("/api/proxy/embeddings", {
+  const res = await apiFetch("/api/proxy/embeddings", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({ providerId, model, input: texts }),
