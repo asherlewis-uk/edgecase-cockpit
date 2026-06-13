@@ -1,8 +1,8 @@
 # electron-builder configuration for Edgecase Cockpit desktop builds.
 #
 # Phase 4 checklist before signed release:
-#  - macOS: set CSC_LINK + CSC_KEY_PASSWORD (Developer ID cert) and
-#    APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD for notarization.
+#  - macOS: CSC_LINK + CSC_KEY_PASSWORD (Developer ID cert) and
+#    APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD for notarization are set in .env.local
 #
 # Run: bun run native:desktop:build
 
@@ -24,9 +24,8 @@ files:
 
 mac:
   category: public.app-category.productivity
-  # TODO Phase 4: configure identity for signing.
+  # Signing enabled via CSC_LINK + CSC_KEY_PASSWORD env vars.
   # identity: null means unsigned (development only).
-  identity: null
   target:
     - target: dmg
       arch:
