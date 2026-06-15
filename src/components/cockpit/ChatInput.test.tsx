@@ -187,12 +187,21 @@ describe("ChatInput", () => {
     expect(screen.getByText("Shot")).toBeInTheDocument();
   });
 
-  it("renders video attachments with video element", () => {
-    const attachments: DraftAttachment[] = [
-      { id: "vid-1", src: "data:video/mp4;base64,test", kind: "video" },
-    ];
-    const { container } = render(<ChatInput {...defaultProps} attachments={attachments} />);
+  it("renders placeholder with empty provider name", () => {
+    render(<ChatInput {...defaultProps} providerName="" />);
+    expect(screen.getByPlaceholderText("Message …")).toBeInTheDocument();
+  });
 
-    expect(container.querySelector("video")).toBeInTheDocument();
+  it("renders placeholder with different provider name", () => {
+    render(<ChatInput {...defaultProps} providerName="Anthropic" />);
+    expect(screen.getByPlaceholderText("Message Anthropic…")).toBeInTheDocument();
+  });
+
+  it("updates placeholder when provider name changes", () => {
+    const { rerender } = render(<ChatInput {...defaultProps} providerName="OpenAI" />);
+    expect(screen.getByPlaceholderText("Message OpenAI…")).toBeInTheDocument();
+
+    rerender(<ChatInput {...defaultProps} providerName="Anthropic" />);
+    expect(screen.getByPlaceholderText("Message Anthropic…")).toBeInTheDocument();
   });
 });

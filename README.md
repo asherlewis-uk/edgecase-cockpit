@@ -44,6 +44,9 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 - CSP + security headers on HTML responses
 - Thread CRUD, import/export (JSON/Markdown/TXT), fork, pin, archive, color
 - Offline queue with `localStorage` persistence and auto-drain on reconnect
+- Error and offline state handling (offline queue, reconnect sync, storage failure)
+- First launch / onboarding (modal, skip/complete, persistence)
+- Provider / model setup feedback (status indicators, validation, toast notifications)
 - Keyboard shortcuts (Cmd/Ctrl+K palette, +N new thread, +Enter send, +/ help, Escape stop/close)
 - Command palette with thread/provider/action search and navigation
 - Markdown rendering via `react-markdown` with `remark-gfm`, `rehype-highlight`, tables, inline code
@@ -59,7 +62,7 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 - Screenshot capture via `getDisplayMedia`
 - Image/video attachment support
 - Cross-tab sync for settings, threads, provider stats, and vector store cache invalidation
-- **450 tests across 23 test files** (as of this writing; verified by `bun run test`)
+- **450+ tests across 25 test files** (as of this writing; verified by `bun run test`)
 
 Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test.ts`, `src/routes/api/*.test.ts`.
 
@@ -558,7 +561,7 @@ Source: `src/lib/tokens.ts`, `src/lib/cockpit-store.ts`, `src/routes/api/stats.t
 ### Normal test suite
 
 ```bash
-bun run test          # Run all 450 tests (23 files)
+bun run test          # Run all 450+ tests (25 files)
 bun run typecheck     # tsc --noEmit
 bun run lint          # eslint .
 bun run build         # vite build
@@ -566,9 +569,9 @@ bun run build         # vite build
 
 - **Framework:** Vitest with jsdom environment, globals enabled
 - **Setup:** `src/test/setup.ts` — imports `@testing-library/jest-dom`
-- **Current count:** 450 tests, 23 test files _(verified by `bun run test`)_
+- **Current count:** 450+ tests, 25 test files _(as of 2026-06-15)_
 - **Credential-free:** All normal tests run without any provider API keys
-- **Coverage areas:** CSRF, CSP, rate limiting (D1 backend + in-memory + preset limiters), storage limits, proxy guard, providers, tools (schema registry, name validation, arg sanitization, streaming accumulators), vector store (chunking, add/remove/search/clear, cross-tab sync), tokens (exact extraction, heuristic, cost estimation), cockpit store (defaults, normalization, sync flags, migration), chat hook, keyboard shortcuts, chat input, greeting, RAG/proxy integration, API routes
+- **Coverage areas:** CSRF, CSP, rate limiting (D1 backend + in-memory + preset limiters), storage limits, proxy guard, providers, tools (schema registry, name validation, arg sanitization, streaming accumulators), vector store (chunking, add/remove/search/clear, cross-tab sync), tokens (exact extraction, heuristic, cost estimation), cockpit store (defaults, normalization, sync flags, migration, onboarding), chat hook (offline queue, error handling, provider status), keyboard shortcuts, chat input, greeting, RAG/proxy integration, API routes
 
 ### Live provider tests (opt-in)
 
@@ -776,7 +779,8 @@ Edgecase Cockpit includes a guided onboarding experience for new users:
 1. **Welcome Screen**: Explains what Edgecase Cockpit is and its purpose
 2. **Provider Selection**: Choose from cloud providers (OpenAI, Anthropic, etc.) or local providers (Ollama, LM Studio, etc.)
 3. **Provider Setup**: Get clear instructions on how to configure your chosen provider
-4. **Completion**: Onboarding can be completed or skipped at any time
+
+Onboarding can be completed or skipped at any time (via the **Skip for Now** button or the close control).
 
 ### Onboarding State
 
@@ -849,7 +853,7 @@ All provider configuration is done through the standard Settings interface.
 
 **What to do:**
 1. Wait for the countdown to complete (X seconds)
-2. The request will automatically retry
+2. Click **Retry** to resend the request once the cooldown expires
 3. If you need to cancel, click "Cancel"
 4. Consider upgrading your plan if you frequently hit rate limits
 
@@ -914,15 +918,15 @@ After entering an API key, you can validate it:
 
 - **"API key is valid"** - Your key works and can be used for chat
 - **"Invalid API key"** - The key was rejected by the provider
-- **"Validation timeout"** - Provider is slow or unreachable
-- **"Network error"** - Cannot connect to provider
+- **"Failed to validate key"** - The validation request returned an error
+- **"Network error during validation"** - Cannot connect to the validation endpoint
 - **"No API key set to validate"** - Enter a key first
 
 ### Toast Notifications
 
 When validation completes, you'll see toast notifications:
-- ✅ **"OpenAI API key is valid!"** - Success
-- ❌ **"OpenAI: Invalid API key"** - Failure with reason
+- ✅ **"✅ OpenAI API key is valid!"** - Success
+- ❌ **"❌ OpenAI: Invalid API key"** - Failure with reason
 
 ### Model Selection Feedback
 

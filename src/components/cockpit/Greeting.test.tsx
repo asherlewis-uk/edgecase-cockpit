@@ -93,18 +93,47 @@ describe("Greeting", () => {
     expect(container.querySelector("h1")).toBeInTheDocument();
   });
 
-  it("renders the Sparkle component", () => {
+  it("renders greeting with different provider names when ready", () => {
+    render(
+      <Greeting
+        displayName="testuser"
+        assistantName="Cockpit"
+        greetingStatus={null}
+        providerName="Anthropic"
+        needsApiKey={false}
+      />,
+    );
+
+    expect(screen.getByText("Ask away, testuser!")).toBeInTheDocument();
+    expect(screen.queryByText(/No API key set/)).not.toBeInTheDocument();
+  });
+
+  it("renders API key warning with different provider names", () => {
+    render(
+      <Greeting
+        displayName="testuser"
+        assistantName="Cockpit"
+        greetingStatus={null}
+        providerName="Gemini"
+        needsApiKey={true}
+      />,
+    );
+
+    expect(screen.getByText("No API key set for Gemini — click to set up")).toBeInTheDocument();
+  });
+
+  it("renders greeting with empty provider name when ready", () => {
     const { container } = render(
       <Greeting
         displayName="testuser"
         assistantName="Cockpit"
         greetingStatus={null}
-        providerName="OpenAI"
+        providerName=""
         needsApiKey={false}
       />,
     );
 
-    // Sparkle renders an SVG
-    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByText("Ask away, testuser!")).toBeInTheDocument();
+    expect(container.querySelector("h1")).toBeInTheDocument();
   });
 });

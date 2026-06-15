@@ -35,6 +35,9 @@ All items below were once future work and are now implemented. They are preserve
 | Voice transcription proxy (Whisper-compatible)                              | ✅ Implemented | `src/routes/api/proxy/transcribe.ts`                                                     |
 | Offline queue with auto-drain on reconnect                                  | ✅ Implemented | `src/hooks/use-chat.ts`                                                                  |
 | Opt-in live provider tests with `STRICT_LIVE_PROVIDER_TESTS` mode           | ✅ Implemented | `src/live/providers.live.test.ts`                                                        |
+| Error and offline state handling (offline queue, reconnect sync, storage failure) | ✅ Implemented | `src/hooks/use-chat.ts`, `src/components/cockpit/StatusBar.tsx`                          |
+| First launch / onboarding (modal, skip/complete, persistence)               | ✅ Implemented | `src/components/cockpit/OnboardingModal.tsx`, `src/lib/cockpit-store.ts`               |
+| Provider / model setup feedback (status indicators, validation, toast notifications) | ✅ Implemented | `src/lib/cockpit-store.ts` (`providerValidationStatus`), `src/components/cockpit/settings/ProviderCard.tsx`, `src/routes/settings.tsx` |
 
 ---
 

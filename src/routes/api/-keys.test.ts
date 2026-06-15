@@ -14,6 +14,10 @@ vi.mock("@/lib/session.server", () => ({
   clearProviderCreds: vi.fn(),
 }));
 
+vi.mock("@/lib/validate-key.server", () => ({
+  validateProviderKey: vi.fn(),
+}));
+
 // Mock PROVIDERS to control what providers exist
 vi.mock("@/lib/providers", async () => {
   const actual = await vi.importActual("@/lib/providers");
@@ -30,6 +34,7 @@ import {
   clearProviderCreds,
   getProviderCreds,
 } from "@/lib/session.server";
+import { validateProviderKey } from "@/lib/validate-key.server";
 import { clearRateLimitBuckets } from "@/lib/rate-limit.server";
 
 beforeEach(() => {
@@ -253,6 +258,8 @@ describe("POST /api/keys/clear", () => {
     });
     const res = await handler({ request: req });
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
     expect(clearProviderCreds).toHaveBeenCalledWith(undefined);
   });
 
@@ -264,6 +271,8 @@ describe("POST /api/keys/clear", () => {
     });
     const res = await handler({ request: req });
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
     expect(clearProviderCreds).toHaveBeenCalledWith("openai");
   });
 });
@@ -304,6 +313,38 @@ describe("POST /api/keys/validate", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.results).toEqual({});
+  });
+
+  it("returns validation results for stored providers", async () => {
+    vi.mocked(getCockpitSession).mockResolvedValue({
+      data: {
+        id: "test-session",
+        providers: {
+          openai: { apiKey: "sk-test" },
+          anthropic: { apiKey: "sk-invalid" },
+        },
+      },
+      update: vi.fn(),
+    } as any);
+    vi.mocked(validateProviderKey).mockImplementation(async (provider) => {
+      if (provider.id === "openai") return { valid: true };
+      return { valid: false, error: "auth_failed" };
+    });
+
+    const req = new Request("http://localhost/api/keys/validate", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.results.openai).toEqual({ valid: true });
+    expect(body.results.anthropic).toEqual({
+      valid: false,
+      reason: "auth_failed",
+      userMessage: "Invalid API key",
+      errorType: "auth_failed",
+    });
   });
 });
 
@@ -357,6 +398,20 @@ describe("POST /api/keys/validate/$providerId", () => {
     const body = await res.json();
     expect(body.valid).toBe(false);
     expect(body.reason).toBe("no_key");
+  });
+
+  it("returns valid:true for a working key", async () => {
+    vi.mocked(getProviderCreds).mockResolvedValue({ apiKey: "sk-test" } as any);
+    vi.mocked(validateProviderKey).mockResolvedValue({ valid: true });
+    const req = new Request("http://localhost/api/keys/validate/openai", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+    });
+    const res = await handler({ params: { providerId: "openai" }, request: req });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(true);
+    expect(body.provider).toBe("openai");
   });
 });
 

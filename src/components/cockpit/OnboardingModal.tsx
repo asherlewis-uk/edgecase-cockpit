@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { X, ArrowRight, Settings as SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, store, PROVIDERS } from "@/lib/cockpit-store";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export function OnboardingModal() {
   const [step, setStep] = useState<"welcome" | "providers" | "setup">("welcome");
@@ -42,6 +42,11 @@ export function OnboardingModal() {
               {step === "setup" && "Set Up Your Provider"}
             </DialogTitle>
           </DialogHeader>
+          <DialogDescription className="sr-only">
+            {step === "welcome" && "Welcome to Edgecase Cockpit. Get started by selecting an AI provider or skip for now."}
+            {step === "providers" && "Choose a cloud or local AI provider to connect to your cockpit."}
+            {step === "setup" && "Configure your selected provider with an API key or base URL."}
+          </DialogDescription>
           <Button
             variant="ghost"
             size="icon"

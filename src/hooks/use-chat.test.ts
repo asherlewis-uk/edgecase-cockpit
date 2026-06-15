@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- test mocks commonly use any for flexible stubs */
 
@@ -485,5 +485,40 @@ describe("useChat error handling", () => {
     expect(asst).toBeDefined();
     expect(asst!.content).toBe("Part 1 Part 2");
     expect(asst!.pending).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Offline sync
+// ---------------------------------------------------------------------------
+describe("useChat offline sync", () => {
+  it("drains offline queue when reconnecting", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    mockCallProxy.mockResolvedValue({ text: "Response", raw: {} });
+
+    const { result } = renderHook(() => useChat());
+
+    // isOnline should be false after mount
+    expect(result.current.isOnline).toBe(false);
+
+    await act(async () => {
+      await result.current.sendMessage("offline message");
+    });
+
+    expect(result.current.queueSize).toBe(1);
+    expect(result.current.status).toBe("error");
+    expect(result.current.error).toBe("You're offline. Messages will send when you reconnect.");
+
+    // Reconnect
+    vi.stubGlobal("navigator", { onLine: true });
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    // Wait for async queue drain
+    await waitFor(() => {
+      expect(result.current.queueSize).toBe(0);
+    });
+    expect(result.current.isOnline).toBe(true);
   });
 });

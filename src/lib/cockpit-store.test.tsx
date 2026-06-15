@@ -61,12 +61,24 @@ describe("cockpit-store onboarding state", () => {
     expect(state.settings.onboardingCompleted).toBe(false);
   });
 
-  it("should persist onboarding state", () => {
+  it("should persist completeOnboarding state after reload", () => {
     store.completeOnboarding();
     const state1 = store.getState();
     expect(state1.settings.onboardingCompleted).toBe(true);
 
-    // Simulate page reload by getting state again
+    // Simulate page reload by resetting hydration and reading from localStorage
+    __resetHydration();
+    const state2 = store.getState();
+    expect(state2.settings.onboardingCompleted).toBe(true);
+  });
+
+  it("should persist skipOnboarding state after reload", () => {
+    store.skipOnboarding();
+    const state1 = store.getState();
+    expect(state1.settings.onboardingCompleted).toBe(true);
+
+    // Simulate page reload by resetting hydration and reading from localStorage
+    __resetHydration();
     const state2 = store.getState();
     expect(state2.settings.onboardingCompleted).toBe(true);
   });

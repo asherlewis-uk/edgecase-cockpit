@@ -725,3 +725,49 @@ describe("costOverrides", () => {
     expect(costJson).not.toContain("secret");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Thread persistence after reload
+// ---------------------------------------------------------------------------
+describe("thread persistence after reload", () => {
+  beforeEach(() => {
+    __resetHydration();
+    storage.clear();
+    store.clearAll();
+    __resetHydration();
+  });
+
+  it("recovers threads and messages from localStorage after reload", () => {
+    const threadId = store.newThread();
+    store.addMessage(threadId, {
+      id: "msg-1",
+      role: "user",
+      content: "Hello",
+      ts: Date.now(),
+    });
+    store.addMessage(threadId, {
+      id: "msg-2",
+      role: "assistant",
+      content: "Hi there",
+      ts: Date.now(),
+    });
+
+    // Verify localStorage has the data
+    const rawThreads = storage.get("cockpit.threads.v1");
+    expect(rawThreads).toBeDefined();
+    const parsed = JSON.parse(rawThreads!);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].messages).toHaveLength(2);
+
+    // Simulate reload
+    __resetHydration();
+    const state = store.getState();
+
+    expect(state.threads).toHaveLength(1);
+    expect(state.threads[0].messages).toHaveLength(2);
+    expect(state.threads[0].messages[0].content).toBe("Hello");
+    expect(state.threads[0].messages[0].role).toBe("user");
+    expect(state.threads[0].messages[1].content).toBe("Hi there");
+    expect(state.threads[0].messages[1].role).toBe("assistant");
+  });
+});
