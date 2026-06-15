@@ -31,7 +31,7 @@ export function Greeting({
           onClick={() => navigate({ to: "/settings" })}
           className="mt-5 flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs text-amber-200"
         >
-          <AlertCircle className="size-3.5" /> No API key set for {providerName}
+          <AlertCircle className="size-3.5" /> No API key set for {providerName} — click to configure
         </button>
       )}
     </div>

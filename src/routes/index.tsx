@@ -33,6 +33,7 @@ import { CommandPalette } from "@/components/cockpit/CommandPalette";
 import { Greeting } from "@/components/cockpit/Greeting";
 import { ModelPicker } from "@/components/cockpit/ModelPicker";
 import { ShortcutHelp } from "@/components/cockpit/ShortcutHelp";
+import { OnboardingModal } from "@/components/cockpit/OnboardingModal";
 import { StatusBar } from "@/components/cockpit/StatusBar";
 import { ThreadOverflowMenu as ExtractedThreadOverflowMenu } from "@/components/cockpit/ThreadOverflowMenu";
 import { useStore, store, PROVIDERS, resolveProvider, type Message } from "@/lib/cockpit-store";
@@ -610,6 +611,7 @@ export function Cockpit() {
           displayMod={displayMod}
           shortcuts={settings.keyboardShortcuts}
         />
+        <OnboardingModal />
       </CockpitErrorBoundary>
     </div>
   );

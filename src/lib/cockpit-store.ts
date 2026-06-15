@@ -60,6 +60,8 @@ export type Settings = {
   pinnedProviderIds: string[];
   /** Per-provider cost rate overrides (USD per 1,000 tokens). Persisted locally only. */
   costOverrides?: Record<string, { input?: number; output?: number }>;
+  /** Onboarding completion state. Persisted locally only. */
+  onboardingCompleted?: boolean;
 };
 
 export type Message = {
@@ -204,6 +206,7 @@ export const defaultSettings: Settings = {
   providers: {},
   pinnedProviderIds: [],
   costOverrides: {},
+  onboardingCompleted: false,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -371,6 +374,10 @@ export function normalizeSettings(raw: Partial<Settings> | unknown): Settings {
       !Array.isArray(source.costOverrides)
         ? (source.costOverrides as Record<string, { input?: number; output?: number }>)
         : defaultSettings.costOverrides,
+    onboardingCompleted:
+      typeof source.onboardingCompleted === "boolean"
+        ? source.onboardingCompleted
+        : defaultSettings.onboardingCompleted,
   };
 }
 
@@ -611,6 +618,15 @@ export const store = {
       ? state.settings.pinnedProviderIds.filter((x) => x !== id)
       : [...state.settings.pinnedProviderIds, id];
     this.updateSettings({ pinnedProviderIds: pinned });
+  },
+  completeOnboarding() {
+    this.updateSettings({ onboardingCompleted: true });
+  },
+  skipOnboarding() {
+    this.updateSettings({ onboardingCompleted: true });
+  },
+  resetOnboarding() {
+    this.updateSettings({ onboardingCompleted: false });
   },
   newThread(opts?: { temporary?: boolean }): string {
     const t: Thread = {
@@ -971,3 +987,7 @@ export function csrfHeaders(): Record<string, string> {
 }
 
 export { PROVIDERS };
+
+export function useOnboardingState() {
+  return useStore((s) => s.settings.onboardingCompleted);
+}

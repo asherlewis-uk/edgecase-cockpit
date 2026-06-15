@@ -767,6 +767,43 @@ The hybrid architecture requires each native platform to allow direct HTTP reque
 
 ---
 
+## First Launch and Onboarding
+
+### Onboarding Flow
+
+Edgecase Cockpit includes a guided onboarding experience for new users:
+
+1. **Welcome Screen**: Explains what Edgecase Cockpit is and its purpose
+2. **Provider Selection**: Choose from cloud providers (OpenAI, Anthropic, etc.) or local providers (Ollama, LM Studio, etc.)
+3. **Provider Setup**: Get clear instructions on how to configure your chosen provider
+4. **Completion**: Onboarding can be completed or skipped at any time
+
+### Onboarding State
+
+- Onboarding completion is stored in `localStorage` under `cockpit.settings.v2.onboardingCompleted`
+- Once completed, onboarding will not reappear unless explicitly reset
+- Users can skip onboarding and access it later through settings if needed
+
+### Resetting Onboarding
+
+To reset onboarding for testing or if a user wants to see it again:
+
+```javascript
+import { store } from "@/lib/cockpit-store";
+store.resetOnboarding();
+```
+
+### Provider Configuration
+
+The onboarding flow guides users to:
+
+1. **Set up API keys** for cloud providers in Settings
+2. **Configure base URLs** for local providers if needed
+3. **Select models** and other provider-specific options
+4. **Test connections** where supported
+
+All provider configuration is done through the standard Settings interface.
+
 ## Troubleshooting
 
 ### Error and Offline States
