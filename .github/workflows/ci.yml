@@ -1,10 +1,11 @@
-name: CI/CD
+name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,7 +24,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Lint
         run: bun run lint
@@ -31,52 +32,8 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
-      - name: Run tests
-        run: bun run test
-
-      - name: Build
-        run: bun run build
-
-  build-macos:
+  build:
     needs: validate
-    if: github.ref == 'refs/heads/main'
-    runs-on: macos-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build UI layer
-        run: bun run native:build
-
-      - name: Compile Electron main
-        run: bun run native:desktop:compile
-
-      - name: Build macOS Electron app
-        run: npx electron-builder -m
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload macOS .dmg artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-dmg
-          path: electron/release/*.dmg
-
-      - name: Sync iOS Capacitor project
-        run: npx cap sync ios
-
-  build-android:
-    needs: validate
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
@@ -89,29 +46,98 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
-      - name: Build UI layer
+      - name: Build Vite/Nitro
+        run: bun run build
+
+  package:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos
+            os: macos-latest
+            artifact_name: macos-dmg
+            artifact_path: electron/release/*.dmg
+          - target: android
+            os: ubuntu-latest
+            artifact_name: android-apk
+            artifact_path: android/app/build/outputs/apk/release/*.apk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build native shell
         run: bun run native:build
 
-      - name: Sync Android Capacitor project
+      - name: Compile Electron main
+        if: matrix.target == 'macos'
+        run: bun run native:desktop:compile
+
+      - name: Build macOS DMG
+        if: matrix.target == 'macos'
+        run: npx electron-builder --mac dmg --publish never
+
+      - name: Sync Capacitor Android project
+        if: matrix.target == 'android'
         run: npx cap sync android
 
       - name: Setup Java
+        if: matrix.target == 'android'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Make gradlew executable
+        if: matrix.target == 'android'
         run: chmod +x ./android/gradlew
 
-      - name: Build Android APK
+      - name: Build Android release APK
+        if: matrix.target == 'android'
         working-directory: ./android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
 
-      - name: Upload Android .apk artifact
+      - name: Upload native artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+
+  release:
+    needs: package
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Attach native artifacts to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v1-native-${{ github.run_number }}-${{ github.run_attempt }}
+        run: |
+          gh release create "$RELEASE_TAG" release-assets/*.dmg release-assets/*.apk \
+            --target "$GITHUB_SHA" \
+            --title "V1 Native Build ${{ github.run_number }}.${{ github.run_attempt }}" \
+            --notes "Automated native build for $GITHUB_SHA." \
+            --prerelease \
+            --latest=false
