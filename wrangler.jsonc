@@ -2,15 +2,24 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "edgecase-cockpit",
   "compatibility_date": "2025-09-24",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "main": "dist/server/server.js",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": ".output/server/index.mjs",
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "edgecase-cockpit",
       "database_id": "f89b278d-301f-4a98-a018-b92eeb279449"
+    }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".output/public"
+  },
+  "no_bundle": true,
+  "rules": [
+    {
+      "type": "ESModule",
+      "globs": ["**/*.mjs", "**/*.js"]
     }
   ]
 }
