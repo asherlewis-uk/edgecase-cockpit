@@ -124,6 +124,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
       - name: Download native artifacts
         uses: actions/download-artifact@v8
         with:
@@ -135,9 +138,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: v1-native-${{ github.run_number }}-${{ github.run_attempt }}
         run: |
+          # Create or update the release with native artifacts
           gh release create "$RELEASE_TAG" release-assets/*.dmg release-assets/*.apk \
             --target "$GITHUB_SHA" \
             --title "V1 Native Build ${{ github.run_number }}.${{ github.run_attempt }}" \
             --notes "Automated native build for $GITHUB_SHA." \
             --prerelease \
-            --latest=false
+            --latest=false \
+            --force
