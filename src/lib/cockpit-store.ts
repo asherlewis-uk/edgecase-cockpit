@@ -462,6 +462,7 @@ function hydrate() {
     threads: readArr<Thread>(THREADS_KEY),
     activeThreadId: null,
     providerKeyStatus: {},
+    providerValidationStatus: {},
   };
   setupCrossTabSync();
   persist();
@@ -903,6 +904,7 @@ export const store = {
       threads: [],
       activeThreadId: null,
       providerKeyStatus: {},
+      providerValidationStatus: {},
     };
     persist();
     emit();

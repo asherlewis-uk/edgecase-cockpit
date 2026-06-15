@@ -33,6 +33,7 @@ import {
   type Capability,
   type DetectResult,
 } from "@/lib/providers";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -73,16 +74,16 @@ function SettingsPage() {
     Object.entries(validationStatuses).forEach(([providerId, status]) => {
       if (status.status === "valid" && status.lastValidated) {
         // Show success toast for valid validation
-        if (typeof window !== "undefined" && window.toast) {
+        if (typeof window !== "undefined") {
           const provider = PROVIDERS.find((p) => p.id === providerId);
-          window.toast.success(`✅ ${provider?.name ?? providerId} API key is valid!`);
+          toast.success(`✅ ${provider?.name ?? providerId} API key is valid!`);
         }
       } else if (status.status === "invalid" || status.status === "error") {
         // Show error toast for invalid/failed validation
-        if (typeof window !== "undefined" && window.toast) {
+        if (typeof window !== "undefined") {
           const provider = PROVIDERS.find((p) => p.id === providerId);
           const message = status.message ?? "Validation failed";
-          window.toast.error(`❌ ${provider?.name ?? providerId}: ${message}`);
+          toast.error(`❌ ${provider?.name ?? providerId}: ${message}`);
         }
       }
     });

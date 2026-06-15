@@ -5,7 +5,7 @@ import { store } from "@/lib/cockpit-store";
 
 // Mock the store functions
 vi.mock("@/lib/cockpit-store", async () => {
-  const actual = await vi.importActual("@/lib/cockpit-store");
+  const actual = await vi.importActual("@/lib/cockpit-store") as typeof import("@/lib/cockpit-store");
   return {
     ...actual,
     store: {

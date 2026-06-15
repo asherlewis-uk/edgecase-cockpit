@@ -32,6 +32,7 @@ import {
 } from "@/lib/tools";
 import { embedTexts } from "@/lib/embeddings";
 import { addVectorDocs, searchVectorStore, chunkText } from "@/lib/vector-store";
+import { toast } from "sonner";
 
 // ── Offline queue localStorage persistence ──────────────────────────────────
 const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";
@@ -164,8 +165,8 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       setIsOnline(true);
       const q = queueRef.current.splice(0);
       const saveSuccess = saveOfflineQueue(queueRef.current);
-      if (!saveSuccess && typeof window !== "undefined" && window.toast) {
-        window.toast.error("Message could not be saved. Free up space or try again.");
+      if (!saveSuccess && typeof window !== "undefined") {
+        toast.error("Message could not be saved. Free up space or try again.");
       }
       setQueueSize(0);
       (async () => {
@@ -173,8 +174,8 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
           await sendMessageRef.current?.(item.text, item.imageAttachments, item.videoAttachments);
         }
         // Show success message after syncing queued messages
-        if (q.length > 0 && typeof window !== "undefined" && window.toast) {
-          window.toast.success("Your queued messages have been sent.");
+        if (q.length > 0 && typeof window !== "undefined") {
+          toast.success("Your queued messages have been sent.");
         }
       })();
     };
