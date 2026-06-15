@@ -1,33 +1,33 @@
 # edgecase-cockpit
 
-> A provider-native AI chat console — local-first, self-hosted, multi-provider.
+> A provider-native AI chat console — hybrid cloud/local, self-hosted, multi-provider.
 
 ## Release targets
 
 > [!IMPORTANT]
-> V1 is **NOT READY**. V1 requires macOS native, iOS native, and Android native. None of these exist yet.
+> V1 targets **macOS native, iOS native, and Android native**. Scaffolding exists for all three. The hybrid architecture (local providers direct-fetch, cloud providers via proxy) is now implemented and verified.
 
-| Target | V1 required | Status | Notes |
-|---|---|---|---|
-| macOS native | **Yes** | ❌ Not implemented | No Electron wrapper configured |
-| iOS native | **Yes** | ❌ Not implemented | No Xcode project, Capacitor, or Tauri mobile target |
-| Android native | **Yes** | ❌ Not implemented | No Gradle project, Capacitor, or Tauri mobile target |
-| Web build (Vite) | Supporting surface | ✅ Builds | `bun run build` passes — client + SSR artifacts in `dist/` |
-| Cloudflare Workers backend | Supporting surface | ✅ Configured | `wrangler.jsonc` + D1 configured; deployment is a separate step |
+| Target                     | V1 required        | Status             | Notes                                                           |
+| -------------------------- | ------------------ | ------------------ | --------------------------------------------------------------- |
+| macOS native (Electron)   | **Yes**            | ⚠️ Scaffolded, unsigned | CORS bypass configured for localhost providers; `electron/main.ts` |
+| iOS native (Capacitor)    | **Yes**            | ⚠️ Scaffolded, unverified | `NSLocalNetworkUsageDescription` + `CapacitorHttp` enabled |
+| Android native (Capacitor) | **Yes**            | ⚠️ Scaffolded, unverified | `usesCleartextTraffic="true"` + `CapacitorHttp` enabled |
+| Web build (Vite)           | Supporting surface | ✅ Builds          | `bun run build` passes — client + SSR artifacts in `dist/`      |
+| Cloudflare Workers backend | Supporting surface | ✅ Configured      | `wrangler.jsonc` + D1 configured; deployment is a separate step |
 
-**V1 is not achieved by a passing web build.** A passing web/Cloudflare build is a prerequisite for the backend surface only. V1 requires packaged, installable native applications for macOS, iOS, and Android.
+**V1 is not achieved by scaffolding alone.** A passing web/Cloudflare build is a prerequisite, and native projects exist, but V1 requires verified, signed, installable native applications for macOS, iOS, and Android with automated user-flow coverage.
 
-Native packaging tooling (Tauri, Capacitor, or equivalent) has not been selected or added. See [`docs/roadmap/FUTURE_ENHANCEMENTS.md`](docs/roadmap/FUTURE_ENHANCEMENTS.md) for the V1 native blocker tracking.
+Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). The iOS Xcode project, Android Gradle project, and Electron builder config are all in the repo. However, **none have been verified as release-ready builds** — there is no automated user-flow E2E coverage for any native target, no signing/notarization for macOS, and no app-store submission pipeline for iOS/Android. See [`docs/roadmap/FUTURE_ENHANCEMENTS.md`](docs/roadmap/FUTURE_ENHANCEMENTS.md) for the remaining V1 native blockers.
 
 ## 1. What is edgecase-cockpit?
 
 `edgecase-cockpit` is a unified chat interface for both cloud LLM APIs and local/self-hosted inference endpoints. It is a **TanStack Start + React + Cloudflare Workers** application with SSR.
 
-**Device-local privacy model (default):** Chats, threads, and messages are stored in `localStorage` only. No chat data reaches the server unless you explicitly opt in. Manual export/import (JSON/Markdown/TXT) is the intended cross-device portability path. RAG vector/text data is also device-local by default. D1 is used for distributed rate limiting, encrypted session data, and usage statistics — not for automatic chat or vector storage.
+**Device-local privacy model:** Chats, threads, and messages are stored in `localStorage` only. They never reach the server. Manual export/import (JSON/Markdown/TXT) is the cross-device portability path. RAG vector/text data is also device-local. D1 is used for distributed rate limiting, encrypted session data, and usage statistics — chat data is never stored in D1.
 
 **API key security:** Keys are stored server-side in encrypted cookie sessions. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`.
 
-Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`, `syncChatsToServer: false`, `syncRagVectorsToServer: false`), `src/lib/db/schema.sql`, `wrangler.jsonc`.
+Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/schema.sql`, `wrangler.jsonc`.
 
 ---
 
@@ -67,35 +67,34 @@ Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test
 
 ## 3. Privacy and data model
 
-| Data | Default storage | Opt-in alternative |
-|---|---|---|
-| Chat threads and messages | `localStorage` (device-local) | D1 via `syncChatsToServer: true` |
-| Settings (profile, personalization, shortcuts, RAG) | `localStorage` | — (no server sync) |
-| Provider API keys | Encrypted server session cookie | — |
-| RAG vectors and text chunks | `localStorage` + in-memory | D1 via `syncRagVectorsToServer: true` |
-| Provider stats (counts, tokens, cost) | `localStorage` | Always synced to D1 `provider_stats` (no message content) |
-| Usage records (per-call model/token/cost) | D1 `usage_records` | — |
-| Rate limit state | In-memory (fallback) or D1 `rate_limits` | — |
-| Session/security data | D1 `sessions` | — |
+| Data                                                | Storage                              | Notes                                                                 |
+| --------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------- |
+| Chat threads and messages                           | `localStorage` (device-local)        | Never synced to server. Export/import via JSON/Markdown/TXT.          |
+| Settings (profile, personalization, shortcuts, RAG) | `localStorage`                       | Device-local only.                                                    |
+| Provider API keys                                   | Encrypted server session cookie      | Browser never holds plaintext keys.                                   |
+| RAG vectors and text chunks                         | `localStorage` + in-memory           | Device-local only.                                                    |
+| Provider stats (counts, tokens, cost)             | `localStorage`                       | Device-local only.                                                    |
+| Usage records (per-call model/token/cost)           | `localStorage`                       | Device-local only.                                                    |
+| Rate limit state                                    | In-memory (fallback) or D1 `rate_limits` | Server-side for cloud providers.                                   |
+| Session/security data                               | D1 `sessions`                        | Server-side only.                                                     |
 
 **Defaults proven by source:**
-- `syncChatsToServer: false` — `src/lib/cockpit-store.ts` (`defaultSettings`)
-- `syncRagVectorsToServer: false` — same
-- `_serverSyncAvailable = false` — `src/lib/vector-store.ts`; server sync functions are dormant unless explicitly enabled
-- `normalizeSettings()` migrates legacy settings so missing fields default to `false`, not `true`
-- Provider API keys stripped from `localStorage` in `persist()` before every write
 
-**What D1 stores by default (without opt-in):**
+- Chat data is device-local only — `src/lib/cockpit-store.ts` (`persist`, `localStorage`)
+- `_serverSyncAvailable = false` — `src/lib/vector-store.ts`; server sync functions are dormant
+- Provider API keys stripped from `localStorage` in `persist()` before every write
+- `normalizeSettings()` migrates legacy settings so missing fields default to safe values
+
+**What D1 stores (server-side only, no chat content):**
+
 - `sessions`: encrypted session data (no message content)
-- `provider_stats`: aggregate call counts, token counts, and estimated cost per provider (no message content)
-- `usage_records`: per-call rows with model, token counts, and cost (no message content)
 - `rate_limits`: rate limiter window state
 
-**What D1 stores only with explicit opt-in:**
-- `threads`: full message content including all conversation history — requires `syncChatsToServer: true`
-- `vector_docs`: RAG text chunks and embedding vectors — requires `syncRagVectorsToServer: true`
+**What D1 does NOT store:**
 
-> **Privacy warning:** Enabling either server sync flag causes full message/text content to be stored on the Cloudflare D1 backend. Review your data residency requirements before enabling.
+- Chat threads, messages, or conversation history — all device-local in `localStorage`
+- RAG vectors, text chunks, or embeddings — all device-local in `localStorage`
+- Provider stats (calls, tokens, cost) — all device-local in `localStorage`
 
 Sources: `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`, `src/lib/db/schema.sql`, `src/lib/cockpit-store.test.ts`.
 
@@ -103,14 +102,14 @@ Sources: `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`, `src/lib/db/sche
 
 ## 4. Manual chat portability
 
-Chat data is **not automatically shared across devices**. The supported cross-device transfer mechanism is manual export/import:
+> **Manual export/import is the only cross-device chat portability path.** There is no automatic cross-device chat sync. JSON/Markdown/TXT export and import via `cockpit-store.ts` `exportThread()` / `importThreads()` is the intended mechanism. This is intentional — the device-local default is the product's privacy model.
 
 - **Export formats:** JSON (full thread with all messages), Markdown, plain text
-- **Import:** `POST /api/threads/import` accepts a thread JSON payload (CSRF + rate-limit guarded, storage-limits enforced)
-- **Fork:** `/api/threads/$id/fork` creates a local copy of an existing thread
+- **Import:** `store.importThreads(threads)` accepts a thread JSON array and merges into local state
+- **Fork:** `store.forkThread(id)` creates a local copy of an existing thread
 - **Pin/archive:** local state, persisted in `localStorage`
 
-Sources: `src/routes/api/threads.import.ts`, `src/routes/api/threads.$id.export.ts`, `src/routes/api/threads.$id.fork.ts`.
+Sources: `src/lib/cockpit-store.ts` (`exportThread`, `importThreads`, `forkThread`).
 
 ---
 
@@ -171,12 +170,14 @@ src/
 │       ├── UsageSection.tsx
 │       └── SharedFields.tsx
 ├── hooks/
-│   ├── use-chat.ts            # Core chat logic (streaming, RAG, tools, queue, retry)
+│   ├── use-chat.ts            # Core chat logic (streaming, RAG, tools, queue, retry, hybrid routing)
 │   ├── use-keyboard-shortcuts.ts
 │   └── use-mobile.tsx
 ├── lib/                       # Shared libraries
 │   ├── cockpit-store.ts       # Central client state (Zustand-like, useSyncExternalStore)
-│   ├── providers.ts           # Provider catalog + chat call helpers
+│   ├── providers.ts           # Provider catalog + chat call helpers (direct + proxy)
+│   ├── chat-payloads.ts       # Client-safe request body builders (extracted from proxy)
+│   ├── api-base.ts            # Native-safe fetch wrapper + directFetch for local providers
 │   ├── tools.ts               # Tool schema, validation, serialization, parsing, execution
 │   ├── tokens.ts              # Token estimation + exact usage extraction + cost
 │   ├── embeddings.ts          # Client helper for embedding proxy
@@ -209,25 +210,27 @@ src/
 
 ### Data flows
 
-**Chat request:**
+**Chat request (hybrid routing):**
+
 1. User sends a message in `ChatInput.tsx`
 2. `sendMessage` in `use-chat.ts` adds the user message to the active thread in `cockpit-store.ts`
-3. If RAG is enabled, the message text is embedded via `embedTexts` (`embeddings.ts` → `POST /api/proxy/embeddings`) and stored in `vector-store.ts`
+3. If RAG is enabled, the message text is embedded via `embedTexts` (`embeddings.ts` → `POST /api/proxy/embeddings` for cloud providers, or direct fetch for local providers) and stored in `vector-store.ts`
 4. `runAssistant` builds the chat history including personalization system message and optional RAG context
-5. `callProviderChatViaProxy` sends `POST /api/proxy/chat` with CSRF headers
-6. `src/routes/api/proxy/chat.ts` validates CSRF, rate limit, URL allowlist, fetches API key from encrypted session, and proxies to the provider
-7. For streaming: SSE deltas are parsed and patched into the placeholder message via `store.patchMessage`
-8. On success: token usage is extracted from provider response (exact if available, heuristic otherwise) and recorded locally + synced to D1 `provider_stats`/`usage_records`
-9. On error: error is deduplicated, rate-limit cooldown may be set, offline messages are queued
+5. **Routing decision:** `provider.type === "local"` → `callProviderChat` (direct fetch to daemon); `provider.type === "cloud"` → `callProviderChatViaProxy` (POST `/api/proxy/chat` with CSRF headers)
+6. For **cloud** providers: `src/routes/api/proxy/chat.ts` validates CSRF, rate limit, URL allowlist, fetches API key from encrypted session, and proxies to the provider
+7. For **local** providers: `callProviderChat` builds the request body via `src/lib/chat-payloads.ts` and makes a direct `fetch` to the daemon URL. Zero network calls to the app's infrastructure.
+8. For streaming: SSE deltas are parsed and patched into the placeholder message via `store.patchMessage`
+9. On success: token usage is extracted from provider response (exact if available, heuristic otherwise) and recorded locally
+10. On error: error is deduplicated, rate-limit cooldown may be set (cloud only), offline messages are queued, local provider failures show a clean timeout message
 
 **Thread persistence:**
-1. Threads live in `localStorage` via `cockpit-store.ts`
-2. Server sync to D1 is **off by default** — gated behind `settings.syncChatsToServer` (default `false`)
-3. When enabled, non-temporary threads sync via `syncThreadToServer` (`PATCH /api/threads/$id`)
-4. Temporary threads are never synced to the server
-5. Cross-tab sync via `storage` events propagates settings, threads, provider stats, and vector store cache invalidation
+
+1. Threads live in `localStorage` via `cockpit-store.ts` — server sync is **not available**
+2. Cross-tab sync via `storage` events propagates settings, threads, provider stats, and vector store cache invalidation
+3. Manual export/import (JSON/Markdown/TXT) is the cross-device transfer mechanism
 
 **Tools/function-calling:**
+
 1. If tools are defined and the provider has `streamingTools: true`, streaming tool-call deltas are parsed in real time
 2. If `streamingTools` is `false`, tools disable streaming (non-streaming response is parsed for complete tool calls)
 3. `MessageRow.tsx` renders tool calls as cards; user must click "Execute"
@@ -240,23 +243,23 @@ Sources: `src/hooks/use-chat.ts`, `src/lib/cockpit-store.ts`, `src/lib/providers
 
 ## 6. Provider support and capability matrix
 
-| Provider | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Type | Body style |
-|---|---|---|---|---|---|---|---|---|---|
-| OpenAI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Cloud | openai |
-| Anthropic | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | Cloud | anthropic |
-| Google Gemini | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Cloud | openai |
-| Moonshot / KimiCoding | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud | openai |
-| OpenRouter | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | Cloud | openai |
-| Ollama Cloud | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | Cloud | openai |
-| NVIDIA NIM | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Cloud | openai |
-| Vercel AI Gateway | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Cloud | openai |
-| Ollama (local) | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Local | openai |
-| LM Studio | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local | openai |
-| Hermes | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | Local | openai |
-| OpenClaw | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | Local | openai |
-| vLLM | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | Local | openai |
-| llama.cpp server | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | Local | openai |
-| Custom (OpenAI-compatible) | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | Local | openai |
+| Provider                   | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Type  | Body style |
+| -------------------------- | ---- | ------ | ----- | --------------- | ---------- | ------ | ------------- | ----- | ---------- |
+| OpenAI                     | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Cloud | openai     |
+| Anthropic                  | ✅   | ✅     | ✅    | ✅              | ❌         | ✅     | ❌            | Cloud | anthropic  |
+| Google Gemini              | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Cloud | openai     |
+| Moonshot / KimiCoding      | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Cloud | openai     |
+| OpenRouter                 | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Cloud | openai     |
+| Ollama Cloud               | ✅   | ✅     | ❌    | ❌              | ✅         | ❌     | ❌            | Cloud | openai     |
+| NVIDIA NIM                 | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
+| Vercel AI Gateway          | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
+| Ollama (local)             | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| LM Studio                  | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| Hermes                     | ✅   | ✅     | ✅    | ❌              | ✅         | ❌     | ❌            | Local | openai     |
+| OpenClaw                   | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Local | openai     |
+| vLLM                       | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| llama.cpp server           | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| Custom (OpenAI-compatible) | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ✅            | Local | openai     |
 
 **Streaming tools** is implemented client-side via `StreamToolCallAccumulator` (OpenAI body style) and `AnthropicStreamToolCallAccumulator` + `extractAnthropicToolCallDelta` (Anthropic body style). Gemini uses the OpenAI-compatible path. Providers without `streamingTools: true` in their capability flags fall back to non-streaming when tools are present.
 
@@ -274,12 +277,12 @@ Source: `src/lib/providers.ts` (capability declarations), `src/hooks/use-chat.ts
 
 Four tools are registered in `BUILT_IN_TOOLS` and can be executed by the user after provider delivery:
 
-| Tool name | Description |
-|---|---|
-| `get_current_time` | Returns current ISO date/time |
-| `echo` | Echoes provided text unchanged |
-| `word_count` | Returns word count of provided text |
-| `calculator` | Evaluates safe arithmetic expressions (`+`, `-`, `*`, `/`, `%`, `**`, parentheses) |
+| Tool name          | Description                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| `get_current_time` | Returns current ISO date/time                                                      |
+| `echo`             | Echoes provided text unchanged                                                     |
+| `word_count`       | Returns word count of provided text                                                |
+| `calculator`       | Evaluates safe arithmetic expressions (`+`, `-`, `*`, `/`, `%`, `**`, parentheses) |
 
 Source: `src/lib/tools.ts` (`BUILT_IN_TOOLS`, `executeBuiltInTool`).
 
@@ -300,6 +303,7 @@ Source: `src/lib/tools.ts`, `src/routes/api/tools/schemas.ts`.
 ### Safety guards
 
 Three-layer validation in `executeTool` (`use-chat.ts`):
+
 1. **`validateToolCall(call)`** — enforces id/name/args shape
 2. **`sanitizeToolCallArgs(call.arguments)`** — validates JSON arguments as a plain object, ≤16 KB
 3. **`isBuiltInTool(name)`** gate before `executeBuiltInTool`
@@ -351,14 +355,14 @@ Source: `src/lib/vector-store.ts`, `src/lib/embeddings.ts`, `src/routes/api/prox
 
 ### Non-proxy route limits (per session, per minute)
 
-| Route category | Limit |
-|---|---|
-| Keys (set/clear/validate) | 20/min |
-| Threads (create/update/delete/import/fork/pin) | 60/min |
-| Usage (read) | 60/min |
-| Stats (read/write/reset) | 60/min |
-| Session bootstrap | 30/min |
-| Health check | 120/min |
+| Route category                                 | Limit   |
+| ---------------------------------------------- | ------- |
+| Keys (set/clear/validate)                      | 20/min  |
+| Threads (create/update/delete/import/fork/pin) | 60/min  |
+| Usage (read)                                   | 60/min  |
+| Stats (read/write/reset)                       | 60/min  |
+| Session bootstrap                              | 30/min  |
+| Health check                                   | 120/min |
 
 ### Proxy route limits
 
@@ -401,14 +405,14 @@ Source: `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts`.
 
 ### Storage limits (HTTP 413 on violation)
 
-| Limit | Value |
-|---|---|
-| Max threads per session | 2,000 |
-| Max messages per thread | 2,000 |
-| Max message content length | 100,000 chars |
-| Max thread title length | 512 chars |
-| Max attachment URLs per message | 50 |
-| Max imported threads | 100 |
+| Limit                           | Value         |
+| ------------------------------- | ------------- |
+| Max threads per session         | 2,000         |
+| Max messages per thread         | 2,000         |
+| Max message content length      | 100,000 chars |
+| Max thread title length         | 512 chars     |
+| Max attachment URLs per message | 50            |
+| Max imported threads            | 100           |
 
 ### API key handling
 
@@ -440,9 +444,9 @@ Source: `src/lib/env.server.ts`, `src/lib/csrf.server.ts`, `src/lib/csp.server.t
     {
       "binding": "DB",
       "database_name": "edgecase-cockpit",
-      "database_id": "f89b278d-301f-4a98-a018-b92eeb279449"
-    }
-  ]
+      "database_id": "f89b278d-301f-4a98-a018-b92eeb279449",
+    },
+  ],
 }
 ```
 
@@ -468,15 +472,15 @@ Tables: `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`,
 
 ### Environment variables
 
-| Name | Required | Purpose |
-|---|---|---|
-| `SESSION_SECRET` | **Yes** | Encryption key for cookie sessions (≥32 chars) |
-| `NODE_ENV` | No | Runtime environment (`development` / `production`) |
-| `LOG_LEVEL` | No | Structured logger level |
-| `DB` | Yes (platform binding) | Cloudflare D1 binding (configured in `wrangler.jsonc`) |
-| `RATE_LIMIT_BACKEND` | No | `auto` (default), `d1`, or `memory` |
-| `ALLOW_IN_MEMORY_RATE_LIMIT` | Production opt-in | Set `true` to acknowledge in-memory rate limiting in production |
-| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production opt-in | Set `true` to allow wildcard host matching for the custom provider |
+| Name                          | Required               | Purpose                                                            |
+| ----------------------------- | ---------------------- | ------------------------------------------------------------------ |
+| `SESSION_SECRET`              | **Yes**                | Encryption key for cookie sessions (≥32 chars)                     |
+| `NODE_ENV`                    | No                     | Runtime environment (`development` / `production`)                 |
+| `LOG_LEVEL`                   | No                     | Structured logger level                                            |
+| `DB`                          | Yes (platform binding) | Cloudflare D1 binding (configured in `wrangler.jsonc`)             |
+| `RATE_LIMIT_BACKEND`          | No                     | `auto` (default), `d1`, or `memory`                                |
+| `ALLOW_IN_MEMORY_RATE_LIMIT`  | Production opt-in      | Set `true` to acknowledge in-memory rate limiting in production    |
+| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production opt-in      | Set `true` to allow wildcard host matching for the custom provider |
 
 ### Production deployment checklist
 
@@ -495,17 +499,17 @@ Tables: `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`,
 
 Settings are persisted in `localStorage` under `cockpit.settings.v2`. API keys are never persisted there.
 
-| Setting area | Persisted fields | Source |
-|---|---|---|
-| Profile | displayName, handle, avatarDataUrl, initials, pronouns, roleLabel | `cockpit-store.ts` (`UserProfile`) |
-| Personalization | assistantName, preferredTone, visualMode, ambientIntensity, reduceMotion, showProviderInGreeting, showModelInGreeting, rememberLastProvider | `cockpit-store.ts` (`Personalization`) |
-| Keyboard shortcuts | per-action enabled flags, forceCtrl | `cockpit-store.ts` (`KeyboardShortcuts`) |
-| RAG | enabled, providerId, model override | `cockpit-store.ts` (`RagSettings`) |
-| Active provider | activeProviderId | `cockpit-store.ts` |
-| Pinned providers | pinnedProviderIds[] | `cockpit-store.ts` |
-| Cost overrides | per-provider { input, output } USD/1K tokens | `cockpit-store.ts` (`costOverrides`) |
-| Chat sync (opt-in) | syncChatsToServer (default false) | `cockpit-store.ts` |
-| RAG sync (opt-in) | syncRagVectorsToServer (default false) | `cockpit-store.ts` |
+| Setting area       | Persisted fields                                                                                                                            | Source                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Profile            | displayName, handle, avatarDataUrl, initials, pronouns, roleLabel                                                                           | `cockpit-store.ts` (`UserProfile`)       |
+| Personalization    | assistantName, preferredTone, visualMode, ambientIntensity, reduceMotion, showProviderInGreeting, showModelInGreeting, rememberLastProvider | `cockpit-store.ts` (`Personalization`)   |
+| Keyboard shortcuts | per-action enabled flags, forceCtrl                                                                                                         | `cockpit-store.ts` (`KeyboardShortcuts`) |
+| RAG                | enabled, providerId, model override                                                                                                         | `cockpit-store.ts` (`RagSettings`)       |
+| Active provider    | activeProviderId                                                                                                                            | `cockpit-store.ts`                       |
+| Pinned providers   | pinnedProviderIds[]                                                                                                                         | `cockpit-store.ts`                       |
+| Cost overrides     | per-provider { input, output } USD/1K tokens                                                                                                | `cockpit-store.ts` (`costOverrides`)     |
+| Chat sync (opt-in) | syncChatsToServer (default false)                                                                                                           | `cockpit-store.ts`                       |
+| RAG sync (opt-in)  | syncRagVectorsToServer (default false)                                                                                                      | `cockpit-store.ts`                       |
 
 The Settings UI (`src/routes/settings.tsx`) exposes all of these with immediate persistence. Cost override changes are applied instantly to future cost estimates via `setCostOverrides()`.
 
@@ -528,15 +532,15 @@ The Settings UI (`src/routes/settings.tsx`) exposes all of these with immediate 
 - **Overridable:** Per-provider rates can be overridden via `setCostOverrides()` from `costOverrides` in settings; overrides take effect immediately
 - **Fallback:** Unknown providers fall back to OpenAI rates
 
-| Provider | Default input rate ($/1K) | Default output rate ($/1K) |
-|---|---|---|
-| openai | $0.00015 | $0.0006 |
-| anthropic | $0.003 | $0.015 |
-| gemini | $0.000075 | $0.0003 |
-| openrouter | $0.00015 | $0.0006 |
-| moonshot | $0.001 | $0.004 |
-| nvidia-nim | $0.00035 | $0.0011 |
-| vercel-ai | $0.00015 | $0.0006 |
+| Provider   | Default input rate ($/1K) | Default output rate ($/1K) |
+| ---------- | ------------------------- | -------------------------- |
+| openai     | $0.00015                  | $0.0006                    |
+| anthropic  | $0.003                    | $0.015                     |
+| gemini     | $0.000075                 | $0.0003                    |
+| openrouter | $0.00015                  | $0.0006                    |
+| moonshot   | $0.001                    | $0.004                     |
+| nvidia-nim | $0.00035                  | $0.0011                    |
+| vercel-ai  | $0.00015                  | $0.0006                    |
 
 ### Storage and display
 
@@ -562,7 +566,7 @@ bun run build         # vite build
 
 - **Framework:** Vitest with jsdom environment, globals enabled
 - **Setup:** `src/test/setup.ts` — imports `@testing-library/jest-dom`
-- **Current count:** 450 tests, 23 test files *(verified by `bun run test`)*
+- **Current count:** 450 tests, 23 test files _(verified by `bun run test`)_
 - **Credential-free:** All normal tests run without any provider API keys
 - **Coverage areas:** CSRF, CSP, rate limiting (D1 backend + in-memory + preset limiters), storage limits, proxy guard, providers, tools (schema registry, name validation, arg sanitization, streaming accumulators), vector store (chunking, add/remove/search/clear, cross-tab sync), tokens (exact extraction, heuristic, cost estimation), cockpit store (defaults, normalization, sync flags, migration), chat hook, keyboard shortcuts, chat input, greeting, RAG/proxy integration, API routes
 
@@ -588,6 +592,7 @@ STRICT_LIVE_PROVIDER_TESTS=true \
 ```
 
 Live test coverage (all in `src/live/providers.live.test.ts`):
+
 - OpenAI: chat completion, streaming, streaming-with-tools, embeddings
 - Anthropic: chat completion, streaming-with-tools (content_block events)
 - Gemini: chat completion, streaming (OpenAI-compat path), streaming-with-tools
@@ -627,13 +632,7 @@ Schemas registered via `registerLocalTool` or `registerProviderTools` are visibl
 
 Default `bun run test` runs without credentials. Live provider behavior (streaming, tools, embeddings against real APIs) is only tested via `RUN_LIVE_PROVIDER_TESTS=true`. Source: `src/live/providers.live.test.ts`.
 
-### Server-side chat sync is off by default and privacy-sensitive
-
-`syncChatsToServer` defaults to `false`. When enabled, full thread message history is written to D1 `threads` table. Source: `src/lib/cockpit-store.ts` (`defaultSettings`), `src/routes/api/threads.$id.ts`.
-
-### Server-side RAG vector sync is off by default and privacy-sensitive
-
-`syncRagVectorsToServer` defaults to `false`. When enabled, text chunks and embedding vectors are written to D1 `vector_docs` table. Source: `src/lib/vector-store.ts` (`_serverSyncAvailable = false`), `src/routes/api/vector-docs.ts`.
+> **Privacy model:** Chat data is strictly device-local. No chat content, RAG vectors, or provider stats are stored on the server. D1 stores only session/security data and rate-limit state. Export/import is the cross-device portability path. Source: `src/lib/cockpit-store.ts`, `src/lib/db/schema.sql`.
 
 ### D1 rate-limit counting is eventually consistent across multiple Workers
 
@@ -684,74 +683,84 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 
 ### Scripts
 
-| Script | Command |
-|---|---|
-| `dev` | `vite dev` |
-| `build` | `vite build` |
-| `build:dev` | `vite build --mode development` |
-| `preview` | `vite preview` |
-| `lint` | `eslint .` |
-| `format` | `prettier --write .` |
-| `typecheck` | `tsc --noEmit` |
-| `test` | `vitest run` |
-| `test:live` | `vitest run --config vitest.live.config.ts` |
+| Script         | Command                                                |
+| -------------- | ------------------------------------------------------ |
+| `dev`          | `vite dev`                                             |
+| `build`        | `vite build`                                           |
+| `build:dev`    | `vite build --mode development`                        |
+| `preview`      | `vite preview`                                         |
+| `lint`         | `eslint .`                                             |
+| `format`       | `prettier --write .`                                   |
+| `typecheck`    | `tsc --noEmit`                                         |
+| `test`         | `vitest run`                                           |
+| `test:live`    | `vitest run --config vitest.live.config.ts`            |
 | `test:release` | `npm run test && (OPENAI_API_KEY present → test:live)` |
 
 ---
 
 ## 17. V1 native release status
 
-**V1 requires macOS native, iOS native, and Android native. None are implemented.**
+**Native scaffolding exists, but is not verified as release-ready.**
 
-The following native packaging tooling does not exist in this repository:
+The following native packaging tooling is present in this repository:
 
-| Item | Status |
-|---|---|
-| Native packaging framework (Tauri / Electron / Capacitor) | ❌ Not present |
-| macOS build command | ❌ Does not exist |
-| macOS install/run command | ❌ Does not exist |
-| macOS app bundle / signing / notarization config | ❌ Does not exist |
-| iOS Xcode project or Capacitor/Tauri iOS target | ❌ Does not exist |
-| iOS bundle ID | ❌ Not configured |
-| iOS app icon / permissions | ❌ Not configured |
-| Android Gradle project or Capacitor/Tauri Android target | ❌ Does not exist |
-| Android application ID | ❌ Not configured |
-| Android app icon / permissions | ❌ Not configured |
-| PWA manifest / service worker | ❌ Not present |
-| Native release scripts / CI jobs | ❌ Do not exist |
+| Item                                                      | Status                      | Verified by source |
+| --------------------------------------------------------- | --------------------------- | ------------------ |
+| Native packaging framework (Capacitor + Electron)         | ✅ Present                  | `capacitor.config.ts`, `@capacitor/*` deps, `electron` + `electron-builder` deps |
+| macOS build command (Electron)                            | ✅ Exists                   | `bun run native:desktop:build` |
+| macOS install/run command (Electron dev)                    | ✅ Exists                   | `bun run native:desktop:dev` |
+| macOS app bundle                                          | ⚠️ Unsigned `.app` exists | `electron/release/mac-arm64/Edgecase Cockpit.app` (unsigned) |
+| macOS signing / notarization config                       | ❌ Not configured           | `electron-builder.yml` has `identity: null` (development only) |
+| iOS Xcode project (Capacitor)                             | ✅ Present                  | `ios/App/App.xcodeproj/` with icons, splash, storyboards |
+| iOS bundle ID                                             | ✅ Configured               | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts` |
+| iOS app icon / permissions                                | ✅ Configured               | `ios/App/App/Assets.xcassets/AppIcon.appiconset/` |
+| Android Gradle project (Capacitor)                        | ✅ Present                  | `android/app/build.gradle`, `android/app/src/main/AndroidManifest.xml` |
+| Android application ID                                      | ✅ Configured               | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts` |
+| Android app icon / permissions                            | ✅ Configured               | `android/app/src/main/res/mipmap-*/` |
+| PWA manifest / service worker                             | ❌ Not present              | No `manifest.json`, `manifest.webmanifest`, or service worker file found |
+| Native release scripts / CI jobs                          | ❌ Do not exist             | No GitHub Actions or CI workflows for native builds |
+| Automated user-flow E2E (browser or native)                 | ❌ Do not exist             | No Playwright, Cypress, or mobile UI test harness |
 
-### What exists (web/backend surface only)
+### What exists (native scaffolding)
 
 ```bash
-# Install dependencies
-bun install
+# Web build + native shell generation (produces dist/client/ for Capacitor/Electron)
+bun run native:build
 
-# Dev server (web)
-bun run dev
+# Capacitor iOS
+bun run native:ios:sync    # Sync web assets to iOS project
+bun run native:ios:open    # Open Xcode project
 
-# Production build (web + SSR — not a native build)
-bun run build
+# Capacitor Android
+bun run native:android:sync  # Sync web assets to Android project
+bun run native:android:open  # Open Android Studio
 
-# Typecheck
-bun run typecheck
-
-# Lint
-bun run lint
-
-# Tests
-bun run test
+# Electron desktop (macOS)
+bun run native:desktop:dev   # Dev build + compile + run Electron
+bun run native:desktop:build # Build + compile + package unsigned .app
 ```
 
-These commands build and test the **web application only**. They do not produce macOS, iOS, or Android artifacts.
+These commands produce native artifacts, but **none are verified as release-ready** — there is no automated user-flow E2E coverage for any native target, and the Electron `.app` is unsigned.
 
-### Native packaging decision required
+### Native transport configuration for local providers
 
-Before any native tooling can be added, a framework must be selected. Options relative to this stack (Vite + React + TanStack Start):
+The hybrid architecture requires each native platform to allow direct HTTP requests to local model daemons (localhost, 127.0.0.1, *.local). The following configurations are in place:
 
-| Option | Desktop | iOS | Android | Notes |
-|---|---|---|---|---|
-| **Capacitor** | ✅ (via Electron plugin) | ✅ | ✅ | Wraps existing `dist/` web build; lowest migration cost |
-| **Tauri v2** | ✅ | ✅ | ✅ | Rust runtime; smaller binaries; more complex setup |
-| **Electron** | ✅ (macOS) | ❌ | ❌ | V1 desktop scope is macOS only |
+| Platform | Configuration | File | What it does |
+| -------- | ------------- | ---- | ------------ |
+| **macOS (Electron)** | `webRequest.onHeadersReceived` | `electron/main.ts` | Injects CORS headers (`Access-Control-Allow-Origin: *`) into responses from localhost providers so `file://` origin can fetch them |
+| **iOS (Capacitor)** | `NSLocalNetworkUsageDescription` | `ios/App/App/Info.plist` | Explains to the user why the app needs local network access; required for LAN/loopback connections |
+| **iOS (Capacitor)** | `CapacitorHttp` plugin | `capacitor.config.ts` | Intercepts all `fetch` / `XMLHttpRequest` in the WebView and routes through native networking, bypassing CORS |
+| **Android (Capacitor)** | `usesCleartextTraffic="true"` | `android/app/src/main/AndroidManifest.xml` | Allows unencrypted HTTP traffic to localhost and local network IPs |
+| **Android (Capacitor)** | `CapacitorHttp` plugin | `capacitor.config.ts` | Same as iOS — native networking bypass for WebView requests |
 
-No framework has been selected. Do not add native tooling without an explicit decision. See `docs/roadmap/FUTURE_ENHANCEMENTS.md`.
+**Note:** Browser/web builds cannot use local providers directly due to CORS and mixed-content restrictions. Browser users must use the proxy path for local providers, or serve the app from a secure origin with a CORS proxy.
+
+### Native packaging framework decision
+
+**Capacitor + Electron are already selected and installed.** Capacitor covers iOS and Android. Electron covers desktop (macOS). No additional framework selection is required.
+
+| Framework    | Target      | Status        | Notes                                    |
+| ------------ | ----------- | ------------- | ---------------------------------------- |
+| **Capacitor**| iOS, Android| ✅ Installed  | Xcode + Gradle projects present          |
+| **Electron** | Desktop     | ✅ Installed  | macOS `.app` builds; unsigned only       |

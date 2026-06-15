@@ -3,6 +3,13 @@
 // (cloud + local). Runtime is OpenAI-compatible by default, with body-style
 // adapters for Anthropic and Gemini native APIs.
 
+import {
+  type ChatMessage,
+  buildHeaders,
+  buildBody,
+} from "@/lib/chat-payloads";
+export type { ChatMessage } from "@/lib/chat-payloads";
+
 export type Capability = "chat" | "embeddings" | "vision" | "tools" | "streamingTools";
 
 export type BodyStyle = "openai" | "anthropic" | "gemini";
@@ -345,12 +352,6 @@ export function getProvider(id: string | undefined | null): ProviderDef {
 
 export type Model = { id: string; label?: string };
 
-export type ChatMessage = {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string | unknown;
-  attachments?: string[];
-};
-
 export type ProviderCallOpts = {
   provider: ProviderDef;
   apiKey: string;
@@ -381,95 +382,6 @@ export class ProviderError extends Error {
   }
 }
 
-function buildHeaders(p: ProviderDef, apiKey: string): Record<string, string> {
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (p.authStyle === "bearer" && apiKey) h["Authorization"] = `Bearer ${apiKey}`;
-  if (p.authStyle === "x-api-key" && apiKey) h["x-api-key"] = apiKey;
-  if (p.extraHeaders) Object.assign(h, p.extraHeaders);
-  return h;
-}
-
-function normalizeMessages(messages: ChatMessage[]): unknown[] {
-  return messages.map((m) => {
-    if (m.attachments && m.attachments.length) {
-      return {
-        role: m.role,
-        content: [
-          ...(typeof m.content === "string" && m.content
-            ? [{ type: "text", text: m.content }]
-            : []),
-          ...m.attachments.map((url) => ({
-            type: "image_url",
-            image_url: { url },
-          })),
-        ],
-      };
-    }
-    return { role: m.role, content: m.content };
-  });
-}
-
-function toOpenAIToolPayload(
-  tools: { name: string; description: string; parameters?: unknown }[],
-): unknown[] {
-  return tools.map((t) => ({
-    type: "function",
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters ?? { type: "object" },
-    },
-  }));
-}
-
-function toAnthropicToolPayload(
-  tools: { name: string; description: string; parameters?: unknown }[],
-): unknown[] {
-  return tools.map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: t.parameters ?? { type: "object" },
-  }));
-}
-
-function buildBody(
-  p: ProviderDef,
-  model: string,
-  messages: ChatMessage[],
-  stream: boolean,
-  tools?: { name: string; description: string; parameters?: unknown }[],
-): string {
-  const toolPayload = tools?.length
-    ? p.bodyStyle === "anthropic"
-      ? { tools: toAnthropicToolPayload(tools) }
-      : { tools: toOpenAIToolPayload(tools) }
-    : {};
-  if (p.bodyStyle === "anthropic") {
-    const sys = messages
-      .filter((m) => m.role === "system")
-      .map((m) => m.content)
-      .join("\n");
-    const msgs = messages
-      .filter((m) => m.role !== "system")
-      .map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : "" }));
-    return JSON.stringify({
-      model,
-      max_tokens: 4096,
-      ...(sys ? { system: sys } : {}),
-      messages: msgs,
-      stream,
-      ...toolPayload,
-    });
-  }
-  // gemini openai-compat & openai default
-  return JSON.stringify({
-    model,
-    messages: normalizeMessages(messages),
-    stream,
-    ...toolPayload,
-  });
-}
-
 function pickAnthropicDelta(j: unknown): string {
   const o = j as { type?: string; delta?: { text?: string } };
   if (o?.type === "content_block_delta") return o.delta?.text ?? "";
@@ -492,17 +404,33 @@ function pickFinal(p: ProviderDef, raw: unknown): string {
   return pickOpenAIDelta(raw) || "";
 }
 
+function createTimeoutSignal(parent: AbortSignal | undefined, ms: number): AbortSignal {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  if (parent) {
+    parent.addEventListener("abort", () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    });
+  }
+  return ctrl.signal;
+}
+
 export async function callProviderChat(opts: ProviderCallOpts): Promise<{
   text: string;
   raw: unknown;
 }> {
-  const { provider, apiKey, baseUrl, model, messages, signal, onDelta, onRawChunk } = opts;
+  const { provider, apiKey, baseUrl, model, messages, signal, onDelta, onRawChunk, onToolCallDelta } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
   const url = baseUrl.replace(/\/+$/, "") + provider.chatPath;
   const headers = buildHeaders(provider, apiKey);
   const body = buildBody(provider, model, messages, stream, opts.tools);
 
-  const res = await fetch(url, { method: "POST", headers, body, signal });
+  // Local providers get a strict 10s timeout so unreachable daemons fail fast
+  // instead of leaving the UI in a hung streaming state.
+  const callSignal = provider.type === "local" ? createTimeoutSignal(signal, 10_000) : signal;
+
+  const res = await directFetch(url, { method: "POST", headers, body, signal: callSignal });
 
   if (stream && res.ok && res.body) {
     const reader = res.body.getReader();
@@ -529,6 +457,32 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
           if (delta) {
             acc += delta;
             onDelta?.(delta);
+          }
+          if (onToolCallDelta && provider.bodyStyle === "openai") {
+            const tcs = (j as { choices?: { delta?: { tool_calls?: unknown[] } }[] })?.choices;
+            if (tcs && Array.isArray(tcs)) {
+              for (const c of tcs) {
+                const d = (c as { delta?: { tool_calls?: unknown[] } })?.delta?.tool_calls;
+                if (d && Array.isArray(d)) {
+                  for (const tc of d) {
+                    const t = tc as {
+                      index?: number;
+                      id?: string;
+                      function?: { name?: string; arguments?: string };
+                    };
+                    if (typeof t.index === "number" && t.index !== undefined) {
+                      onToolCallDelta(
+                        t as {
+                          index: number;
+                          id?: string;
+                          function?: { name?: string; arguments?: string };
+                        },
+                      );
+                    }
+                  }
+                }
+              }
+            }
           }
         } catch {
           /* ignore partial */
@@ -569,11 +523,31 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
 export type DetectResult = { ok: boolean; status?: number; error?: string };
 
 import { csrfHeaders } from "@/lib/cockpit-store";
-import { apiFetch } from "@/lib/api-base";
+import { apiFetch, directFetch } from "@/lib/api-base";
 
-/** Server-side reachability probe via the same-origin proxy route. */
+/** Reachability probe. Local providers are checked directly (zero proxy calls);
+ *  cloud providers go through the server proxy. */
 export async function detectProvider(p: ProviderDef): Promise<DetectResult> {
   if (!p.detectUrl) return { ok: false, error: "No detect URL" };
+
+  // Local providers: direct fetch, zero proxy / infrastructure calls
+  if (p.type === "local") {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2000);
+      const res = await directFetch(p.detectUrl, {
+        method: "GET",
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      const ok = res.ok || res.status === 401 || res.status === 403;
+      return { ok, status: res.status };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Unreachable" };
+    }
+  }
+
+  // Cloud providers: probe through server proxy
   try {
     const res = await apiFetch("/api/proxy/detect", {
       method: "POST",

@@ -25,6 +25,14 @@ const config: CapacitorConfig = {
   // a black screen when the remote URL doesn't serve the app.
   // For API routing in native contexts, use absolute URLs or
   // CapacitorHttp plugin instead.
+
+  // Enable CapacitorHttp to intercept fetch / XHR in the WebView and route
+  // them through native networking, bypassing CORS for localhost providers.
+  plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
 };
 
 export default config;

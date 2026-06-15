@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, session } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -8,6 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In dev (ELECTRON_DEV=true) we load the Vite dev server instead.
 const DEV = process.env.ELECTRON_DEV === "true";
 const DEV_URL = process.env.ELECTRON_DEV_URL ?? "http://localhost:5173";
+
+// Local provider ports that should have CORS headers injected.
+// These match the defaultBaseUrl values of all local providers.
+const LOCAL_PROVIDER_PORTS = [11434, 1234, 8000, 8080, 8081, 8787];
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -25,6 +29,27 @@ function createWindow(): void {
       // Partition keeps session cookies persistent between launches.
       partition: "persist:cockpit",
     },
+  });
+
+  // ── CORS bypass for localhost providers (Ollama, LM Studio, vLLM, etc.) ──
+  // In production (file:// origin) the browser blocks fetch to localhost
+  // due to CORS. We intercept response headers from localhost endpoints and
+  // inject permissive CORS headers so on-device models work without proxy.
+  const localFilter = {
+    urls: [
+      ...LOCAL_PROVIDER_PORTS.map((port) => `http://localhost:${port}/*`),
+      ...LOCAL_PROVIDER_PORTS.map((port) => `http://127.0.0.1:${port}/*`),
+      "http://*.local/*",
+    ],
+  };
+
+  win.webContents.session.webRequest.onHeadersReceived(localFilter, (details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    // Inject CORS headers to allow file:// / capacitor:// origins
+    responseHeaders["Access-Control-Allow-Origin"] = ["*"];
+    responseHeaders["Access-Control-Allow-Methods"] = ["GET, POST, PUT, DELETE, OPTIONS"];
+    responseHeaders["Access-Control-Allow-Headers"] = ["*"];
+    callback({ responseHeaders, cancel: false });
   });
 
   if (DEV) {

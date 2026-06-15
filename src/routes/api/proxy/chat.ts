@@ -3,10 +3,12 @@ import { PROVIDERS, getProvider } from "@/lib/providers";
 import { getCockpitSession, getProviderCreds } from "@/lib/session.server";
 import { rateLimit, urlAllowedForProvider } from "@/lib/proxy-guard.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
+import { buildHeaders, buildBody } from "@/lib/chat-payloads";
+import type { ChatMessage } from "@/lib/chat-payloads";
 
 // Proxy chat completions through the server so the browser never talks to
-// third-party / localhost APIs directly. Avoids CORS + mixed-content issues
-// and keeps a single same-origin code path.
+// third-party APIs directly. Avoids CORS + mixed-content issues and keeps a
+// single same-origin code path.
 //
 // Body: { providerId, apiKey, baseUrlOverride?, model?, messages, stream? }
 // Returns: upstream Response (text or SSE stream) verbatim.
@@ -15,86 +17,10 @@ type ProxyBody = {
   providerId: string;
   baseUrlOverride?: string;
   model?: string;
-  messages: { role: "user" | "assistant" | "system"; content: unknown; attachments?: string[] }[];
+  messages: ChatMessage[];
   stream?: boolean;
   tools?: { name: string; description: string; parameters?: unknown }[];
 };
-
-function buildHeaders(p: ReturnType<typeof getProvider>, apiKey: string) {
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (p.authStyle === "bearer" && apiKey) h["Authorization"] = `Bearer ${apiKey}`;
-  if (p.authStyle === "x-api-key" && apiKey) h["x-api-key"] = apiKey;
-  if (p.extraHeaders) Object.assign(h, p.extraHeaders);
-  return h;
-}
-
-function normalizeMessages(messages: ProxyBody["messages"]) {
-  return messages.map((m) => {
-    if (m.attachments && m.attachments.length) {
-      return {
-        role: m.role,
-        content: [
-          ...(typeof m.content === "string" && m.content
-            ? [{ type: "text", text: m.content }]
-            : []),
-          ...m.attachments.map((url) => ({ type: "image_url", image_url: { url } })),
-        ],
-      };
-    }
-    return { role: m.role, content: m.content };
-  });
-}
-
-function toOpenAIToolPayload(tools: NonNullable<ProxyBody["tools"]>): unknown[] {
-  return tools.map((t) => ({
-    type: "function",
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters ?? { type: "object" },
-    },
-  }));
-}
-
-function toAnthropicToolPayload(tools: NonNullable<ProxyBody["tools"]>): unknown[] {
-  return tools.map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: t.parameters ?? { type: "object" },
-  }));
-}
-
-function buildBody(
-  p: ReturnType<typeof getProvider>,
-  model: string,
-  messages: ProxyBody["messages"],
-  stream: boolean,
-  tools?: ProxyBody["tools"],
-) {
-  const toolPayload = tools?.length
-    ? p.bodyStyle === "anthropic"
-      ? { tools: toAnthropicToolPayload(tools) }
-      : { tools: toOpenAIToolPayload(tools) }
-    : {};
-  if (p.bodyStyle === "anthropic") {
-    const sys = messages
-      .filter((m) => m.role === "system")
-      .map((m) => m.content)
-      .join("\n");
-    const msgs = messages
-      .filter((m) => m.role !== "system")
-      .map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : "" }));
-    return JSON.stringify({
-      model,
-      max_tokens: 4096,
-      ...(sys ? { system: sys } : {}),
-      messages: msgs,
-      stream,
-      ...toolPayload,
-    });
-  }
-  return JSON.stringify({ model, messages: normalizeMessages(messages), stream, ...toolPayload });
-}
 
 export const Route = createFileRoute("/api/proxy/chat")({
   server: {

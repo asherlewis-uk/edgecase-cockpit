@@ -58,10 +58,6 @@ export type Settings = {
   activeProviderId: string;
   providers: Record<string, ProviderConfig>;
   pinnedProviderIds: string[];
-  /** Opt-in: sync chat messages/threads to D1. Default false. */
-  syncChatsToServer?: boolean;
-  /** Opt-in: sync RAG vector docs to D1. Default false. */
-  syncRagVectorsToServer?: boolean;
   /** Per-provider cost rate overrides (USD per 1,000 tokens). Persisted locally only. */
   costOverrides?: Record<string, { input?: number; output?: number }>;
 };
@@ -148,32 +144,6 @@ export function recordTokenUsage(id: string, inputTokens: number, outputTokens: 
   saveStats(s);
   statsListeners.forEach((l) => l());
 }
-export async function syncTokenUsageToServer(
-  providerId: string,
-  inputTokens: number,
-  outputTokens: number,
-  model?: string,
-  threadId?: string,
-  exactUsage?: boolean,
-) {
-  try {
-    await apiFetch("/api/stats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...csrfHeaders() },
-      body: JSON.stringify({
-        providerId,
-        kind: "call",
-        inputTokens,
-        outputTokens,
-        model,
-        threadId,
-        exactUsage: exactUsage === true,
-      }),
-    });
-  } catch {
-    /* ignore network errors; local stats are source of truth */
-  }
-}
 export function resetProviderStats() {
   saveStats({});
   statsListeners.forEach((l) => l());
@@ -233,8 +203,6 @@ export const defaultSettings: Settings = {
   activeProviderId: "openai",
   providers: {},
   pinnedProviderIds: [],
-  syncChatsToServer: false,
-  syncRagVectorsToServer: false,
   costOverrides: {},
 };
 
@@ -397,14 +365,6 @@ export function normalizeSettings(raw: Partial<Settings> | unknown): Settings {
     activeProviderId,
     providers: normalizeProviders(source.providers),
     pinnedProviderIds: normalizePinnedProviderIds(source.pinnedProviderIds),
-    syncChatsToServer:
-      typeof source.syncChatsToServer === "boolean"
-        ? source.syncChatsToServer
-        : defaultSettings.syncChatsToServer,
-    syncRagVectorsToServer:
-      typeof source.syncRagVectorsToServer === "boolean"
-        ? source.syncRagVectorsToServer
-        : defaultSettings.syncRagVectorsToServer,
     costOverrides:
       typeof source.costOverrides === "object" &&
       source.costOverrides !== null &&
@@ -1008,27 +968,6 @@ export function csrfHeaders(): Record<string, string> {
     .find((part) => part.startsWith("csrf-token="))
     ?.slice("csrf-token=".length);
   return token ? { "X-CSRF-Token": decodeURIComponent(token) } : {};
-}
-
-/** Sync a thread's current state to the server. Fire-and-forget; local state is source of truth.
- * Requires explicit opt-in via settings.syncChatsToServer (default false). */
-export async function syncThreadToServer(threadId: string): Promise<void> {
-  if (typeof window === "undefined") return;
-  if (!store.getState().settings.syncChatsToServer) return;
-  const thread = store.getState().threads.find((t) => t.id === threadId);
-  if (!thread || thread.temporary) return;
-  try {
-    await apiFetch(`/api/threads/${threadId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...csrfHeaders() },
-      body: JSON.stringify({
-        messages: thread.messages,
-        updatedAt: thread.updatedAt,
-      }),
-    });
-  } catch {
-    /* ignore network errors; local state is source of truth */
-  }
 }
 
 export { PROVIDERS };

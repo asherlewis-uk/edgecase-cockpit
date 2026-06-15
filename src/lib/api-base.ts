@@ -1,5 +1,5 @@
 /**
- * Native-safe API base URL detection.
+ * Native-safe API base URL detection and direct fetch utilities.
  *
  * In browser/web contexts, returns "" (empty) so fetch("/api/...") resolves
  * same-origin against the Cloudflare Worker that served the page.
@@ -48,15 +48,56 @@ export function getApiBaseUrl(): string {
   return nativeUrl.replace(/\/+$/, "");
 }
 
+// ── URL helpers ───────────────────────────────────────────────────────────
+
+export function isAbsoluteUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
+export function isLocalProviderUrl(url: string): boolean {
+  if (!isAbsoluteUrl(url)) return false;
+  try {
+    const u = new URL(url);
+    return u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname.endsWith(".local");
+  } catch {
+    return false;
+  }
+}
+
+// ── Direct fetch (local providers) ─────────────────────────────────────────
+
 /**
- * Fetch wrapper that prepends the native API base URL when running in a
- * native shell (Electron, Capacitor). In browser contexts it passes through
- * to the global fetch unchanged.
+ * Direct fetch for local provider URLs, bypassing the Cloudflare Worker proxy.
+ *
+ * In native contexts, platform CORS handling is configured externally:
+ *   - Electron: main process injects CORS headers via webRequest.onHeadersReceived
+ *   - Capacitor: CapacitorHttp plugin intercepts fetch calls natively
+ *
+ * In browser contexts this is a plain fetch(); local providers from https:// origins
+ * will still be blocked by CORS / mixed-content, which is expected — browser users
+ * should rely on the proxy for local providers, or run the app from a secure origin.
+ */
+export async function directFetch(url: string, init?: RequestInit): Promise<Response> {
+  return fetch(url, init);
+}
+
+// ── API fetch (cloud / app infrastructure) ──────────────────────────────────
+
+/**
+ * Fetch wrapper that routes API calls through the Cloudflare Worker proxy
+ * when in native contexts. Automatically bypasses the proxy for local provider
+ * URLs (localhost, 127.0.0.1, *.local) to ensure zero network calls to app
+ * infrastructure for on-device models.
  *
  * Adds X-Native-App: 1 header in native contexts so the server can skip
  * same-origin CSRF checks for cross-origin native requests.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  // If this is a direct local provider URL, bypass the Cloudflare Worker
+  if (isAbsoluteUrl(path) && isLocalProviderUrl(path)) {
+    return directFetch(path, init);
+  }
+
   const base = getApiBaseUrl();
   const url = base ? `${base}${path}` : path;
 

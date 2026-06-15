@@ -40,7 +40,6 @@ import {
   store,
   PROVIDERS,
   resolveProvider,
-  syncThreadToServer,
   type Message,
 } from "@/lib/cockpit-store";
 import { useChat } from "@/hooks/use-chat";
@@ -560,7 +559,6 @@ export function Cockpit() {
               const activeId = store.getState().activeThreadId;
               if (activeId) {
                 store.deleteMessage(activeId, messageId);
-                void syncThreadToServer(activeId);
               }
             }}
             onExecuteTool={executeTool}

@@ -8,7 +8,6 @@ import {
   resolveProvider,
   bumpProviderStat,
   recordTokenUsage,
-  syncThreadToServer,
   getProviderStats,
   subscribeProviderStats,
   store,
@@ -63,29 +62,6 @@ describe("normalizeSettings", () => {
     expect(result.activeProviderId).toBe("openai");
     expect(result.providers).toEqual({});
     expect(result.pinnedProviderIds).toEqual([]);
-  });
-
-  it("migrates legacy settings without syncChatsToServer to false", () => {
-    // Simulate stored settings that predate the field
-    const legacy = { profile: { displayName: "Alice" }, activeProviderId: "openai" };
-    const result = normalizeSettings(legacy);
-    expect(result.syncChatsToServer).toBe(false);
-  });
-
-  it("migrates legacy settings without syncRagVectorsToServer to false", () => {
-    const legacy = { profile: { displayName: "Alice" }, activeProviderId: "openai" };
-    const result = normalizeSettings(legacy);
-    expect(result.syncRagVectorsToServer).toBe(false);
-  });
-
-  it("preserves explicit syncChatsToServer: true when set", () => {
-    const result = normalizeSettings({ syncChatsToServer: true });
-    expect(result.syncChatsToServer).toBe(true);
-  });
-
-  it("preserves explicit syncRagVectorsToServer: true when set", () => {
-    const result = normalizeSettings({ syncRagVectorsToServer: true });
-    expect(result.syncRagVectorsToServer).toBe(true);
   });
 
   it("returns default settings for null/undefined", () => {
@@ -224,14 +200,6 @@ describe("defaultSettings", () => {
 
   it("has empty pinnedProviderIds by default", () => {
     expect(defaultSettings.pinnedProviderIds).toEqual([]);
-  });
-
-  it("defaults syncChatsToServer to false", () => {
-    expect(defaultSettings.syncChatsToServer).toBe(false);
-  });
-
-  it("defaults syncRagVectorsToServer to false", () => {
-    expect(defaultSettings.syncRagVectorsToServer).toBe(false);
   });
 });
 
@@ -574,59 +542,10 @@ describe("recordTokenUsage", () => {
 });
 
 // ---------------------------------------------------------------------------
-// syncThreadToServer
-// ---------------------------------------------------------------------------
-describe("syncThreadToServer", () => {
-  it("sends a PATCH request with thread messages when syncChatsToServer is true", async () => {
-    store.updateSettings({ syncChatsToServer: true });
-    const threadId = store.newThread();
-    store.addMessage(threadId, { id: "msg-1", role: "user", content: "Hello", ts: 1 });
-    const fetchMock = vi.mocked(globalThis.fetch);
-    fetchMock.mockClear();
-    await syncThreadToServer(threadId);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const call = fetchMock.mock.calls[0];
-    expect(call[0]).toBe(`/api/threads/${threadId}`);
-    expect(call[1]).toMatchObject({ method: "PATCH" });
-    const body = JSON.parse(call[1]!.body as string);
-    expect(body.messages).toHaveLength(1);
-    expect(body.messages[0].content).toBe("Hello");
-  });
-
-  it("does NOT sync when syncChatsToServer is false (default)", async () => {
-    store.updateSettings({ syncChatsToServer: false });
-    const threadId = store.newThread();
-    store.addMessage(threadId, { id: "msg-2", role: "user", content: "Private", ts: 1 });
-    const fetchMock = vi.mocked(globalThis.fetch);
-    fetchMock.mockClear();
-    await syncThreadToServer(threadId);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("does not sync temporary threads even when syncChatsToServer is true", async () => {
-    store.updateSettings({ syncChatsToServer: true });
-    const threadId = store.newThread({ temporary: true });
-    const fetchMock = vi.mocked(globalThis.fetch);
-    fetchMock.mockClear();
-    await syncThreadToServer(threadId);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("swallows network errors gracefully", async () => {
-    store.updateSettings({ syncChatsToServer: true });
-    const threadId = store.newThread();
-    const fetchMock = vi.mocked(globalThis.fetch);
-    fetchMock.mockRejectedValueOnce(new Error("network down"));
-    await expect(syncThreadToServer(threadId)).resolves.toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Device-local import/export — no server calls required
 // ---------------------------------------------------------------------------
 describe("manual import/export locality", () => {
   it("exportThread returns local data without any fetch calls", () => {
-    store.updateSettings({ syncChatsToServer: false });
     const threadId = store.newThread();
     store.addMessage(threadId, { id: "m1", role: "user", content: "Hello export", ts: 1 });
     const fetchMock = vi.mocked(globalThis.fetch);
@@ -641,7 +560,6 @@ describe("manual import/export locality", () => {
   });
 
   it("importThreads writes to local state without any fetch calls", () => {
-    store.updateSettings({ syncChatsToServer: false });
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockClear();
     const thread = {
@@ -661,9 +579,7 @@ describe("manual import/export locality", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("importThreads does not call the server even when syncChatsToServer is true", async () => {
-    // Import is always local — the user controls when/if to sync
-    store.updateSettings({ syncChatsToServer: true });
+  it("importThreads does not call the server", async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockClear();
     const thread = {
@@ -677,7 +593,6 @@ describe("manual import/export locality", () => {
       temporary: false,
     };
     store.importThreads([thread]);
-    // importThreads itself must never call fetch — only explicit syncThreadToServer does
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

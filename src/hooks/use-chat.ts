@@ -5,12 +5,10 @@ import {
   resolveProvider,
   bumpProviderStat,
   recordTokenUsage,
-  syncTokenUsageToServer,
-  syncThreadToServer,
   type Message,
   type Settings,
 } from "@/lib/cockpit-store";
-import { callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
+import { callProviderChat, callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
 import { retryWithBackoff } from "@/lib/retry";
 import { estimateTokens, extractProviderUsage } from "@/lib/tokens";
 import {
@@ -269,6 +267,8 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       const useStream = !hasTools || supportsStreamingTools;
 
       let acc = "";
+      const isLocal = provider.type === "local";
+      const callFn = isLocal ? callProviderChat : callProviderChatViaProxy;
       const toolAccum = supportsOpenAIStreamingTools ? new StreamToolCallAccumulator() : null;
       const toolAccumAnthropic = supportsAnthropicStreamingTools
         ? new AnthropicStreamToolCallAccumulator()
@@ -277,7 +277,7 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         bumpProviderStat(provider.id, "call");
         const res = await retryWithBackoff(
           () =>
-            callProviderChatViaProxy({
+            callFn({
               provider,
               apiKey,
               baseUrl,
@@ -360,14 +360,6 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         }
 
         recordTokenUsage(provider.id, inputTokens, outputTokens);
-        void syncTokenUsageToServer(
-          provider.id,
-          inputTokens,
-          outputTokens,
-          model,
-          threadId,
-          exactUsage,
-        );
         backoffRef.current = 0;
         setStatus("idle");
       } catch (e) {
@@ -400,6 +392,14 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
             setQueueSize(queueRef.current.length);
           }
           setError("Offline — queued for retry");
+          setStatus("error");
+        } else if (isLocal && !apiErr) {
+          // Local provider fetch failed (connection refused, timeout, unreachable daemon)
+          const clean = msg.toLowerCase().includes("abort")
+            ? "Connection to local provider timed out. Verify your daemon is running."
+            : `Connection to ${provider.name} failed. Verify the daemon is running at ${baseUrl}.`;
+          lastErrorRef.current = { message: clean, count: 1 };
+          setError(clean);
           setStatus("error");
         } else {
           // ── Error deduplication ──
@@ -546,7 +546,6 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         timestamp: now,
       };
       store.setThreadMessages(threadId, [...t.messages.slice(0, idx), edited]);
-      void syncThreadToServer(threadId);
       lastPromptRef.current = { text: newContent };
       await runAssistant(threadId, newContent);
     },

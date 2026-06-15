@@ -32,6 +32,9 @@
 	<array>
 		<string>armv7</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app connects to local AI model daemons (e.g., Ollama, LM Studio) running on your device or local network. Local network access is required for on-device chat.</string>
+
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is used for attaching images to chat messages.</string>
 
