@@ -38,14 +38,24 @@ export function ModelPicker({
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const loadModels = useCallback(async () => {
     if (!provider.modelsPath) return;
     setLoading(true);
-    const allModels = await fetchModels();
-    const result = allModels[provider.id] ?? [];
-    setModels(result);
-    setLoading(false);
+    setFetchError(null);
+    try {
+      const allModels = await fetchModels();
+      const result = allModels[provider.id] ?? [];
+      setModels(result);
+      if (result.length === 0) {
+        setFetchError("No models available (using default)");
+      }
+    } catch (error) {
+      setFetchError("Failed to fetch models (using default)");
+    } finally {
+      setLoading(false);
+    }
   }, [provider.id, provider.modelsPath]);
 
   useEffect(() => {
@@ -82,6 +92,12 @@ export function ModelPicker({
         <DropdownMenuLabel className="text-xs uppercase tracking-wider text-white/40">
           {provider.name} Models
           {loading && <Loader2 className="ml-2 inline-block size-3 animate-spin text-white/50" />}
+          {fetchError && !loading && (
+            <span className="ml-2 inline-block text-[10px] text-amber-300">⚠️ {fetchError}</span>
+          )}
+          {!loading && !fetchError && models.length > 0 && (
+            <span className="ml-2 inline-block text-[10px] text-emerald-300">✅ {models.length} available</span>
+          )}
         </DropdownMenuLabel>
         {displayModels.map((m) => {
           const active = m.id === currentModel;

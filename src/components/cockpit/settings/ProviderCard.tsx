@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { apiFetch, isNativeContext } from "@/lib/api-base";
-import { Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2, AlertCircle } from "lucide-react";
+import { Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2, AlertCircle, Loader2, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 import {
   useStore,
   store,
   refreshProviderKeyStatus,
   isProviderReady,
   csrfHeaders,
+  getProviderValidationStatus,
+  setProviderValidationStatus,
 } from "@/lib/cockpit-store";
 import { type ProviderDef, type Capability, type DetectResult } from "@/lib/providers";
 import { Input } from "@/components/ui/input";
@@ -37,6 +39,8 @@ export function ProviderCard({
   const pinned = settings.pinnedProviderIds.includes(p.id);
   const [keyDraft, setKeyDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const validationStatus = useStore((s) => getProviderValidationStatus(p.id));
 
   const saveKey = async () => {
     if (!keyDraft.trim()) return;
@@ -68,8 +72,67 @@ export function ProviderCard({
         body: JSON.stringify({ providerId: p.id }),
       });
       await refreshProviderKeyStatus();
+      clearValidationStatus();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const clearValidationStatus = () => {
+    setProviderValidationStatus(p.id, { status: "idle" });
+  };
+
+  const validateKey = async () => {
+    if (!hasServerKey) {
+      setProviderValidationStatus(p.id, {
+        status: "error",
+        message: "No API key set to validate",
+        errorType: "auth_failed",
+      });
+      return;
+    }
+
+    setValidating(true);
+    setProviderValidationStatus(p.id, { status: "validating" });
+
+    try {
+      const res = await apiFetch("/api/keys/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeaders() },
+        body: JSON.stringify({ providerIds: [p.id] }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const result = data.results[p.id];
+
+        if (result?.valid) {
+          setProviderValidationStatus(p.id, {
+            status: "valid",
+            message: "API key is valid",
+          });
+        } else {
+          setProviderValidationStatus(p.id, {
+            status: "invalid",
+            message: result?.userMessage ?? "Invalid API key",
+            errorType: result?.errorType ?? "auth_failed",
+          });
+        }
+      } else {
+        setProviderValidationStatus(p.id, {
+          status: "error",
+          message: "Failed to validate key",
+          errorType: "unknown",
+        });
+      }
+    } catch (error) {
+      setProviderValidationStatus(p.id, {
+        status: "error",
+        message: "Network error during validation",
+        errorType: "network_error",
+      });
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -141,6 +204,36 @@ export function ProviderCard({
         )}
       </div>
 
+      {/* Validation Status */}
+      {p.needsApiKey && hasServerKey && (
+        <div className="flex items-center gap-2">
+          {validationStatus.status === "validating" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-300">
+              <Loader2 className="size-3 animate-spin" />
+              Validating...
+            </span>
+          )}
+          {validationStatus.status === "valid" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
+              <ShieldCheck className="size-3" />
+              {validationStatus.message ?? "Valid"}
+            </span>
+          )}
+          {validationStatus.status === "invalid" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-3 py-1 text-xs text-red-300">
+              <ShieldX className="size-3" />
+              {validationStatus.message ?? "Invalid key"}
+            </span>
+          )}
+          {validationStatus.status === "error" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
+              <ShieldAlert className="size-3" />
+              {validationStatus.message ?? "Validation error"}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-2">
         {p.needsApiKey && (
           <div className="flex flex-col gap-1.5">
@@ -167,16 +260,28 @@ export function ProviderCard({
                 Save
               </Button>
               {hasServerKey && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={clearKey}
-                  disabled={saving}
-                  className="h-9 border-white/10 bg-transparent text-white/70 hover:bg-white/10"
-                  aria-label="Clear stored key"
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={validateKey}
+                    disabled={saving || validating}
+                    className="h-9 border-white/10 bg-transparent text-white/70 hover:bg-white/10"
+                    aria-label="Validate API key"
+                  >
+                    {validating ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={clearKey}
+                    disabled={saving}
+                    className="h-9 border-white/10 bg-transparent text-white/70 hover:bg-white/10"
+                    aria-label="Clear stored key"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </>
               )}
             </div>
             <span className="inline-flex items-center gap-1 text-[10px] text-white/50">
@@ -214,7 +319,11 @@ export function ProviderCard({
 
       <div className="flex items-center justify-between gap-2">
         <span className={`text-[11px] ${ready ? "text-emerald-300" : "text-amber-300"}`}>
-          {ready ? "Ready" : p.needsApiKey ? "Needs API key" : "Configure base URL"}
+          {ready ? (
+            validationStatus.status === "valid" ? "✅ Ready to chat" : "Ready"
+          ) : p.needsApiKey ? (
+            hasServerKey ? "⚠️ Needs validation" : "🔑 Needs API key"
+          ) : "🔧 Configure base URL"}
         </span>
         <Button
           size="sm"

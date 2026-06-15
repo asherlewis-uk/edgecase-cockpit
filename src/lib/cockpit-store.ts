@@ -429,6 +429,13 @@ type State = {
   activeThreadId: string | null;
   /** Runtime-only: which provider ids have a key stored server-side. */
   providerKeyStatus: Record<string, boolean>;
+  /** Runtime-only: validation status for each provider. */
+  providerValidationStatus: Record<string, {
+    status: "idle" | "validating" | "valid" | "invalid" | "error";
+    message?: string;
+    errorType?: "auth_failed" | "network_error" | "timeout" | "rate_limited" | "unknown";
+    lastValidated?: number;
+  }>;
 };
 
 let state: State = {
@@ -436,6 +443,7 @@ let state: State = {
   threads: [],
   activeThreadId: null,
   providerKeyStatus: {},
+  providerValidationStatus: {},
 };
 let hydrated = false;
 
@@ -974,6 +982,36 @@ export function isProviderReady(settings: Settings, id?: string): boolean {
 
 export function providerHasKey(id: string): boolean {
   return !!state.providerKeyStatus[id];
+}
+
+export function getProviderValidationStatus(id: string) {
+  return state.providerValidationStatus[id] ?? { status: "idle" };
+}
+
+export function setProviderValidationStatus(
+  id: string,
+  status: {
+    status: "idle" | "validating" | "valid" | "invalid" | "error";
+    message?: string;
+    errorType?: "auth_failed" | "network_error" | "timeout" | "rate_limited" | "unknown";
+  }
+) {
+  const current = state.providerValidationStatus[id] ?? { status: "idle" };
+  state = {
+    ...state,
+    providerValidationStatus: {
+      ...state.providerValidationStatus,
+      [id]: { ...current, ...status, lastValidated: Date.now() },
+    },
+  };
+  emit();
+}
+
+export function clearProviderValidationStatus(id: string) {
+  const newStatus = { ...state.providerValidationStatus };
+  delete newStatus[id];
+  state = { ...state, providerValidationStatus: newStatus };
+  emit();
 }
 
 export function csrfHeaders(): Record<string, string> {

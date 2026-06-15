@@ -882,3 +882,79 @@ All provider configuration is done through the standard Settings interface.
 2. Try again
 3. If using private/incognito mode, switch to a regular browser session
 4. Check your browser's storage settings
+
+---
+
+## 12. Provider Setup and Validation
+
+### Overview
+Edgecase Cockpit now provides clear, user-friendly feedback for provider setup and API key validation. This helps you understand which providers are ready to use and troubleshoot any configuration issues.
+
+### Provider Status Indicators
+
+In the Settings page, each provider card shows one of these statuses:
+
+- **✅ Ready to chat** (green) - Provider is fully configured and validated
+- **⚠️ Needs validation** (amber) - API key is set but not yet validated
+- **🔑 Needs API key** (amber) - No API key configured
+- **🔧 Configure base URL** (amber) - Local provider needs URL setup
+
+### Validation Status
+
+After entering an API key, you can validate it:
+
+1. **Click "Validate" button** (shield icon) in the provider card
+2. Status changes to "Validating..." (blue) while checking
+3. Results show as:
+   - **✅ Valid** (green shield) - Key is working
+   - **❌ Invalid key** (red shield) - Authentication failed
+   - **⚠️ Validation error** (amber shield) - Network or other issue
+
+### Validation Messages
+
+- **"API key is valid"** - Your key works and can be used for chat
+- **"Invalid API key"** - The key was rejected by the provider
+- **"Validation timeout"** - Provider is slow or unreachable
+- **"Network error"** - Cannot connect to provider
+- **"No API key set to validate"** - Enter a key first
+
+### Toast Notifications
+
+When validation completes, you'll see toast notifications:
+- ✅ **"OpenAI API key is valid!"** - Success
+- ❌ **"OpenAI: Invalid API key"** - Failure with reason
+
+### Model Selection Feedback
+
+The model picker shows:
+- **"Loading models..."** - Fetching available models
+- **"✅ X models available"** - Models loaded successfully
+- **"⚠️ Failed to fetch models (using default)"** - Fallback to default model
+
+### Troubleshooting
+
+**"Invalid API key" errors:**
+1. Double-check your API key
+2. Ensure it hasn't expired
+3. Verify you have sufficient credits/quota
+4. Check the provider's status page
+
+**"Network error" or "Timeout":**
+1. Check your internet connection
+2. Verify the provider is not down
+3. For local providers, ensure your daemon is running
+4. Try again later
+
+**"No models available":**
+1. The provider may not support model listing
+2. Using the default model is fine
+3. Chat functionality still works
+
+### Provider Status in Chat
+
+The status bar shows:
+- **✅ Provider (model) Ready** - Validated and working
+- **⚠️ Provider needs setup** - Missing key or configuration
+- **❌ Provider invalid key** - Validation failed
+
+Click the status bar to go directly to Settings and fix any issues.

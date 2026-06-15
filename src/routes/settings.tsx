@@ -24,6 +24,7 @@ import {
   subscribeProviderStats,
   resetProviderStats,
   deriveInitials,
+  getProviderValidationStatus,
 } from "@/lib/cockpit-store";
 import { apiFetch } from "@/lib/api-base";
 import {
@@ -65,6 +66,27 @@ function SettingsPage() {
   const cloud = PROVIDERS.filter((p) => p.type === "cloud");
   const local = PROVIDERS.filter((p) => p.type === "local");
   const [detected, setDetected] = useState<Record<string, DetectResult>>({});
+  const validationStatuses = useStore((s) => s.providerValidationStatus);
+
+  // Show toast notifications for validation status changes
+  useEffect(() => {
+    Object.entries(validationStatuses).forEach(([providerId, status]) => {
+      if (status.status === "valid" && status.lastValidated) {
+        // Show success toast for valid validation
+        if (typeof window !== "undefined" && window.toast) {
+          const provider = PROVIDERS.find((p) => p.id === providerId);
+          window.toast.success(`✅ ${provider?.name ?? providerId} API key is valid!`);
+        }
+      } else if (status.status === "invalid" || status.status === "error") {
+        // Show error toast for invalid/failed validation
+        if (typeof window !== "undefined" && window.toast) {
+          const provider = PROVIDERS.find((p) => p.id === providerId);
+          const message = status.message ?? "Validation failed";
+          window.toast.error(`❌ ${provider?.name ?? providerId}: ${message}`);
+        }
+      }
+    });
+  }, [validationStatuses]);
 
   useEffect(() => {
     let cancelled = false;

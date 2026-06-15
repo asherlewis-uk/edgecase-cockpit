@@ -42,9 +42,35 @@ export const Route = createFileRoute("/api/keys/validate")({
 
             const result = await validateProviderKey(provider, creds.apiKey, creds.baseUrl);
 
+            // Map technical errors to user-friendly messages
+            let userMessage: string | undefined;
+            let errorType: string | undefined;
+            
+            if (result.error) {
+              switch (result.error) {
+                case "auth_failed":
+                  userMessage = "Invalid API key";
+                  errorType = "auth_failed";
+                  break;
+                case "timeout":
+                  userMessage = "Validation timeout - provider may be slow or unreachable";
+                  errorType = "timeout";
+                  break;
+                case "network_error":
+                  userMessage = "Network error - cannot reach provider";
+                  errorType = "network_error";
+                  break;
+                default:
+                  userMessage = "Validation failed";
+                  errorType = "unknown";
+              }
+            }
+
             results[providerId] = {
               valid: result.valid,
               ...(result.error ? { reason: result.error } : {}),
+              ...(userMessage ? { userMessage } : {}),
+              ...(errorType ? { errorType } : {}),
             };
           }),
         );

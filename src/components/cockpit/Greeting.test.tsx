@@ -61,7 +61,7 @@ describe("Greeting", () => {
       />,
     );
 
-    expect(screen.getByText("No API key set for OpenAI — click to configure")).toBeInTheDocument();
+    expect(screen.getByText("No API key set for OpenAI — click to set up")).toBeInTheDocument();
   });
 
   it("shows API key warning with correct provider name", () => {
@@ -75,7 +75,7 @@ describe("Greeting", () => {
       />,
     );
 
-    expect(screen.getByText("No API key set for Anthropic — click to configure")).toBeInTheDocument();
+    expect(screen.getByText("No API key set for Anthropic — click to set up")).toBeInTheDocument();
   });
 
   it("renders without crashing with minimal props", () => {
