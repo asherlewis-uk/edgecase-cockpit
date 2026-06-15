@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/proxy/detect")({
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 2000);
         try {
-          const res = await fetch(url, { signal: ctrl.signal });
+          const res = await fetch(url, { signal: ctrl.signal, redirect: "manual" });
           clearTimeout(t);
           // 401/403 still means the host is reachable.
           const ok = res.ok || res.status === 401 || res.status === 403;

@@ -30,7 +30,7 @@ async function fetchModels(
   const timer = setTimeout(() => ctrl.abort(), 10_000);
 
   try {
-    const res = await fetch(url, { headers, signal: ctrl.signal });
+    const res = await fetch(url, { headers, signal: ctrl.signal, redirect: "manual" });
     clearTimeout(timer);
     if (!res.ok) return [];
 

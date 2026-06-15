@@ -12,7 +12,7 @@
  * e.g. https://edgecase-cockpit.workers.dev.
  */
 
-const DEFAULT_NATIVE_API_URL = "https://tanstack-start-app.workers.dev";
+const DEFAULT_NATIVE_API_URL = "https://edgecase-cockpit.asher-lewis-knight.workers.dev";
 
 interface CapacitorWindow {
   Capacitor?: { isNativePlatform?: () => boolean };

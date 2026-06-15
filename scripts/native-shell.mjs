@@ -3,8 +3,8 @@
  * scripts/native-shell.mjs
  *
  * Generates dist/client/index.html from the TanStack Start build manifest.
- * Must be run AFTER `vite build` (which produces dist/client/assets/ and
- * dist/server/assets/_tanstack-start-manifest_v-*.js).
+ * Must be run AFTER `vite build` (which produces .output/public/assets/ and
+ * .output/server/assets/_tanstack-start-manifest_v-*.js).
  *
  * Usage:
  *   node scripts/native-shell.mjs
@@ -15,25 +15,30 @@
  * both file:// (Electron production) and http:// (Vite dev / CF Worker).
  */
 
-import { readFileSync, writeFileSync, readdirSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync, cpSync, rmSync } from "fs";
 import { join } from "path";
 
 const distClient = "dist/client";
-const distServer = "dist/server/assets";
+const buildPublic = ".output/public";
+const buildServer = ".output/server";
+
+// Ensure dist/client is a fresh copy of the built public assets.
+rmSync(distClient, { recursive: true, force: true });
+cpSync(buildPublic, distClient, { recursive: true });
 
 // Find the manifest file (hash changes on every build).
-const manifestFile = readdirSync(distServer).find((f) =>
+const manifestFile = readdirSync(buildServer).find((f) =>
   f.startsWith("_tanstack-start-manifest_v-"),
 );
 if (!manifestFile) {
   throw new Error(
-    `[native-shell] No TanStack Start manifest found in ${distServer}. ` +
+    `[native-shell] No TanStack Start manifest found in ${buildServer}. ` +
       `Run 'bun run build' first.`,
   );
 }
 
 // Parse the manifest to extract clientEntry and stylesheet assets.
-const manifestContent = readFileSync(join(distServer, manifestFile), "utf8");
+const manifestContent = readFileSync(join(buildServer, manifestFile), "utf8");
 
 // Extract clientEntry (the main JS bundle path).
 const clientEntryMatch = manifestContent.match(/clientEntry:\s*["']([^"']+)["']/);

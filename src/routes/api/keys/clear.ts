@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/keys/clear")({
           const body = (await request.json()) as { providerId?: string };
           providerId = body?.providerId;
         } catch {
-          /* clear all */
+          return Response.json({ error: "Invalid JSON" }, { status: 400 });
         }
         await clearProviderCreds(providerId);
         return Response.json({ ok: true });
