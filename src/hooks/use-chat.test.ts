@@ -206,6 +206,23 @@ import { ProviderError } from "@/lib/providers";
 function setupGlobals() {
   vi.stubGlobal("navigator", { onLine: true });
   vi.stubGlobal("crypto", { randomUUID: () => "msg-" + Math.random().toString(36).slice(2, 10) });
+  // Setup localStorage mock
+  const localStorageMock = (() => {
+    let store: Record<string, string> = {};
+    return {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, value: string) => {
+        store[key] = value.toString();
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+    };
+  })();
+  vi.stubGlobal("localStorage", localStorageMock);
 }
 
 // ---------------------------------------------------------------------------
@@ -359,7 +376,7 @@ describe("useChat error handling", () => {
       await result.current.sendMessage("test");
     });
 
-    expect(result.current.error).toBe("Invalid API key");
+    expect(result.current.error).toBe("Your API key for OpenAI is invalid. Update it in Settings.");
     expect(result.current.status).toBe("error");
     expect(onAuthError).toHaveBeenCalled();
   });
@@ -393,7 +410,7 @@ describe("useChat error handling", () => {
       await result.current.sendMessage("offline");
     });
 
-    expect(result.current.error).toContain("Offline");
+    expect(result.current.error).toBe("Message could not be saved. Free up space or try again.");
     expect(result.current.status).toBe("error");
     // Should not throw even though localStorage is undefined
   });
@@ -411,7 +428,7 @@ describe("useChat error handling", () => {
     });
 
     expect(result.current.queueSize).toBeGreaterThan(0);
-    expect(result.current.error).toContain("Offline");
+    expect(result.current.error).toBe("You're offline. Messages will send when you reconnect.");
     expect(result.current.status).toBe("error");
   });
 
