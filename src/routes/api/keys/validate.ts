@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/keys/validate")({
             // Map technical errors to user-friendly messages
             let userMessage: string | undefined;
             let errorType: string | undefined;
-            
+
             if (result.error) {
               switch (result.error) {
                 case "auth_failed":

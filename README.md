@@ -7,13 +7,13 @@
 > [!IMPORTANT]
 > V1 targets **macOS native, iOS native, and Android native**. Scaffolding exists for all three. The hybrid architecture (local providers direct-fetch, cloud providers via proxy) is now implemented and verified.
 
-| Target                     | V1 required        | Status             | Notes                                                           |
-| -------------------------- | ------------------ | ------------------ | --------------------------------------------------------------- |
-| macOS native (Electron)   | **Yes**            | ⚠️ Scaffolded, unsigned | CORS bypass configured for localhost providers; `electron/main.ts` |
-| iOS native (Capacitor)    | **Yes**            | ⚠️ Scaffolded, unverified | `NSLocalNetworkUsageDescription` + `CapacitorHttp` enabled |
-| Android native (Capacitor) | **Yes**            | ⚠️ Scaffolded, unverified | `usesCleartextTraffic="true"` + `CapacitorHttp` enabled |
-| Web build (Vite)           | Supporting surface | ✅ Builds          | `bun run build` passes — client + SSR artifacts in `dist/`      |
-| Cloudflare Workers backend | Supporting surface | ✅ Configured      | `wrangler.jsonc` + D1 configured; deployment is a separate step |
+| Target                     | V1 required        | Status                    | Notes                                                              |
+| -------------------------- | ------------------ | ------------------------- | ------------------------------------------------------------------ |
+| macOS native (Electron)    | **Yes**            | ⚠️ Scaffolded, unsigned   | CORS bypass configured for localhost providers; `electron/main.ts` |
+| iOS native (Capacitor)     | **Yes**            | ⚠️ Scaffolded, unverified | `NSLocalNetworkUsageDescription` + `CapacitorHttp` enabled         |
+| Android native (Capacitor) | **Yes**            | ⚠️ Scaffolded, unverified | `usesCleartextTraffic="true"` + `CapacitorHttp` enabled            |
+| Web build (Vite)           | Supporting surface | ✅ Builds                 | `bun run build` passes — client + SSR artifacts in `dist/`         |
+| Cloudflare Workers backend | Supporting surface | ✅ Configured             | `wrangler.jsonc` + D1 configured; deployment is a separate step    |
 
 **V1 is not achieved by scaffolding alone.** A passing web/Cloudflare build is a prerequisite, and native projects exist, but V1 requires verified, signed, installable native applications for macOS, iOS, and Android with automated user-flow coverage.
 
@@ -70,16 +70,16 @@ Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test
 
 ## 3. Privacy and data model
 
-| Data                                                | Storage                              | Notes                                                                 |
-| --------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------- |
-| Chat threads and messages                           | `localStorage` (device-local)        | Never synced to server. Export/import via JSON/Markdown/TXT.          |
-| Settings (profile, personalization, shortcuts, RAG) | `localStorage`                       | Device-local only.                                                    |
-| Provider API keys                                   | Encrypted server session cookie      | Browser never holds plaintext keys.                                   |
-| RAG vectors and text chunks                         | `localStorage` + in-memory           | Device-local only.                                                    |
-| Provider stats (counts, tokens, cost)             | `localStorage`                       | Device-local only.                                                    |
-| Usage records (per-call model/token/cost)           | `localStorage`                       | Device-local only.                                                    |
-| Rate limit state                                    | In-memory (fallback) or D1 `rate_limits` | Server-side for cloud providers.                                   |
-| Session/security data                               | D1 `sessions`                        | Server-side only.                                                     |
+| Data                                                | Storage                                  | Notes                                                        |
+| --------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| Chat threads and messages                           | `localStorage` (device-local)            | Never synced to server. Export/import via JSON/Markdown/TXT. |
+| Settings (profile, personalization, shortcuts, RAG) | `localStorage`                           | Device-local only.                                           |
+| Provider API keys                                   | Encrypted server session cookie          | Browser never holds plaintext keys.                          |
+| RAG vectors and text chunks                         | `localStorage` + in-memory               | Device-local only.                                           |
+| Provider stats (counts, tokens, cost)               | `localStorage`                           | Device-local only.                                           |
+| Usage records (per-call model/token/cost)           | `localStorage`                           | Device-local only.                                           |
+| Rate limit state                                    | In-memory (fallback) or D1 `rate_limits` | Server-side for cloud providers.                             |
+| Session/security data                               | D1 `sessions`                            | Server-side only.                                            |
 
 **Defaults proven by source:**
 
@@ -725,22 +725,22 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 
 The following native packaging tooling is present in this repository:
 
-| Item                                                      | Status                      | Verified by source |
-| --------------------------------------------------------- | --------------------------- | ------------------ |
-| Native packaging framework (Capacitor + Electron)         | ✅ Present                  | `capacitor.config.ts`, `@capacitor/*` deps, `electron` + `electron-builder` deps |
-| macOS build command (Electron)                            | ✅ Exists                   | `bun run native:desktop:build` |
-| macOS install/run command (Electron dev)                    | ✅ Exists                   | `bun run native:desktop:dev` |
-| macOS app bundle                                          | ⚠️ Unsigned `.app` exists | `electron/release/mac-arm64/Edgecase Cockpit.app` (unsigned) |
-| macOS signing / notarization config                       | ❌ Not configured           | `electron-builder.yml` has `identity: null` (development only) |
-| iOS Xcode project (Capacitor)                             | ✅ Present                  | `ios/App/App.xcodeproj/` with icons, splash, storyboards |
-| iOS bundle ID                                             | ✅ Configured               | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts` |
-| iOS app icon / permissions                                | ✅ Configured               | `ios/App/App/Assets.xcassets/AppIcon.appiconset/` |
-| Android Gradle project (Capacitor)                        | ✅ Present                  | `android/app/build.gradle`, `android/app/src/main/AndroidManifest.xml` |
-| Android application ID                                      | ✅ Configured               | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts` |
-| Android app icon / permissions                            | ✅ Configured               | `android/app/src/main/res/mipmap-*/` |
-| PWA manifest / service worker                             | ❌ Not present              | No `manifest.json`, `manifest.webmanifest`, or service worker file found |
-| Native release scripts / CI jobs                          | ❌ Do not exist             | No GitHub Actions or CI workflows for native builds |
-| Automated user-flow E2E (browser or native)                 | ❌ Do not exist             | No Playwright, Cypress, or mobile UI test harness |
+| Item                                              | Status                    | Verified by source                                                               |
+| ------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
+| Native packaging framework (Capacitor + Electron) | ✅ Present                | `capacitor.config.ts`, `@capacitor/*` deps, `electron` + `electron-builder` deps |
+| macOS build command (Electron)                    | ✅ Exists                 | `bun run native:desktop:build`                                                   |
+| macOS install/run command (Electron dev)          | ✅ Exists                 | `bun run native:desktop:dev`                                                     |
+| macOS app bundle                                  | ⚠️ Unsigned `.app` exists | `electron/release/mac-arm64/Edgecase Cockpit.app` (unsigned)                     |
+| macOS signing / notarization config               | ❌ Not configured         | `electron-builder.yml` has `identity: null` (development only)                   |
+| iOS Xcode project (Capacitor)                     | ✅ Present                | `ios/App/App.xcodeproj/` with icons, splash, storyboards                         |
+| iOS bundle ID                                     | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
+| iOS app icon / permissions                        | ✅ Configured             | `ios/App/App/Assets.xcassets/AppIcon.appiconset/`                                |
+| Android Gradle project (Capacitor)                | ✅ Present                | `android/app/build.gradle`, `android/app/src/main/AndroidManifest.xml`           |
+| Android application ID                            | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
+| Android app icon / permissions                    | ✅ Configured             | `android/app/src/main/res/mipmap-*/`                                             |
+| PWA manifest / service worker                     | ❌ Not present            | No `manifest.json`, `manifest.webmanifest`, or service worker file found         |
+| Native release scripts / CI jobs                  | ❌ Do not exist           | No GitHub Actions or CI workflows for native builds                              |
+| Automated user-flow E2E (browser or native)       | ❌ Do not exist           | No Playwright, Cypress, or mobile UI test harness                                |
 
 ### What exists (native scaffolding)
 
@@ -765,15 +765,15 @@ These commands produce native artifacts, but **none are verified as release-read
 
 ### Native transport configuration for local providers
 
-The hybrid architecture requires each native platform to allow direct HTTP requests to local model daemons (localhost, 127.0.0.1, *.local). The following configurations are in place:
+The hybrid architecture requires each native platform to allow direct HTTP requests to local model daemons (localhost, 127.0.0.1, \*.local). The following configurations are in place:
 
-| Platform | Configuration | File | What it does |
-| -------- | ------------- | ---- | ------------ |
-| **macOS (Electron)** | `webRequest.onHeadersReceived` | `electron/main.ts` | Injects CORS headers (`Access-Control-Allow-Origin: *`) into responses from localhost providers so `file://` origin can fetch them |
-| **iOS (Capacitor)** | `NSLocalNetworkUsageDescription` | `ios/App/App/Info.plist` | Explains to the user why the app needs local network access; required for LAN/loopback connections |
-| **iOS (Capacitor)** | `CapacitorHttp` plugin | `capacitor.config.ts` | Intercepts all `fetch` / `XMLHttpRequest` in the WebView and routes through native networking, bypassing CORS |
-| **Android (Capacitor)** | `usesCleartextTraffic="true"` | `android/app/src/main/AndroidManifest.xml` | Allows unencrypted HTTP traffic to localhost and local network IPs |
-| **Android (Capacitor)** | `CapacitorHttp` plugin | `capacitor.config.ts` | Same as iOS — native networking bypass for WebView requests |
+| Platform                | Configuration                    | File                                       | What it does                                                                                                                       |
+| ----------------------- | -------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **macOS (Electron)**    | `webRequest.onHeadersReceived`   | `electron/main.ts`                         | Injects CORS headers (`Access-Control-Allow-Origin: *`) into responses from localhost providers so `file://` origin can fetch them |
+| **iOS (Capacitor)**     | `NSLocalNetworkUsageDescription` | `ios/App/App/Info.plist`                   | Explains to the user why the app needs local network access; required for LAN/loopback connections                                 |
+| **iOS (Capacitor)**     | `CapacitorHttp` plugin           | `capacitor.config.ts`                      | Intercepts all `fetch` / `XMLHttpRequest` in the WebView and routes through native networking, bypassing CORS                      |
+| **Android (Capacitor)** | `usesCleartextTraffic="true"`    | `android/app/src/main/AndroidManifest.xml` | Allows unencrypted HTTP traffic to localhost and local network IPs                                                                 |
+| **Android (Capacitor)** | `CapacitorHttp` plugin           | `capacitor.config.ts`                      | Same as iOS — native networking bypass for WebView requests                                                                        |
 
 **Note:** Browser/web builds cannot use local providers directly due to CORS and mixed-content restrictions. Browser users must use the proxy path for local providers, or serve the app from a secure origin with a CORS proxy.
 
@@ -781,10 +781,10 @@ The hybrid architecture requires each native platform to allow direct HTTP reque
 
 **Capacitor + Electron are already selected and installed.** Capacitor covers iOS and Android. Electron covers desktop (macOS). No additional framework selection is required.
 
-| Framework    | Target      | Status        | Notes                                    |
-| ------------ | ----------- | ------------- | ---------------------------------------- |
-| **Capacitor**| iOS, Android| ✅ Installed  | Xcode + Gradle projects present          |
-| **Electron** | Desktop     | ✅ Installed  | macOS `.app` builds; unsigned only       |
+| Framework     | Target       | Status       | Notes                              |
+| ------------- | ------------ | ------------ | ---------------------------------- |
+| **Capacitor** | iOS, Android | ✅ Installed | Xcode + Gradle projects present    |
+| **Electron**  | Desktop      | ✅ Installed | macOS `.app` builds; unsigned only |
 
 ---
 
@@ -831,22 +831,26 @@ All provider configuration is done through the standard Settings interface.
 ### Error and Offline States
 
 #### 1. Missing API Key
+
 **Message:** "No API key set for [Provider]. Add one in Settings."
 
 **What happened:** You tried to use a provider without setting up an API key.
 
 **What to do:**
+
 1. Click the "Settings" button or navigate to `/settings`
 2. Find the provider card (e.g., OpenAI, Anthropic)
 3. Enter your API key
 4. Click "Save"
 
 #### 2. Invalid API Key
+
 **Message:** "Your API key for [Provider] is invalid. Update it in Settings."
 
 **What happened:** The API key you provided is incorrect, revoked, or expired.
 
 **What to do:**
+
 1. Click the "Settings" button or navigate to `/settings`
 2. Find the provider card
 3. Verify your API key is correct
@@ -854,33 +858,39 @@ All provider configuration is done through the standard Settings interface.
 5. Click "Save"
 
 #### 3. Provider Unavailable
+
 **Message:** "[Provider] is unavailable. Check your connection or try again."
 
 **What happened:** The provider's server is unreachable (connection refused, timeout, or offline).
 
 **What to do:**
+
 1. Check your internet connection
 2. If using a local provider (e.g., Ollama, LM Studio), verify the daemon is running
 3. Click "Retry" to attempt the request again
 4. If the issue persists, check the provider's status page
 
 #### 4. Rate Limited
+
 **Message:** "You've been rate limited by [Provider]. Try again in X seconds."
 
 **What happened:** You've sent too many requests in a short time and the provider is throttling you.
 
 **What to do:**
+
 1. Wait for the countdown to complete (X seconds)
 2. Click **Retry** to resend the request once the cooldown expires
 3. If you need to cancel, click "Cancel"
 4. Consider upgrading your plan if you frequently hit rate limits
 
 #### 5. Offline Mode
+
 **Message:** "You're offline. Messages will send when you reconnect."
 
 **What happened:** Your device is offline, but your message has been queued.
 
 **What to do:**
+
 1. Check your internet connection
 2. Once reconnected, your queued messages will automatically send
 3. You'll see a success message when they're sent
@@ -888,6 +898,7 @@ All provider configuration is done through the standard Settings interface.
 **Status bar:** Shows "You're offline — X messages queued" with the queue count.
 
 #### 6. Offline Message Synced
+
 **Message:** "Your queued messages have been sent."
 
 **What happened:** Your device reconnected and queued messages were successfully sent.
@@ -895,11 +906,13 @@ All provider configuration is done through the standard Settings interface.
 **What to do:** No action needed. Your messages are now delivered.
 
 #### 7. Storage Failure
+
 **Message:** "Message could not be saved. Free up space or try again."
 
 **What happened:** Your browser's localStorage is full or unavailable.
 
 **What to do:**
+
 1. Clear some browser data (cache, cookies, or localStorage)
 2. Try again
 3. If using private/incognito mode, switch to a regular browser session
@@ -910,6 +923,7 @@ All provider configuration is done through the standard Settings interface.
 ## 12. Provider Setup and Validation
 
 ### Overview
+
 Edgecase Cockpit now provides clear, user-friendly feedback for provider setup and API key validation. This helps you understand which providers are ready to use and troubleshoot any configuration issues.
 
 ### Provider Status Indicators
@@ -943,12 +957,14 @@ After entering an API key, you can validate it:
 ### Toast Notifications
 
 When validation completes, you'll see toast notifications:
+
 - ✅ **"✅ OpenAI API key is valid!"** - Success
 - ❌ **"❌ OpenAI: Invalid API key"** - Failure with reason
 
 ### Model Selection Feedback
 
 The model picker shows:
+
 - **"Loading models..."** - Fetching available models
 - **"✅ X models available"** - Models loaded successfully
 - **"⚠️ Failed to fetch models (using default)"** - Fallback to default model
@@ -956,18 +972,21 @@ The model picker shows:
 ### Troubleshooting
 
 **"Invalid API key" errors:**
+
 1. Double-check your API key
 2. Ensure it hasn't expired
 3. Verify you have sufficient credits/quota
 4. Check the provider's status page
 
 **"Network error" or "Timeout":**
+
 1. Check your internet connection
 2. Verify the provider is not down
 3. For local providers, ensure your daemon is running
 4. Try again later
 
 **"No models available":**
+
 1. The provider may not support model listing
 2. Using the default model is fine
 3. Chat functionality still works
@@ -975,6 +994,7 @@ The model picker shows:
 ### Provider Status in Chat
 
 The status bar shows:
+
 - **✅ Provider (model) Ready** - Validated and working
 - **⚠️ Provider needs setup** - Missing key or configuration
 - **❌ Provider invalid key** - Validation failed

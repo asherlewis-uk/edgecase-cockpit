@@ -3,14 +3,20 @@ import { useNavigate } from "@tanstack/react-router";
 import { X, ArrowRight, Settings as SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, store, PROVIDERS } from "@/lib/cockpit-store";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 export function OnboardingModal() {
   const [step, setStep] = useState<"welcome" | "providers" | "setup">("welcome");
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const navigate = useNavigate();
   const onboardingCompleted = useStore((s) => s.settings.onboardingCompleted);
-  
+
   const cloudProviders = PROVIDERS.filter((p) => p.type === "cloud");
   const localProviders = PROVIDERS.filter((p) => p.type === "local");
 
@@ -43,8 +49,10 @@ export function OnboardingModal() {
             </DialogTitle>
           </DialogHeader>
           <DialogDescription className="sr-only">
-            {step === "welcome" && "Welcome to Edgecase Cockpit. Get started by selecting an AI provider or skip for now."}
-            {step === "providers" && "Choose a cloud or local AI provider to connect to your cockpit."}
+            {step === "welcome" &&
+              "Welcome to Edgecase Cockpit. Get started by selecting an AI provider or skip for now."}
+            {step === "providers" &&
+              "Choose a cloud or local AI provider to connect to your cockpit."}
             {step === "setup" && "Configure your selected provider with an API key or base URL."}
           </DialogDescription>
           <Button
@@ -62,10 +70,12 @@ export function OnboardingModal() {
           <div className="space-y-6">
             <div className="space-y-4">
               <p className="text-white/80 leading-relaxed">
-                Edgecase Cockpit is your personal AI control surface. Connect to cloud and local AI providers, chat seamlessly, and manage your conversations in one place.
+                Edgecase Cockpit is your personal AI control surface. Connect to cloud and local AI
+                providers, chat seamlessly, and manage your conversations in one place.
               </p>
               <p className="text-white/80 leading-relaxed">
-                Whether you're using OpenAI, Anthropic, or running local models with Ollama or LM Studio, Cockpit provides a unified interface for all your AI interactions.
+                Whether you're using OpenAI, Anthropic, or running local models with Ollama or LM
+                Studio, Cockpit provides a unified interface for all your AI interactions.
               </p>
             </div>
 
@@ -105,11 +115,15 @@ export function OnboardingModal() {
                       setStep("setup");
                     }}
                     className={`flex flex-col gap-3 rounded-xl border p-4 transition hover:bg-white/[0.04] ${
-                      selectedProviderId === provider.id ? "border-white/30 bg-white/[0.06]" : "border-white/10"
+                      selectedProviderId === provider.id
+                        ? "border-white/30 bg-white/[0.06]"
+                        : "border-white/10"
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-xs font-semibold text-black ${provider.accent}`}>
+                      <div
+                        className={`grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-xs font-semibold text-black ${provider.accent}`}
+                      >
                         {provider.badge}
                       </div>
                       <span className="font-medium text-white">{provider.name}</span>
@@ -126,7 +140,9 @@ export function OnboardingModal() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm uppercase tracking-wider text-white/50">Local / Self-hosted</h3>
+              <h3 className="text-sm uppercase tracking-wider text-white/50">
+                Local / Self-hosted
+              </h3>
               <div className="grid gap-3 sm:grid-cols-2">
                 {localProviders.map((provider) => (
                   <button
@@ -136,11 +152,15 @@ export function OnboardingModal() {
                       setStep("setup");
                     }}
                     className={`flex flex-col gap-3 rounded-xl border p-4 transition hover:bg-white/[0.04] ${
-                      selectedProviderId === provider.id ? "border-white/30 bg-white/[0.06]" : "border-white/10"
+                      selectedProviderId === provider.id
+                        ? "border-white/30 bg-white/[0.06]"
+                        : "border-white/10"
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-xs font-semibold text-black ${provider.accent}`}>
+                      <div
+                        className={`grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-xs font-semibold text-black ${provider.accent}`}
+                      >
                         {provider.badge}
                       </div>
                       <span className="font-medium text-white">{provider.name}</span>
@@ -175,18 +195,24 @@ export function OnboardingModal() {
           <div className="space-y-6">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className={`grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-sm font-semibold text-black ${PROVIDERS.find(p => p.id === selectedProviderId)?.accent}`}>
-                  {PROVIDERS.find(p => p.id === selectedProviderId)?.badge}
+                <div
+                  className={`grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-sm font-semibold text-black ${PROVIDERS.find((p) => p.id === selectedProviderId)?.accent}`}
+                >
+                  {PROVIDERS.find((p) => p.id === selectedProviderId)?.badge}
                 </div>
                 <div>
-                  <h3 className="text-xl font-medium text-white">{PROVIDERS.find(p => p.id === selectedProviderId)?.name}</h3>
-                  <p className="text-sm text-white/60">{PROVIDERS.find(p => p.id === selectedProviderId)?.description}</p>
+                  <h3 className="text-xl font-medium text-white">
+                    {PROVIDERS.find((p) => p.id === selectedProviderId)?.name}
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    {PROVIDERS.find((p) => p.id === selectedProviderId)?.description}
+                  </p>
                 </div>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
                 <p className="text-white/80 mb-3">
-                  To use {PROVIDERS.find(p => p.id === selectedProviderId)?.name}, you'll need to:
+                  To use {PROVIDERS.find((p) => p.id === selectedProviderId)?.name}, you'll need to:
                 </p>
                 <ol className="space-y-2 text-sm text-white/80">
                   <li>1. Set up an API key in Settings</li>
@@ -195,10 +221,11 @@ export function OnboardingModal() {
                 </ol>
               </div>
 
-              {PROVIDERS.find(p => p.id === selectedProviderId)?.needsApiKey && (
+              {PROVIDERS.find((p) => p.id === selectedProviderId)?.needsApiKey && (
                 <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
                   <p className="text-sm text-amber-200">
-                    <span className="font-medium">API Key Required:</span> This provider needs an API key to function.
+                    <span className="font-medium">API Key Required:</span> This provider needs an
+                    API key to function.
                   </p>
                 </div>
               )}

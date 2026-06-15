@@ -96,7 +96,9 @@ export function ModelPicker({
             <span className="ml-2 inline-block text-[10px] text-amber-300">⚠️ {fetchError}</span>
           )}
           {!loading && !fetchError && models.length > 0 && (
-            <span className="ml-2 inline-block text-[10px] text-emerald-300">✅ {models.length} available</span>
+            <span className="ml-2 inline-block text-[10px] text-emerald-300">
+              ✅ {models.length} available
+            </span>
           )}
         </DropdownMenuLabel>
         {displayModels.map((m) => {

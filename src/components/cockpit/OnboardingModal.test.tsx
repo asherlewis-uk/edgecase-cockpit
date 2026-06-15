@@ -5,7 +5,9 @@ import { store } from "@/lib/cockpit-store";
 
 // Mock the store functions
 vi.mock("@/lib/cockpit-store", async () => {
-  const actual = await vi.importActual("@/lib/cockpit-store") as typeof import("@/lib/cockpit-store");
+  const actual = (await vi.importActual(
+    "@/lib/cockpit-store",
+  )) as typeof import("@/lib/cockpit-store");
   return {
     ...actual,
     store: {
@@ -35,7 +37,7 @@ describe("OnboardingModal", () => {
     // For this test, we'll just verify the basic logic by checking that the modal
     // respects the onboardingCompleted state. The actual rendering test is covered
     // by the other tests that verify the modal appears when onboarding is not completed.
-    
+
     // This test would require more complex setup to properly mock the store state
     // and is less critical than the other tests, so we'll mark it as skipped for now
     expect(true).toBe(true); // Placeholder - actual test would require more setup

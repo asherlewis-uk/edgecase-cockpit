@@ -20,7 +20,7 @@ export function StatusBar({
           <WifiOff className="size-3.5" />
           <span>
             {isOnline ? "Back online" : "You're offline"}
-            {queueSize > 0 && ` — ${queueSize} message${queueSize === 1 ? '' : 's'} queued`}
+            {queueSize > 0 && ` — ${queueSize} message${queueSize === 1 ? "" : "s"} queued`}
           </span>
         </>
       )}

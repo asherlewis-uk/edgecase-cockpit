@@ -10,33 +10,33 @@
 
 All items below were once future work and are now implemented. They are preserved here as historical record but should **not** be treated as open gaps.
 
-| Area                                                                        | Status         | Primary source                                                                           |
-| --------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
-| Streaming chat completions                                                  | ✅ Implemented | `src/lib/providers.ts`, `src/hooks/use-chat.ts`                                          |
-| Streaming tool-call deltas (OpenAI-compat)                                  | ✅ Implemented | `src/lib/tools.ts` (`StreamToolCallAccumulator`)                                         |
-| Streaming tool-call deltas (Anthropic)                                      | ✅ Implemented | `src/lib/tools.ts` (`AnthropicStreamToolCallAccumulator`)                                |
-| 4 safe built-in executable tools                                            | ✅ Implemented | `src/lib/tools.ts` (`BUILT_IN_TOOLS`)                                                    |
-| Dynamic tool schema registry (`registerLocalTool`, `registerProviderTools`) | ✅ Implemented | `src/lib/tools.ts`, `src/routes/api/tools/schemas.ts`                                    |
-| Tool name + args safety validation (three-layer guard)                      | ✅ Implemented | `src/lib/tools.ts` (`validateToolName`, `sanitizeToolCallArgs`, `validateToolCall`)      |
-| RAG: embedding proxy, local vector store, context injection                 | ✅ Implemented | `src/lib/vector-store.ts`, `src/lib/embeddings.ts`                                       |
-| RAG: sentence/paragraph chunking                                            | ✅ Implemented | `src/lib/vector-store.ts` (`chunkText`)                                                  |
-| RAG error state surfaced in StatusBar                                       | ✅ Implemented | `src/hooks/use-chat.ts` (`ragError`), `src/components/cockpit/StatusBar.tsx`             |
-| Cross-tab sync for settings, threads, provider stats, vector cache          | ✅ Implemented | `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`                                    |
-| Exact token usage extraction (OpenAI/Anthropic/Gemini)                      | ✅ Implemented | `src/lib/tokens.ts` (`extractProviderUsage`)                                             |
-| Configurable cost rate overrides                                            | ✅ Implemented | `src/lib/tokens.ts` (`setCostOverrides`)                                                 |
-| D1-backed distributed rate limiter                                          | ✅ Implemented | `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend`)                                  |
-| `RATE_LIMIT_BACKEND` env var for backend selection                          | ✅ Implemented | `src/lib/rate-limit.server.ts` (`configureRateLimiterFromEnv`)                           |
-| Device-local privacy defaults (chat/RAG off by default)                     | ✅ Implemented | `src/lib/cockpit-store.ts` (`syncChatsToServer: false`, `syncRagVectorsToServer: false`) |
-| CSRF protection on all mutating routes                                      | ✅ Implemented | `src/lib/csrf.server.ts`                                                                 |
-| Proxy SSRF guard with production wildcard block                             | ✅ Implemented | `src/lib/proxy-guard.server.ts`                                                          |
-| Cold-start env validation (`SESSION_SECRET`)                                | ✅ Implemented | `src/lib/env.server.ts`, `src/server.ts`                                                 |
-| CSP + security headers on HTML responses                                    | ✅ Implemented | `src/lib/csp.server.ts`                                                                  |
-| Storage limits (threads, messages, content, attachments)                    | ✅ Implemented | `src/lib/storage-limits.server.ts`                                                       |
-| Voice transcription proxy (Whisper-compatible)                              | ✅ Implemented | `src/routes/api/proxy/transcribe.ts`                                                     |
-| Offline queue with auto-drain on reconnect                                  | ✅ Implemented | `src/hooks/use-chat.ts`                                                                  |
-| Opt-in live provider tests with `STRICT_LIVE_PROVIDER_TESTS` mode           | ✅ Implemented | `src/live/providers.live.test.ts`                                                        |
-| Error and offline state handling (offline queue, reconnect sync, storage failure) | ✅ Implemented | `src/hooks/use-chat.ts`, `src/components/cockpit/StatusBar.tsx`                          |
-| First launch / onboarding (modal, skip/complete, persistence)               | ✅ Implemented | `src/components/cockpit/OnboardingModal.tsx`, `src/lib/cockpit-store.ts`               |
+| Area                                                                                 | Status         | Primary source                                                                                                                         |
+| ------------------------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Streaming chat completions                                                           | ✅ Implemented | `src/lib/providers.ts`, `src/hooks/use-chat.ts`                                                                                        |
+| Streaming tool-call deltas (OpenAI-compat)                                           | ✅ Implemented | `src/lib/tools.ts` (`StreamToolCallAccumulator`)                                                                                       |
+| Streaming tool-call deltas (Anthropic)                                               | ✅ Implemented | `src/lib/tools.ts` (`AnthropicStreamToolCallAccumulator`)                                                                              |
+| 4 safe built-in executable tools                                                     | ✅ Implemented | `src/lib/tools.ts` (`BUILT_IN_TOOLS`)                                                                                                  |
+| Dynamic tool schema registry (`registerLocalTool`, `registerProviderTools`)          | ✅ Implemented | `src/lib/tools.ts`, `src/routes/api/tools/schemas.ts`                                                                                  |
+| Tool name + args safety validation (three-layer guard)                               | ✅ Implemented | `src/lib/tools.ts` (`validateToolName`, `sanitizeToolCallArgs`, `validateToolCall`)                                                    |
+| RAG: embedding proxy, local vector store, context injection                          | ✅ Implemented | `src/lib/vector-store.ts`, `src/lib/embeddings.ts`                                                                                     |
+| RAG: sentence/paragraph chunking                                                     | ✅ Implemented | `src/lib/vector-store.ts` (`chunkText`)                                                                                                |
+| RAG error state surfaced in StatusBar                                                | ✅ Implemented | `src/hooks/use-chat.ts` (`ragError`), `src/components/cockpit/StatusBar.tsx`                                                           |
+| Cross-tab sync for settings, threads, provider stats, vector cache                   | ✅ Implemented | `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`                                                                                  |
+| Exact token usage extraction (OpenAI/Anthropic/Gemini)                               | ✅ Implemented | `src/lib/tokens.ts` (`extractProviderUsage`)                                                                                           |
+| Configurable cost rate overrides                                                     | ✅ Implemented | `src/lib/tokens.ts` (`setCostOverrides`)                                                                                               |
+| D1-backed distributed rate limiter                                                   | ✅ Implemented | `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend`)                                                                                |
+| `RATE_LIMIT_BACKEND` env var for backend selection                                   | ✅ Implemented | `src/lib/rate-limit.server.ts` (`configureRateLimiterFromEnv`)                                                                         |
+| Device-local privacy defaults (chat/RAG off by default)                              | ✅ Implemented | `src/lib/cockpit-store.ts` (`syncChatsToServer: false`, `syncRagVectorsToServer: false`)                                               |
+| CSRF protection on all mutating routes                                               | ✅ Implemented | `src/lib/csrf.server.ts`                                                                                                               |
+| Proxy SSRF guard with production wildcard block                                      | ✅ Implemented | `src/lib/proxy-guard.server.ts`                                                                                                        |
+| Cold-start env validation (`SESSION_SECRET`)                                         | ✅ Implemented | `src/lib/env.server.ts`, `src/server.ts`                                                                                               |
+| CSP + security headers on HTML responses                                             | ✅ Implemented | `src/lib/csp.server.ts`                                                                                                                |
+| Storage limits (threads, messages, content, attachments)                             | ✅ Implemented | `src/lib/storage-limits.server.ts`                                                                                                     |
+| Voice transcription proxy (Whisper-compatible)                                       | ✅ Implemented | `src/routes/api/proxy/transcribe.ts`                                                                                                   |
+| Offline queue with auto-drain on reconnect                                           | ✅ Implemented | `src/hooks/use-chat.ts`                                                                                                                |
+| Opt-in live provider tests with `STRICT_LIVE_PROVIDER_TESTS` mode                    | ✅ Implemented | `src/live/providers.live.test.ts`                                                                                                      |
+| Error and offline state handling (offline queue, reconnect sync, storage failure)    | ✅ Implemented | `src/hooks/use-chat.ts`, `src/components/cockpit/StatusBar.tsx`                                                                        |
+| First launch / onboarding (modal, skip/complete, persistence)                        | ✅ Implemented | `src/components/cockpit/OnboardingModal.tsx`, `src/lib/cockpit-store.ts`                                                               |
 | Provider / model setup feedback (status indicators, validation, toast notifications) | ✅ Implemented | `src/lib/cockpit-store.ts` (`providerValidationStatus`), `src/components/cockpit/settings/ProviderCard.tsx`, `src/routes/settings.tsx` |
 
 ---
@@ -139,10 +139,10 @@ These are enhancements that are **not yet implemented** and would require new wo
 
 **Capacitor + Electron are already selected and installed.**
 
-| Framework | Targets    | Status   | Notes                                               |
-| --------- | ---------- | -------- | --------------------------------------------------- |
+| Framework | Targets      | Status       | Notes                                                 |
+| --------- | ------------ | ------------ | ----------------------------------------------------- |
 | Capacitor | iOS, Android | ✅ Installed | Xcode + Gradle projects present; wraps `dist/client/` |
-| Electron  | Desktop    | ✅ Installed | macOS `.app` builds; unsigned only                  |
+| Electron  | Desktop      | ✅ Installed | macOS `.app` builds; unsigned only                    |
 
 No additional framework decision is required. Do not add Tauri or another framework without an explicit project decision.
 
@@ -206,12 +206,12 @@ No additional framework decision is required. Do not add Tauri or another framew
 
 ## Accepted stale limitations (no action planned)
 
-| Limitation                                                                               | Reason not actioned                                                                                                                                                         |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool name safety: unsafe provider names silently dropped (no user notification)          | Silent dropping is intentional to prevent injection. Surfacing as a notification would require UX work; not prioritized.                                                    |
-| Provider capability flags are declarations, not end-to-end verified for all combinations | Live verification requires real credentials per provider. Covered for OpenAI/Anthropic/Gemini via opt-in live tests. Other providers verified manually at integration time. |
-| Streaming is disabled when tools are active for providers without `streamingTools: true` | Architectural: non-streaming is required to parse complete tool call JSON. Providers must declare streaming tool support explicitly.                                        |
-| No automated user-flow E2E coverage (browser or native)                                    | No Playwright, Cypress, or mobile UI test harness exists. Unit + API-level tests (450+) are the current release gate. Adding E2E would require framework selection + CI setup. |
+| Limitation                                                                               | Reason not actioned                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tool name safety: unsafe provider names silently dropped (no user notification)          | Silent dropping is intentional to prevent injection. Surfacing as a notification would require UX work; not prioritized.                                                       |
+| Provider capability flags are declarations, not end-to-end verified for all combinations | Live verification requires real credentials per provider. Covered for OpenAI/Anthropic/Gemini via opt-in live tests. Other providers verified manually at integration time.    |
+| Streaming is disabled when tools are active for providers without `streamingTools: true` | Architectural: non-streaming is required to parse complete tool call JSON. Providers must declare streaming tool support explicitly.                                           |
+| No automated user-flow E2E coverage (browser or native)                                  | No Playwright, Cypress, or mobile UI test harness exists. Unit + API-level tests (450+) are the current release gate. Adding E2E would require framework selection + CI setup. |
 
 ---
 

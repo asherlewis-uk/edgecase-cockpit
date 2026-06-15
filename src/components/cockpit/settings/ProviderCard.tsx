@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { apiFetch, isNativeContext } from "@/lib/api-base";
-import { Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2, AlertCircle, Loader2, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import {
+  Check,
+  Pin,
+  PinOff,
+  Wifi,
+  WifiOff,
+  KeyRound,
+  Trash2,
+  AlertCircle,
+  Loader2,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
+} from "lucide-react";
 import {
   useStore,
   store,
@@ -269,7 +282,11 @@ export function ProviderCard({
                     className="h-9 border-white/10 bg-transparent text-white/70 hover:bg-white/10"
                     aria-label="Validate API key"
                   >
-                    {validating ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {validating ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="size-3.5" />
+                    )}
                   </Button>
                   <Button
                     size="sm"
@@ -319,11 +336,15 @@ export function ProviderCard({
 
       <div className="flex items-center justify-between gap-2">
         <span className={`text-[11px] ${ready ? "text-emerald-300" : "text-amber-300"}`}>
-          {ready ? (
-            validationStatus.status === "valid" ? "✅ Ready to chat" : "Ready"
-          ) : p.needsApiKey ? (
-            hasServerKey ? "⚠️ Needs validation" : "🔑 Needs API key"
-          ) : "🔧 Configure base URL"}
+          {ready
+            ? validationStatus.status === "valid"
+              ? "✅ Ready to chat"
+              : "Ready"
+            : p.needsApiKey
+              ? hasServerKey
+                ? "⚠️ Needs validation"
+                : "🔑 Needs API key"
+              : "🔧 Configure base URL"}
         </span>
         <Button
           size="sm"

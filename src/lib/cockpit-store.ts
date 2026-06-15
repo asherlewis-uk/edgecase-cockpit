@@ -430,12 +430,15 @@ type State = {
   /** Runtime-only: which provider ids have a key stored server-side. */
   providerKeyStatus: Record<string, boolean>;
   /** Runtime-only: validation status for each provider. */
-  providerValidationStatus: Record<string, {
-    status: "idle" | "validating" | "valid" | "invalid" | "error";
-    message?: string;
-    errorType?: "auth_failed" | "network_error" | "timeout" | "rate_limited" | "unknown";
-    lastValidated?: number;
-  }>;
+  providerValidationStatus: Record<
+    string,
+    {
+      status: "idle" | "validating" | "valid" | "invalid" | "error";
+      message?: string;
+      errorType?: "auth_failed" | "network_error" | "timeout" | "rate_limited" | "unknown";
+      lastValidated?: number;
+    }
+  >;
 };
 
 let state: State = {
@@ -996,7 +999,7 @@ export function setProviderValidationStatus(
     status: "idle" | "validating" | "valid" | "invalid" | "error";
     message?: string;
     errorType?: "auth_failed" | "network_error" | "timeout" | "rate_limited" | "unknown";
-  }
+  },
 ) {
   const current = state.providerValidationStatus[id] ?? { status: "idle" };
   state = {
