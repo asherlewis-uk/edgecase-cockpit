@@ -73,7 +73,8 @@ export const Route = createFileRoute("/api/proxy/transcribe")({
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 60_000);
         try {
-          const upstream = await fetch(url, { redirect: "manual",
+          const upstream = await fetch(url, {
+            redirect: "manual",
             method: "POST",
             headers,
             body: upstreamForm,

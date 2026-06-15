@@ -168,7 +168,8 @@ export const Route = createFileRoute("/api/proxy/chat")({
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 60_000);
         try {
-          upstream = await fetch(url, { redirect: "manual",
+          upstream = await fetch(url, {
+            redirect: "manual",
             method: "POST",
             headers,
             body: upstreamBody,

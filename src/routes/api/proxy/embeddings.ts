@@ -85,7 +85,8 @@ export const Route = createFileRoute("/api/proxy/embeddings")({
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 30_000);
         try {
-          const upstream = await fetch(url, { redirect: "manual",
+          const upstream = await fetch(url, {
+            redirect: "manual",
             method: "POST",
             headers,
             body: upstreamBody,

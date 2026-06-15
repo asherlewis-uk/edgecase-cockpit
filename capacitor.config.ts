@@ -9,7 +9,8 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * For native builds, set NATIVE_API_URL to your deployed Worker URL
  * so the app can construct absolute API URLs at runtime.
  */
-const NATIVE_API_URL = process.env.NATIVE_API_URL ?? "https://edgecase-cockpit.asher-lewis-knight.workers.dev";
+const NATIVE_API_URL =
+  process.env.NATIVE_API_URL ?? "https://edgecase-cockpit.asher-lewis-knight.workers.dev";
 
 const config: CapacitorConfig = {
   appId: "uk.asherlewis.edgecase.cockpit",
