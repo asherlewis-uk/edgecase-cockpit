@@ -109,9 +109,6 @@ export function Cockpit() {
     isCoolingDown,
   } = useChat({
     onAuthError: () => {
-      toast.error("Invalid API key", {
-        description: "Update your provider credentials.",
-      });
       navigate({ to: "/settings" });
     },
   });

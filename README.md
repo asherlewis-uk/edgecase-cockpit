@@ -764,3 +764,84 @@ The hybrid architecture requires each native platform to allow direct HTTP reque
 | ------------ | ----------- | ------------- | ---------------------------------------- |
 | **Capacitor**| iOS, Android| ✅ Installed  | Xcode + Gradle projects present          |
 | **Electron** | Desktop     | ✅ Installed  | macOS `.app` builds; unsigned only       |
+
+---
+
+## Troubleshooting
+
+### Error and Offline States
+
+#### 1. Missing API Key
+**Message:** "No API key set for [Provider]. Add one in Settings."
+
+**What happened:** You tried to use a provider without setting up an API key.
+
+**What to do:**
+1. Click the "Settings" button or navigate to `/settings`
+2. Find the provider card (e.g., OpenAI, Anthropic)
+3. Enter your API key
+4. Click "Save"
+
+#### 2. Invalid API Key
+**Message:** "Your API key for [Provider] is invalid. Update it in Settings."
+
+**What happened:** The API key you provided is incorrect, revoked, or expired.
+
+**What to do:**
+1. Click the "Settings" button or navigate to `/settings`
+2. Find the provider card
+3. Verify your API key is correct
+4. Update it if needed
+5. Click "Save"
+
+#### 3. Provider Unavailable
+**Message:** "[Provider] is unavailable. Check your connection or try again."
+
+**What happened:** The provider's server is unreachable (connection refused, timeout, or offline).
+
+**What to do:**
+1. Check your internet connection
+2. If using a local provider (e.g., Ollama, LM Studio), verify the daemon is running
+3. Click "Retry" to attempt the request again
+4. If the issue persists, check the provider's status page
+
+#### 4. Rate Limited
+**Message:** "You've been rate limited by [Provider]. Try again in X seconds."
+
+**What happened:** You've sent too many requests in a short time and the provider is throttling you.
+
+**What to do:**
+1. Wait for the countdown to complete (X seconds)
+2. The request will automatically retry
+3. If you need to cancel, click "Cancel"
+4. Consider upgrading your plan if you frequently hit rate limits
+
+#### 5. Offline Mode
+**Message:** "You're offline. Messages will send when you reconnect."
+
+**What happened:** Your device is offline, but your message has been queued.
+
+**What to do:**
+1. Check your internet connection
+2. Once reconnected, your queued messages will automatically send
+3. You'll see a success message when they're sent
+
+**Status bar:** Shows "You're offline — X messages queued" with the queue count.
+
+#### 6. Offline Message Synced
+**Message:** "Your queued messages have been sent."
+
+**What happened:** Your device reconnected and queued messages were successfully sent.
+
+**What to do:** No action needed. Your messages are now delivered.
+
+#### 7. Storage Failure
+**Message:** "Message could not be saved. Free up space or try again."
+
+**What happened:** Your browser's localStorage is full or unavailable.
+
+**What to do:**
+1. Clear some browser data (cache, cookies, or localStorage)
+2. Try again
+3. If using private/incognito mode, switch to a regular browser session
+4. Check your browser's storage settings

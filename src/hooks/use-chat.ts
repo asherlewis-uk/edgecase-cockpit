@@ -61,16 +61,18 @@ function loadOfflineQueue(): PromptDraft[] {
   return [];
 }
 
-function saveOfflineQueue(queue: PromptDraft[]): void {
-  if (!isLocalStorageAvailable()) return;
+function saveOfflineQueue(queue: PromptDraft[]): boolean {
+  if (!isLocalStorageAvailable()) return false;
   try {
     if (queue.length === 0) {
       localStorage.removeItem(OFFLINE_QUEUE_KEY);
     } else {
       localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
     }
+    return true;
   } catch {
     /* quota exceeded or unavailable */
+    return false;
   }
 }
 
@@ -161,11 +163,18 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
     const on = () => {
       setIsOnline(true);
       const q = queueRef.current.splice(0);
-      saveOfflineQueue(queueRef.current);
+      const saveSuccess = saveOfflineQueue(queueRef.current);
+      if (!saveSuccess && typeof window !== "undefined" && window.toast) {
+        window.toast.error("Message could not be saved. Free up space or try again.");
+      }
       setQueueSize(0);
       (async () => {
         for (const item of q) {
           await sendMessageRef.current?.(item.text, item.imageAttachments, item.videoAttachments);
+        }
+        // Show success message after syncing queued messages
+        if (q.length > 0 && typeof window !== "undefined" && window.toast) {
+          window.toast.success("Your queued messages have been sent.");
         }
       })();
     };
@@ -393,28 +402,36 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         if (aborted) {
           setStatus("idle");
         } else if (apiErr && (apiErr.status === 401 || apiErr.status === 403)) {
-          setError("Invalid API key");
+          const providerName = provider.name;
+          const errorMessage = apiKey
+            ? `Your API key for ${providerName} is invalid. Update it in Settings.`
+            : `No API key set for ${providerName}. Add one in Settings.`;
+          setError(errorMessage);
           setStatus("error");
           onAuthError?.(msg);
         } else if (apiErr && apiErr.status === 429) {
           backoffRef.current = Math.min(backoffRef.current + 1, 6);
           const base = apiErr.retryAfter ?? Math.min(2 ** backoffRef.current, 60);
           setCooldownUntil(Date.now() + base * 1000);
-          setError(`Rate limited — retrying in ${base}s`);
+          setError(`You've been rate limited by ${provider.name}. Try again in ${base}s.`);
           setStatus("error");
         } else if (typeof navigator !== "undefined" && !navigator.onLine) {
           if (lastPromptRef.current) {
             queueRef.current.push(lastPromptRef.current);
-            saveOfflineQueue(queueRef.current);
+            const saveSuccess = saveOfflineQueue(queueRef.current);
+            if (!saveSuccess) {
+              setError("Message could not be saved. Free up space or try again.");
+            } else {
+              setError("You're offline. Messages will send when you reconnect.");
+            }
             setQueueSize(queueRef.current.length);
           }
-          setError("Offline — queued for retry");
           setStatus("error");
         } else if (isLocal && !apiErr) {
           // Local provider fetch failed (connection refused, timeout, unreachable daemon)
           const clean = msg.toLowerCase().includes("abort")
-            ? "Connection to local provider timed out. Verify your daemon is running."
-            : `Connection to ${provider.name} failed. Verify the daemon is running at ${baseUrl}.`;
+            ? `${provider.name} is unavailable. Check your connection or try again.`
+            : `${provider.name} is unavailable. Check your connection or try again.`;
           lastErrorRef.current = { message: clean, count: 1 };
           setError(clean);
           setStatus("error");
@@ -483,9 +500,13 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
       lastPromptRef.current = { text: storedContent, imageAttachments, videoAttachments };
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         queueRef.current.push({ text: storedContent, imageAttachments, videoAttachments });
-        saveOfflineQueue(queueRef.current);
+        const saveSuccess = saveOfflineQueue(queueRef.current);
+        if (!saveSuccess) {
+          setError("Message could not be saved. Free up space or try again.");
+        } else {
+          setError("You're offline. Messages will send when you reconnect.");
+        }
         setQueueSize(queueRef.current.length);
-        setError("Offline — queued for retry");
         setStatus("error");
         return;
       }
