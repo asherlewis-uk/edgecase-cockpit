@@ -35,13 +35,7 @@ import { ModelPicker } from "@/components/cockpit/ModelPicker";
 import { ShortcutHelp } from "@/components/cockpit/ShortcutHelp";
 import { StatusBar } from "@/components/cockpit/StatusBar";
 import { ThreadOverflowMenu as ExtractedThreadOverflowMenu } from "@/components/cockpit/ThreadOverflowMenu";
-import {
-  useStore,
-  store,
-  PROVIDERS,
-  resolveProvider,
-  type Message,
-} from "@/lib/cockpit-store";
+import { useStore, store, PROVIDERS, resolveProvider, type Message } from "@/lib/cockpit-store";
 import { useChat } from "@/hooks/use-chat";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { transcribeAudioViaProxy } from "@/lib/providers";

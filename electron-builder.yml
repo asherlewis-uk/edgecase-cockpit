@@ -33,7 +33,6 @@ mac:
         - x64
   icon: electron/resources/icon.icns
 
-
 # DMG window layout (macOS).
 dmg:
   contents:

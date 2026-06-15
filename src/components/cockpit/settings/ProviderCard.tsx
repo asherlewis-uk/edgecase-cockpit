@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { apiFetch } from "@/lib/api-base";
-import { Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2 } from "lucide-react";
+import { apiFetch, isNativeContext } from "@/lib/api-base";
+import { Check, Pin, PinOff, Wifi, WifiOff, KeyRound, Trash2, AlertCircle } from "lucide-react";
 import {
   useStore,
   store,
@@ -188,12 +188,21 @@ export function ProviderCard({
           </div>
         )}
         {p.baseUrlEditable && (
-          <Input
-            value={cfg.baseUrl ?? ""}
-            onChange={(e) => store.updateProviderConfig(p.id, { baseUrl: e.target.value })}
-            placeholder={p.defaultBaseUrl}
-            className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
-          />
+          <div className="flex flex-col gap-1.5">
+            <Input
+              value={cfg.baseUrl ?? ""}
+              onChange={(e) => store.updateProviderConfig(p.id, { baseUrl: e.target.value })}
+              placeholder={p.defaultBaseUrl}
+              className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+            />
+            {isNativeContext() && (cfg.baseUrl ?? "").match(/localhost|127\.0\.0\.1/) && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-amber-300">
+                <AlertCircle className="size-3" />
+                On mobile devices, you must use your computer's local network IP (e.g., 192.168.1.x)
+                instead of localhost.
+              </span>
+            )}
+          </div>
         )}
         <Input
           value={cfg.model ?? ""}

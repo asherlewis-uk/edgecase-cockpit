@@ -4,7 +4,9 @@
   "description": "A provider-native AI chat console",
   "author": "Asher Lewis",
   "private": true,
-  "sideEffects": ["src/lib/error-capture.ts"],
+  "sideEffects": [
+    "src/lib/error-capture.ts"
+  ],
   "type": "module",
   "main": "electron/dist/main.js",
   "scripts": {

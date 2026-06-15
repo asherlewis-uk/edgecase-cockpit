@@ -3,11 +3,7 @@
 // (cloud + local). Runtime is OpenAI-compatible by default, with body-style
 // adapters for Anthropic and Gemini native APIs.
 
-import {
-  type ChatMessage,
-  buildHeaders,
-  buildBody,
-} from "@/lib/chat-payloads";
+import { type ChatMessage, buildHeaders, buildBody } from "@/lib/chat-payloads";
 export type { ChatMessage } from "@/lib/chat-payloads";
 
 export type Capability = "chat" | "embeddings" | "vision" | "tools" | "streamingTools";
@@ -420,7 +416,17 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
   text: string;
   raw: unknown;
 }> {
-  const { provider, apiKey, baseUrl, model, messages, signal, onDelta, onRawChunk, onToolCallDelta } = opts;
+  const {
+    provider,
+    apiKey,
+    baseUrl,
+    model,
+    messages,
+    signal,
+    onDelta,
+    onRawChunk,
+    onToolCallDelta,
+  } = opts;
   const stream = !!onDelta && (opts.stream ?? true);
   const url = baseUrl.replace(/\/+$/, "") + provider.chatPath;
   const headers = buildHeaders(provider, apiKey);
@@ -430,7 +436,17 @@ export async function callProviderChat(opts: ProviderCallOpts): Promise<{
   // instead of leaving the UI in a hung streaming state.
   const callSignal = provider.type === "local" ? createTimeoutSignal(signal, 10_000) : signal;
 
-  const res = await directFetch(url, { method: "POST", headers, body, signal: callSignal });
+  const fetchHeaders = new Headers(headers);
+  if (stream) {
+    fetchHeaders.set("Cache-Control", "no-cache");
+    fetchHeaders.set("Accept", "text/event-stream");
+  }
+  const res = await directFetch(url, {
+    method: "POST",
+    headers: fetchHeaders,
+    body,
+    signal: callSignal,
+  });
 
   if (stream && res.ok && res.body) {
     const reader = res.body.getReader();

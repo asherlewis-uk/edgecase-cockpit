@@ -18,7 +18,7 @@ interface CapacitorWindow {
   Capacitor?: { isNativePlatform?: () => boolean };
 }
 
-function isNativeContext(): boolean {
+export function isNativeContext(): boolean {
   if (typeof window === "undefined") return false;
   // file:// protocol → Electron production
   // window.location may be unavailable in test environments; guard defensively.
@@ -58,7 +58,9 @@ export function isLocalProviderUrl(url: string): boolean {
   if (!isAbsoluteUrl(url)) return false;
   try {
     const u = new URL(url);
-    return u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname.endsWith(".local");
+    return (
+      u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname.endsWith(".local")
+    );
   } catch {
     return false;
   }

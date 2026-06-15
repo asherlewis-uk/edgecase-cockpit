@@ -28,10 +28,7 @@ export type ProviderPayloadStyle = {
 
 // ── Headers ──────────────────────────────────────────────────────────────
 
-export function buildHeaders(
-  p: ProviderPayloadStyle,
-  apiKey: string,
-): Record<string, string> {
+export function buildHeaders(p: ProviderPayloadStyle, apiKey: string): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
   if (p.authStyle === "bearer" && apiKey) h["Authorization"] = `Bearer ${apiKey}`;
   if (p.authStyle === "x-api-key" && apiKey) h["x-api-key"] = apiKey;

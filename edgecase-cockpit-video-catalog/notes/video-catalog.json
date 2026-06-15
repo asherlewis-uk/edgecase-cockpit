@@ -50,38 +50,24 @@
       "timestamp_seconds": 1,
       "file": "frames/0001_01s_hamburger-hover.png",
       "state": "hamburger hover",
-      "components": [
-        "hamburger-menu",
-        "cursor"
-      ],
+      "components": ["hamburger-menu", "cursor"],
       "design_observations": [
         "Subtle lighter background on hamburger hover",
         "Cursor visible indicating interaction"
       ],
-      "recommended_token_tags": [
-        "hover-feedback",
-        "interaction-state"
-      ]
+      "recommended_token_tags": ["hover-feedback", "interaction-state"]
     },
     {
       "timestamp_seconds": 2,
       "file": "frames/0002_02s_sidebar-opening.png",
       "state": "sidebar opening",
-      "components": [
-        "sidebar-panel",
-        "backdrop-overlay",
-        "cockpit-header"
-      ],
+      "components": ["sidebar-panel", "backdrop-overlay", "cockpit-header"],
       "design_observations": [
         "Sidebar slides in from left with smooth easing",
         "Main content dims with semi-transparent overlay",
         "~300ms slide transition"
       ],
-      "recommended_token_tags": [
-        "sidebar-transition",
-        "backdrop-dim",
-        "animation-slide"
-      ]
+      "recommended_token_tags": ["sidebar-transition", "backdrop-dim", "animation-slide"]
     },
     {
       "timestamp_seconds": 3,
@@ -124,35 +110,23 @@
       "timestamp_seconds": 5,
       "file": "frames/0004_05s_sidebar-stable.png",
       "state": "sidebar navigation stable",
-      "components": [
-        "sidebar-panel",
-        "menu-items",
-        "cursor"
-      ],
+      "components": ["sidebar-panel", "menu-items", "cursor"],
       "design_observations": [
         "Flat design with no visible hover highlight in this frame",
         "Menu items remain static until clicked"
       ],
-      "recommended_token_tags": [
-        "nav-stable"
-      ]
+      "recommended_token_tags": ["nav-stable"]
     },
     {
       "timestamp_seconds": 9,
       "file": "frames/0005_09s_main-view-closing.png",
       "state": "sidebar closing",
-      "components": [
-        "sidebar-panel",
-        "main-dashboard"
-      ],
+      "components": ["sidebar-panel", "main-dashboard"],
       "design_observations": [
         "Sidebar slides left, main content brightens",
         "Reverse of opening transition"
       ],
-      "recommended_token_tags": [
-        "sidebar-close",
-        "transition-reverse"
-      ]
+      "recommended_token_tags": ["sidebar-close", "transition-reverse"]
     },
     {
       "timestamp_seconds": 10,
@@ -170,28 +144,18 @@
         "CTA button with dark gray pill background",
         "Back arrow navigation pattern"
       ],
-      "recommended_token_tags": [
-        "empty-state",
-        "cta-button",
-        "back-navigation"
-      ]
+      "recommended_token_tags": ["empty-state", "cta-button", "back-navigation"]
     },
     {
       "timestamp_seconds": 11,
       "file": "frames/0007_11s_hamburger-hover-return.png",
       "state": "hamburger hover return",
-      "components": [
-        "hamburger-menu",
-        "main-dashboard"
-      ],
+      "components": ["hamburger-menu", "main-dashboard"],
       "design_observations": [
         "Background gradient shifted to green/warm tone",
         "Same hover feedback as previous"
       ],
-      "recommended_token_tags": [
-        "hover-feedback",
-        "gradient-shift"
-      ]
+      "recommended_token_tags": ["hover-feedback", "gradient-shift"]
     },
     {
       "timestamp_seconds": 13,
@@ -210,11 +174,7 @@
         "Warning pill in yellow/amber tones",
         "Settings gear in muted gray"
       ],
-      "recommended_token_tags": [
-        "bottom-bar",
-        "warning-pill",
-        "hairline-border"
-      ]
+      "recommended_token_tags": ["bottom-bar", "warning-pill", "hairline-border"]
     },
     {
       "timestamp_seconds": 15,
@@ -252,193 +212,114 @@
       "timestamp_seconds": 17,
       "file": "frames/0010_17s_dashboard-return.png",
       "state": "dashboard return",
-      "components": [
-        "main-dashboard",
-        "hamburger-menu"
-      ],
+      "components": ["main-dashboard", "hamburger-menu"],
       "design_observations": [
         "Top gradient glow shifted to red/magenta — dynamic ambient lighting",
         "Shows color is state-reactive"
       ],
-      "recommended_token_tags": [
-        "gradient-ambient",
-        "dynamic-color"
-      ]
+      "recommended_token_tags": ["gradient-ambient", "dynamic-color"]
     },
     {
       "timestamp_seconds": 20,
       "file": "frames/0011_20s_screenshot-btn-hover.png",
       "state": "screenshot button hover",
-      "components": [
-        "screenshot-btn",
-        "cursor"
-      ],
+      "components": ["screenshot-btn", "cursor"],
       "design_observations": [
         "Dashed square icon for screenshot/fullscreen",
         "Subtle highlight on hover with lighter circular background"
       ],
-      "recommended_token_tags": [
-        "hover-feedback",
-        "icon-btn"
-      ]
+      "recommended_token_tags": ["hover-feedback", "icon-btn"]
     },
     {
       "timestamp_seconds": 24,
       "file": "frames/0012_24s_image-upload-active.png",
       "state": "image upload active",
-      "components": [
-        "image-upload-btn",
-        "voice-wave-btn",
-        "input-bar"
-      ],
+      "components": ["image-upload-btn", "voice-wave-btn", "input-bar"],
       "design_observations": [
         "Image icon shows active/highlighted state",
         "Voice button in cyan/green phase"
       ],
-      "recommended_token_tags": [
-        "active-state",
-        "voice-cycle"
-      ]
+      "recommended_token_tags": ["active-state", "voice-cycle"]
     },
     {
       "timestamp_seconds": 25,
       "file": "frames/0013_25s_file-picker-dialog.png",
       "state": "file picker dialog",
-      "components": [
-        "file-picker-modal",
-        "finder-sidebar",
-        "file-list",
-        "show-options-btn"
-      ],
+      "components": ["file-picker-modal", "finder-sidebar", "file-list", "show-options-btn"],
       "design_observations": [
         "Native macOS dark mode file picker",
         "System translucency/blur",
         "Blends with app dark theme"
       ],
-      "recommended_token_tags": [
-        "modal-overlay",
-        "system-dialog"
-      ]
+      "recommended_token_tags": ["modal-overlay", "system-dialog"]
     },
     {
       "timestamp_seconds": 27,
       "file": "frames/0014_27s_file-picker-stable.png",
       "state": "file picker stable",
-      "components": [
-        "file-picker-modal",
-        "file-list",
-        "cursor"
-      ],
-      "design_observations": [
-        "Stable state of file dialog for reference"
-      ],
-      "recommended_token_tags": [
-        "modal-stable"
-      ]
+      "components": ["file-picker-modal", "file-list", "cursor"],
+      "design_observations": ["Stable state of file dialog for reference"],
+      "recommended_token_tags": ["modal-stable"]
     },
     {
       "timestamp_seconds": 29,
       "file": "frames/0015_29s_voice-btn-pink.png",
       "state": "voice button pink",
-      "components": [
-        "voice-wave-btn"
-      ],
+      "components": ["voice-wave-btn"],
       "design_observations": [
         "Voice button: pink/magenta (#FF2D92) with white waveform icon",
         "Part of 5-phase color cycle"
       ],
-      "recommended_token_tags": [
-        "voice-pink",
-        "accent-pink",
-        "color-cycle"
-      ]
+      "recommended_token_tags": ["voice-pink", "accent-pink", "color-cycle"]
     },
     {
       "timestamp_seconds": 31,
       "file": "frames/0016_31s_voice-btn-red.png",
       "state": "voice button red",
-      "components": [
-        "voice-wave-btn"
-      ],
-      "design_observations": [
-        "Voice button: red/orange (#FF3B30) with white waveform icon"
-      ],
-      "recommended_token_tags": [
-        "voice-red",
-        "accent-red"
-      ]
+      "components": ["voice-wave-btn"],
+      "design_observations": ["Voice button: red/orange (#FF3B30) with white waveform icon"],
+      "recommended_token_tags": ["voice-red", "accent-red"]
     },
     {
       "timestamp_seconds": 33,
       "file": "frames/0017_33s_voice-btn-yellow.png",
       "state": "voice button yellow",
-      "components": [
-        "voice-wave-btn",
-        "main-dashboard"
-      ],
+      "components": ["voice-wave-btn", "main-dashboard"],
       "design_observations": [
         "Voice button: yellow/lime (#C8E600)",
         "Background gradient glow shifted to green — glow follows button color"
       ],
-      "recommended_token_tags": [
-        "voice-yellow",
-        "accent-yellow",
-        "gradient-sync"
-      ]
+      "recommended_token_tags": ["voice-yellow", "accent-yellow", "gradient-sync"]
     },
     {
       "timestamp_seconds": 35,
       "file": "frames/0018_35s_image-icon-focus-ring.png",
       "state": "image icon focus",
-      "components": [
-        "image-upload-btn",
-        "focus-ring"
-      ],
+      "components": ["image-upload-btn", "focus-ring"],
       "design_observations": [
         "Orange (#FF9500) circular focus ring outline",
         "Indicates keyboard focus or screenshot tool targeting"
       ],
-      "recommended_token_tags": [
-        "focus-ring",
-        "accent-orange",
-        "accessibility"
-      ]
+      "recommended_token_tags": ["focus-ring", "accent-orange", "accessibility"]
     },
     {
       "timestamp_seconds": 36,
       "file": "frames/0019_36s_screenshot-selection-mode.png",
       "state": "screenshot selection",
-      "components": [
-        "screenshot-border",
-        "image-upload-btn",
-        "focus-ring"
-      ],
+      "components": ["screenshot-border", "image-upload-btn", "focus-ring"],
       "design_observations": [
         "Dashed animated border (marching ants) around viewport",
         "Technical selection indicator pattern"
       ],
-      "recommended_token_tags": [
-        "marching-ants",
-        "selection-mode",
-        "dashed-border"
-      ]
+      "recommended_token_tags": ["marching-ants", "selection-mode", "dashed-border"]
     },
     {
       "timestamp_seconds": 38,
       "file": "frames/0020_38s_final-frame.png",
       "state": "dashboard final",
-      "components": [
-        "main-dashboard",
-        "all-components"
-      ],
-      "design_observations": [
-        "Return to baseline state",
-        "Voice button in default cyan"
-      ],
-      "recommended_token_tags": [
-        "baseline",
-        "default-state"
-      ]
+      "components": ["main-dashboard", "all-components"],
+      "design_observations": ["Return to baseline state", "Voice button in default cyan"],
+      "recommended_token_tags": ["baseline", "default-state"]
     }
   ],
   "state_groups": [
@@ -675,13 +556,7 @@
         "name": "voice-color-cycle",
         "duration": "8000ms",
         "easing": "linear",
-        "phases": [
-          "#00D4AA",
-          "#30D158",
-          "#C8E600",
-          "#FF2D92",
-          "#FF3B30"
-        ]
+        "phases": ["#00D4AA", "#30D158", "#C8E600", "#FF2D92", "#FF3B30"]
       },
       {
         "name": "gradient-sync",

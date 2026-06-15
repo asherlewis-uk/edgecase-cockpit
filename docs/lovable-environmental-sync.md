@@ -8,7 +8,7 @@ The `nitro` deploy plugin **must be enabled** to generate proper deployment arti
 
 ```typescript
 export default defineConfig({
-  nitro: true,  // FORCE-ENABLE — do not remove
+  nitro: true, // FORCE-ENABLE — do not remove
   tanstackStart: {
     server: { entry: "server" },
   },
@@ -25,14 +25,14 @@ export default defineConfig({
   "name": "edgecase-cockpit",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts",  // wrangler bundles this at deploy time
+  "main": "src/server.ts", // wrangler bundles this at deploy time
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "edgecase-cockpit",
-      "database_id": "f89b278d-301f-4a98-a018-b92eeb279449"
-    }
-  ]
+      "database_id": "f89b278d-301f-4a98-a018-b92eeb279449",
+    },
+  ],
 }
 ```
 
@@ -54,6 +54,7 @@ export default defineConfig({
 - **Schema file:** `src/lib/db/schema.sql`
 
 If schema changes are needed, run:
+
 ```bash
 wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql
 ```
@@ -62,8 +63,8 @@ wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql
 
 These are set via `wrangler secret put` and are **NOT** in the repo:
 
-| Secret | Status | Purpose |
-|--------|--------|---------|
+| Secret           | Status | Purpose                                              |
+| ---------------- | ------ | ---------------------------------------------------- |
 | `SESSION_SECRET` | ✅ Set | 32+ char random string for encrypted cookie sessions |
 
 ### 6. GitHub Actions Deployment (Auto-Deploy on Push to Main)
@@ -72,12 +73,13 @@ File: `.github/workflows/deploy.yml`
 
 Requires these **repository secrets** (Settings → Secrets → Actions):
 
-| Secret | Value | Source |
-|--------|-------|--------|
-| `CF_API_TOKEN` | (set) | Cloudflare API Token with: Workers Scripts:Edit, Workers KV:Edit, D1:Edit, Pages:Edit, Workers Routes:Edit |
-| `CF_ACCOUNT_ID` | `27f889362b8e3b48f232084da29c29f4` | Cloudflare Account ID |
+| Secret          | Value                              | Source                                                                                                     |
+| --------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `CF_API_TOKEN`  | (set)                              | Cloudflare API Token with: Workers Scripts:Edit, Workers KV:Edit, D1:Edit, Pages:Edit, Workers Routes:Edit |
+| `CF_ACCOUNT_ID` | `27f889362b8e3b48f232084da29c29f4` | Cloudflare Account ID                                                                                      |
 
 **The token must have these scopes:**
+
 - Account Settings:Read
 - Workers Scripts:Edit, Workers KV Storage:Edit, Workers Tail:Read, Workers R2 Storage:Edit, Cloudflare Pages:Edit, Workers Builds Configuration:Edit, Workers Agents Configuration:Edit, Workers Observability:Edit, Containers:Edit
 - Workers Routes:Edit (All zones)
@@ -85,11 +87,11 @@ Requires these **repository secrets** (Settings → Secrets → Actions):
 
 ### 7. Local Development vs. Deployment
 
-| Environment | Command | Notes |
-|-------------|---------|-------|
-| Local dev | `bun run dev` | Uses Vite dev server, D1 simulated locally if configured |
-| Build | `bun run build` | Produces `dist/client/` + `dist/server/`, but **do not deploy the dist files directly** |
-| Deploy | `wrangler deploy` | Wrangler re-bundles from `src/server.ts` using the nitro-generated config. This is the ONLY correct deployment path. |
+| Environment | Command           | Notes                                                                                                                |
+| ----------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Local dev   | `bun run dev`     | Uses Vite dev server, D1 simulated locally if configured                                                             |
+| Build       | `bun run build`   | Produces `dist/client/` + `dist/server/`, but **do not deploy the dist files directly**                              |
+| Deploy      | `wrangler deploy` | Wrangler re-bundles from `src/server.ts` using the nitro-generated config. This is the ONLY correct deployment path. |
 
 ### 8. Critical: Do NOT Do These
 
@@ -101,6 +103,7 @@ Requires these **repository secrets** (Settings → Secrets → Actions):
 ### 9. Verification
 
 After any code change, verify with:
+
 ```bash
 bun run test && bun run typecheck && bun run lint && bun run build
 ```

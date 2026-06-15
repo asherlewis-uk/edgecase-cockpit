@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { type RefObject } from "react";
 import { Square, AudioLines, Mic, X, Image as ImageIcon } from "lucide-react";
 

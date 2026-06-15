@@ -18,16 +18,16 @@ A ~39-second screen recording of **Cockpit**, a dark-themed AI chat client appli
 
 ## Which frames matter most
 
-| Priority | Frame | Why |
-|----------|-------|-----|
-| **Critical** | `0000_00s_dashboard-overview.png` | Baseline dashboard — shows all core components |
-| **Critical** | `0003_03s_sidebar-cockpit-menu.png` | Full sidebar navigation — primary navigation pattern |
-| **Critical** | `0009_15s_providers-page.png` | Most complex UI state — provider config with cards, tags, toggles |
-| **Important** | `0006_10s_images-empty-state.png` | Empty state pattern + back navigation |
-| **Important** | `0013_25s_file-picker-dialog.png` | Modal overlay + system dialog integration |
-| **Important** | `0017_33s_voice-btn-yellow.png` | Best voice button color + gradient sync visible |
-| **Important** | `0019_36s_screenshot-selection-mode.png` | Screenshot tool with marching ants border |
-| **Reference** | `0018_35s_image-icon-focus-ring.png` | Focus ring accessibility pattern |
+| Priority      | Frame                                    | Why                                                               |
+| ------------- | ---------------------------------------- | ----------------------------------------------------------------- |
+| **Critical**  | `0000_00s_dashboard-overview.png`        | Baseline dashboard — shows all core components                    |
+| **Critical**  | `0003_03s_sidebar-cockpit-menu.png`      | Full sidebar navigation — primary navigation pattern              |
+| **Critical**  | `0009_15s_providers-page.png`            | Most complex UI state — provider config with cards, tags, toggles |
+| **Important** | `0006_10s_images-empty-state.png`        | Empty state pattern + back navigation                             |
+| **Important** | `0013_25s_file-picker-dialog.png`        | Modal overlay + system dialog integration                         |
+| **Important** | `0017_33s_voice-btn-yellow.png`          | Best voice button color + gradient sync visible                   |
+| **Important** | `0019_36s_screenshot-selection-mode.png` | Screenshot tool with marching ants border                         |
+| **Reference** | `0018_35s_image-icon-focus-ring.png`     | Focus ring accessibility pattern                                  |
 
 ## What UI states were captured
 
@@ -43,6 +43,7 @@ A ~39-second screen recording of **Cockpit**, a dark-themed AI chat client appli
 ## What design tokens should be extracted
 
 ### Immediate tokens:
+
 - `bg-void` (#0A0A0A) — app background
 - `bg-sidebar` (#000000) — nav panel
 - `bg-surface` (#1C1C1E) — cards, input bar
@@ -54,6 +55,7 @@ A ~39-second screen recording of **Cockpit**, a dark-themed AI chat client appli
 - `text-primary/secondary/tertiary` hierarchy
 
 ### Tokenized patterns:
+
 - **Ambient glow system** — dynamic radial gradient that syncs with voice button color
 - **Voice color cycle** — 8s linear animation through 5 colors
 - **Sidebar transition** — 300ms ease-out slide + backdrop dim
@@ -64,6 +66,7 @@ A ~39-second screen recording of **Cockpit**, a dark-themed AI chat client appli
 **Yes — with additions.** The existing dark theme, "Cockpit" branding, minimal chrome, and technical layout (provider configs, capability tags) already align with a cockpit/control-panel aesthetic. The dynamic ambient glow is a strong foundation for a "living" metal interface.
 
 ### To strengthen the metal UI:
+
 1. Add **glass/frosted transparency** to overlays
 2. Add **subtle inner shadows/bevels** to surfaces for machined depth
 3. Replace static status dots with **glowing LED indicators**
@@ -74,4 +77,4 @@ A ~39-second screen recording of **Cockpit**, a dark-themed AI chat client appli
 
 ---
 
-*21 frames extracted across 9 state groups. Full documentation in `video-catalog.md`. Machine-readable index in `video-catalog.json`.*
+_21 frames extracted across 9 state groups. Full documentation in `video-catalog.md`. Machine-readable index in `video-catalog.json`._

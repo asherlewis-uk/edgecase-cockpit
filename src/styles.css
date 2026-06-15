@@ -144,22 +144,38 @@
 }
 
 @keyframes cockpit-breathe {
-  0%, 100% { opacity: 0.85; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.015); }
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
 }
 
 @keyframes cockpit-pulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @property --cockpit-hue {
-  syntax: '<angle>';
+  syntax: "<angle>";
   inherits: true;
   initial-value: 0deg;
 }
 
 @keyframes cockpit-hue-cycle {
-  from { --cockpit-hue: 0deg; }
-  to   { --cockpit-hue: 360deg; }
+  from {
+    --cockpit-hue: 0deg;
+  }
+  to {
+    --cockpit-hue: 360deg;
+  }
 }

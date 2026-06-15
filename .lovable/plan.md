@@ -5,34 +5,40 @@ No removals, no relabels. Every surface gets a real implementation.
 ## 1. Wire the dead UI
 
 ### Composer Mic button → real voice-to-text
+
 - Use the browser `MediaRecorder` API to capture audio on press-and-hold (or toggle).
 - On stop, POST the blob to a new server route `src/routes/api/proxy/transcribe.ts` which forwards to the active provider's transcription endpoint (OpenAI `/v1/audio/transcriptions` by default; configurable per provider via a new `transcribePath` field in `providers.ts`).
 - Insert the returned text into the composer input.
 - Visual states: idle → recording (red pulse) → transcribing (spinner) → done.
 
 ### Composer Live (AudioLines) button → live voice session
+
 - Open a streaming mic capture using `MediaRecorder` with 250ms timeslices.
 - Pipe each chunk through the same `/api/proxy/transcribe` route in incremental mode, appending partial transcripts into the composer in real time.
 - Click again to stop; final transcript is committed and auto-sent (matches "live" intent).
 - Falls back to a clear error toast if the active provider has no `transcribePath`.
 
 ### Temporary-chat toggle → works on any thread
+
 - Today: only acts when no active thread exists.
 - Fix: toggling on creates a new temporary thread (even if one is active) and switches to it; toggling off creates a fresh persistent thread. Add `store.setThreadTemporary(id, bool)` for in-place conversion of an empty thread.
 - Persist the toggle preference per session so the next "new chat" inherits it until cleared.
 
 ### Provider stats → render in Settings
+
 - Add a "Usage" section to each provider card on `/settings` reading `getProviderStats()`.
 - Show calls / errors / error-rate, plus a "Reset stats" button calling `resetProviderStats()`.
 - Subscribe via `subscribeProviderStats` so it updates live during streaming.
 
 ### Videos page → real ingestion + generation path
+
 - Add `mediaCapabilities.video: 'generate' | 'none'` to `providers.ts`. Mark providers that actually expose video generation (none today by default, but the field exists so future providers light up automatically).
 - Add a video attachment flow mirroring images: paste/drop `.mp4/.webm/.mov` into the composer → stored on message → surfaced on `/videos`.
 - Empty state changes from "Choose a provider…" to a real two-CTA panel: "Attach a video to a chat" (drop zone) and "Generate" (disabled with tooltip until a video-capable provider exists).
 - Result: Videos page is populated by any chat that has a video attachment — no longer a dead page.
 
 ### Images page copy → made truthful by surfacing assistant images
+
 - Today only user uploads appear. Extend the message renderer to detect assistant-returned image URLs (markdown `![](...)` and `data:image/*` in content) and store them as `assistantImages` on the message.
 - Images page aggregates both `attachments` (user) and `assistantImages` (assistant) — copy "all images shared across your chats" becomes accurate.
 
@@ -72,6 +78,7 @@ Both `/api/proxy/chat` and `/api/proxy/detect` are currently open relays. Harden
 ## Files
 
 **New**
+
 - `src/routes/api/proxy/transcribe.ts`
 - `src/routes/api/keys/set.ts`
 - `src/routes/api/keys/clear.ts`
@@ -83,6 +90,7 @@ Both `/api/proxy/chat` and `/api/proxy/detect` are currently open relays. Harden
 - `src/components/cockpit/ProviderUsage.tsx`
 
 **Edited**
+
 - `src/lib/providers.ts` (allowedHosts, transcribePath, mediaCapabilities, Ollama URL)
 - `src/lib/cockpit-store.ts` (remove apiKey from local state, add setThreadTemporary, assistantImages)
 - `src/hooks/use-chat.ts` (drop apiKey from proxy body; capture assistantImages from stream)

@@ -8,7 +8,12 @@ import {
   type Message,
   type Settings,
 } from "@/lib/cockpit-store";
-import { callProviderChat, callProviderChatViaProxy, ProviderError, type ChatMessage } from "@/lib/providers";
+import {
+  callProviderChat,
+  callProviderChatViaProxy,
+  ProviderError,
+  type ChatMessage,
+} from "@/lib/providers";
 import { retryWithBackoff } from "@/lib/retry";
 import { estimateTokens, extractProviderUsage } from "@/lib/tokens";
 import {
@@ -274,6 +279,18 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         ? new AnthropicStreamToolCallAccumulator()
         : null;
       try {
+        // Pre-flight security check: HTTPS pages cannot fetch local HTTP providers
+        if (
+          isLocal &&
+          typeof window !== "undefined" &&
+          window.location.protocol === "https:" &&
+          baseUrl.startsWith("http://")
+        ) {
+          throw new ProviderError(
+            "Cannot connect to local HTTP provider from an HTTPS website. Please use the Desktop/Mobile app, or serve the web app locally.",
+            0,
+          );
+        }
         bumpProviderStat(provider.id, "call");
         const res = await retryWithBackoff(
           () =>

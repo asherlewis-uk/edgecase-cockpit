@@ -10,31 +10,31 @@
 
 All items below were once future work and are now implemented. They are preserved here as historical record but should **not** be treated as open gaps.
 
-| Area | Status | Primary source |
-|---|---|---|
-| Streaming chat completions | ✅ Implemented | `src/lib/providers.ts`, `src/hooks/use-chat.ts` |
-| Streaming tool-call deltas (OpenAI-compat) | ✅ Implemented | `src/lib/tools.ts` (`StreamToolCallAccumulator`) |
-| Streaming tool-call deltas (Anthropic) | ✅ Implemented | `src/lib/tools.ts` (`AnthropicStreamToolCallAccumulator`) |
-| 4 safe built-in executable tools | ✅ Implemented | `src/lib/tools.ts` (`BUILT_IN_TOOLS`) |
-| Dynamic tool schema registry (`registerLocalTool`, `registerProviderTools`) | ✅ Implemented | `src/lib/tools.ts`, `src/routes/api/tools/schemas.ts` |
-| Tool name + args safety validation (three-layer guard) | ✅ Implemented | `src/lib/tools.ts` (`validateToolName`, `sanitizeToolCallArgs`, `validateToolCall`) |
-| RAG: embedding proxy, local vector store, context injection | ✅ Implemented | `src/lib/vector-store.ts`, `src/lib/embeddings.ts` |
-| RAG: sentence/paragraph chunking | ✅ Implemented | `src/lib/vector-store.ts` (`chunkText`) |
-| RAG error state surfaced in StatusBar | ✅ Implemented | `src/hooks/use-chat.ts` (`ragError`), `src/components/cockpit/StatusBar.tsx` |
-| Cross-tab sync for settings, threads, provider stats, vector cache | ✅ Implemented | `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts` |
-| Exact token usage extraction (OpenAI/Anthropic/Gemini) | ✅ Implemented | `src/lib/tokens.ts` (`extractProviderUsage`) |
-| Configurable cost rate overrides | ✅ Implemented | `src/lib/tokens.ts` (`setCostOverrides`) |
-| D1-backed distributed rate limiter | ✅ Implemented | `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend`) |
-| `RATE_LIMIT_BACKEND` env var for backend selection | ✅ Implemented | `src/lib/rate-limit.server.ts` (`configureRateLimiterFromEnv`) |
-| Device-local privacy defaults (chat/RAG off by default) | ✅ Implemented | `src/lib/cockpit-store.ts` (`syncChatsToServer: false`, `syncRagVectorsToServer: false`) |
-| CSRF protection on all mutating routes | ✅ Implemented | `src/lib/csrf.server.ts` |
-| Proxy SSRF guard with production wildcard block | ✅ Implemented | `src/lib/proxy-guard.server.ts` |
-| Cold-start env validation (`SESSION_SECRET`) | ✅ Implemented | `src/lib/env.server.ts`, `src/server.ts` |
-| CSP + security headers on HTML responses | ✅ Implemented | `src/lib/csp.server.ts` |
-| Storage limits (threads, messages, content, attachments) | ✅ Implemented | `src/lib/storage-limits.server.ts` |
-| Voice transcription proxy (Whisper-compatible) | ✅ Implemented | `src/routes/api/proxy/transcribe.ts` |
-| Offline queue with auto-drain on reconnect | ✅ Implemented | `src/hooks/use-chat.ts` |
-| Opt-in live provider tests with `STRICT_LIVE_PROVIDER_TESTS` mode | ✅ Implemented | `src/live/providers.live.test.ts` |
+| Area                                                                        | Status         | Primary source                                                                           |
+| --------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
+| Streaming chat completions                                                  | ✅ Implemented | `src/lib/providers.ts`, `src/hooks/use-chat.ts`                                          |
+| Streaming tool-call deltas (OpenAI-compat)                                  | ✅ Implemented | `src/lib/tools.ts` (`StreamToolCallAccumulator`)                                         |
+| Streaming tool-call deltas (Anthropic)                                      | ✅ Implemented | `src/lib/tools.ts` (`AnthropicStreamToolCallAccumulator`)                                |
+| 4 safe built-in executable tools                                            | ✅ Implemented | `src/lib/tools.ts` (`BUILT_IN_TOOLS`)                                                    |
+| Dynamic tool schema registry (`registerLocalTool`, `registerProviderTools`) | ✅ Implemented | `src/lib/tools.ts`, `src/routes/api/tools/schemas.ts`                                    |
+| Tool name + args safety validation (three-layer guard)                      | ✅ Implemented | `src/lib/tools.ts` (`validateToolName`, `sanitizeToolCallArgs`, `validateToolCall`)      |
+| RAG: embedding proxy, local vector store, context injection                 | ✅ Implemented | `src/lib/vector-store.ts`, `src/lib/embeddings.ts`                                       |
+| RAG: sentence/paragraph chunking                                            | ✅ Implemented | `src/lib/vector-store.ts` (`chunkText`)                                                  |
+| RAG error state surfaced in StatusBar                                       | ✅ Implemented | `src/hooks/use-chat.ts` (`ragError`), `src/components/cockpit/StatusBar.tsx`             |
+| Cross-tab sync for settings, threads, provider stats, vector cache          | ✅ Implemented | `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`                                    |
+| Exact token usage extraction (OpenAI/Anthropic/Gemini)                      | ✅ Implemented | `src/lib/tokens.ts` (`extractProviderUsage`)                                             |
+| Configurable cost rate overrides                                            | ✅ Implemented | `src/lib/tokens.ts` (`setCostOverrides`)                                                 |
+| D1-backed distributed rate limiter                                          | ✅ Implemented | `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend`)                                  |
+| `RATE_LIMIT_BACKEND` env var for backend selection                          | ✅ Implemented | `src/lib/rate-limit.server.ts` (`configureRateLimiterFromEnv`)                           |
+| Device-local privacy defaults (chat/RAG off by default)                     | ✅ Implemented | `src/lib/cockpit-store.ts` (`syncChatsToServer: false`, `syncRagVectorsToServer: false`) |
+| CSRF protection on all mutating routes                                      | ✅ Implemented | `src/lib/csrf.server.ts`                                                                 |
+| Proxy SSRF guard with production wildcard block                             | ✅ Implemented | `src/lib/proxy-guard.server.ts`                                                          |
+| Cold-start env validation (`SESSION_SECRET`)                                | ✅ Implemented | `src/lib/env.server.ts`, `src/server.ts`                                                 |
+| CSP + security headers on HTML responses                                    | ✅ Implemented | `src/lib/csp.server.ts`                                                                  |
+| Storage limits (threads, messages, content, attachments)                    | ✅ Implemented | `src/lib/storage-limits.server.ts`                                                       |
+| Voice transcription proxy (Whisper-compatible)                              | ✅ Implemented | `src/routes/api/proxy/transcribe.ts`                                                     |
+| Offline queue with auto-drain on reconnect                                  | ✅ Implemented | `src/hooks/use-chat.ts`                                                                  |
+| Opt-in live provider tests with `STRICT_LIVE_PROVIDER_TESTS` mode           | ✅ Implemented | `src/live/providers.live.test.ts`                                                        |
 
 ---
 
@@ -85,75 +85,63 @@ These are enhancements that are **not yet implemented** and would require new wo
 > [!IMPORTANT]
 > The following are **V1 blockers**, not optional future enhancements. V1 is not achieved until all three are resolved.
 
-### V1-BLOCKER-1: macOS native packaging
+### V1-BLOCKER-1: macOS native packaging (Electron)
 
-**What is missing:** No native macOS packaging framework exists in this repository. There is no Tauri config (`src-tauri/`, `tauri.conf.json`), no Electron entry point, and no Capacitor config (`capacitor.config.ts`).
+**What is present:** Electron desktop scaffolding exists. `electron/main.ts`, `electron/preload.ts`, `electron-builder.yml`, and `electron/tsconfig.json` are all present. The `bun run native:desktop:build` script produces an unsigned `.app` bundle (`electron/release/mac-arm64/Edgecase Cockpit.app`).
 
-**Source proof of absence:** `find . -name 'tauri.conf*' -o -name 'electron*' -o -name 'capacitor.config*'` returns nothing.
+**What is still missing for V1:**
 
-**Required for V1:**
-- Framework selection: Tauri v2, Electron, or Capacitor
-- macOS build command producing an installable artifact (`.dmg`)
-- macOS run/install command documented
-- App name and icon configured
-- macOS signing/notarization status documented
-- README updated with real build commands
+- Signed/notarized `.app` or `.dmg` (current build is unsigned; `electron-builder.yml` has `identity: null`)
+- macOS signing certificate and notarization credentials configured in CI or env
+- Verified user-flow smoke test on the built `.app` (no automated E2E exists)
+- README updated with real macOS install/download instructions (not just build scripts)
 
-**Do not claim V1 readiness for macOS until all of the above exist and are verified.**
+**Do not claim V1 readiness for macOS until the above are verified.**
 
 ---
 
-### V1-BLOCKER-2: iOS native packaging
+### V1-BLOCKER-2: iOS native packaging (Capacitor)
 
-**What is missing:** No iOS project exists. No Xcode workspace, no Capacitor iOS target, no Tauri mobile iOS target, no bundle ID, no app icon, no Info.plist, no required permissions.
+**What is present:** Capacitor iOS project exists in `ios/App/`. Xcode project (`App.xcodeproj`), app icons (`Assets.xcassets/AppIcon.appiconset`), splash screen (`Splash.imageset`), `LaunchScreen.storyboard`, `Main.storyboard`, and `config.xml` are all present. `bun run native:ios:sync` and `bun run native:ios:open` scripts exist.
 
-**Source proof of absence:** `find . -name '*.xcworkspace' -o -name '*.xcodeproj' -o -name 'Info.plist'` returns nothing.
+**What is still missing for V1:**
 
-**Required for V1:**
-- Framework selection producing an iOS target (Capacitor or Tauri v2)
-- iOS build command (`npx cap build ios` or `tauri ios build` or equivalent)
-- iOS run/install command documented
-- Bundle ID configured
-- App icon and display name configured
-- Required microphone/camera/storage permissions declared in Info.plist (if applicable)
-- Xcode project or generated target present and openable
-- README updated with real iOS build commands
+- Build verification: the `.ipa` has not been produced or validated
+- App Store signing, provisioning profiles, and submission pipeline
+- Required permissions (microphone, camera, storage) reviewed and declared in `Info.plist` if applicable
+- Verified user-flow smoke test on a real iOS device or simulator (no automated E2E exists)
+- README updated with real iOS install/test instructions
 
-**Do not claim V1 readiness for iOS until all of the above exist and are verified.**
+**Do not claim V1 readiness for iOS until the above are verified.**
 
 ---
 
-### V1-BLOCKER-3: Android native packaging
+### V1-BLOCKER-3: Android native packaging (Capacitor)
 
-**What is missing:** No Android project exists. No Gradle project, no `AndroidManifest.xml`, no Capacitor Android target, no Tauri mobile Android target, no application ID, no app icon.
+**What is present:** Capacitor Android project exists in `android/`. `build.gradle`, `AndroidManifest.xml`, `MainActivity`, app icons (`mipmap-*/ic_launcher*`), and splash screen assets are all present. `bun run native:android:sync` and `bun run native:android:open` scripts exist.
 
-**Source proof of absence:** `find . -name 'AndroidManifest.xml' -o -name 'build.gradle'` returns nothing.
+**What is still missing for V1:**
 
-**Required for V1:**
-- Framework selection producing an Android target (Capacitor or Tauri v2)
-- Android build command (`npx cap build android` or `tauri android build` or equivalent)
-- Android run/install command documented
-- Application ID (package name) configured
-- App icon and display name configured
-- Required permissions declared in `AndroidManifest.xml` (if applicable)
-- Gradle project or generated target present and buildable
-- README updated with real Android build commands
+- Build verification: the `.apk` / `.aab` has not been produced or validated
+- Play Store signing keystore and submission pipeline
+- Required permissions reviewed and declared in `AndroidManifest.xml` if applicable
+- Verified user-flow smoke test on a real Android device or emulator (no automated E2E exists)
+- README updated with real Android install/test instructions
 
-**Do not claim V1 readiness for Android until all of the above exist and are verified.**
+**Do not claim V1 readiness for Android until the above are verified.**
 
 ---
 
 ### Framework selection note
 
-Before any native work begins, a framework must be chosen. No framework has been selected. The three viable options for this stack (Vite + React + TanStack Start):
+**Capacitor + Electron are already selected and installed.**
 
-| Option | Desktop | iOS | Android | Migration cost |
-|---|---|---|---|---|
-| **Capacitor** | ✅ (via Electron plugin) | ✅ | ✅ | Lowest — wraps existing `dist/` build directly |
-| **Tauri v2** | ✅ | ✅ | ✅ | Medium — Rust sidecar, requires Rust toolchain |
-| **Electron** | ✅ (macOS) | ❌ | ❌ | V1 desktop scope is macOS only |
+| Framework | Targets    | Status   | Notes                                               |
+| --------- | ---------- | -------- | --------------------------------------------------- |
+| Capacitor | iOS, Android | ✅ Installed | Xcode + Gradle projects present; wraps `dist/client/` |
+| Electron  | Desktop    | ✅ Installed | macOS `.app` builds; unsigned only                  |
 
-Do not add any native framework without an explicit decision. Raise a decision in the project before implementation.
+No additional framework decision is required. Do not add Tauri or another framework without an explicit project decision.
 
 ---
 
@@ -215,11 +203,12 @@ Do not add any native framework without an explicit decision. Raise a decision i
 
 ## Accepted stale limitations (no action planned)
 
-| Limitation | Reason not actioned |
-|---|---|
-| Tool name safety: unsafe provider names silently dropped (no user notification) | Silent dropping is intentional to prevent injection. Surfacing as a notification would require UX work; not prioritized. |
+| Limitation                                                                               | Reason not actioned                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tool name safety: unsafe provider names silently dropped (no user notification)          | Silent dropping is intentional to prevent injection. Surfacing as a notification would require UX work; not prioritized.                                                    |
 | Provider capability flags are declarations, not end-to-end verified for all combinations | Live verification requires real credentials per provider. Covered for OpenAI/Anthropic/Gemini via opt-in live tests. Other providers verified manually at integration time. |
-| Streaming is disabled when tools are active for providers without `streamingTools: true` | Architectural: non-streaming is required to parse complete tool call JSON. Providers must declare streaming tool support explicitly. |
+| Streaming is disabled when tools are active for providers without `streamingTools: true` | Architectural: non-streaming is required to parse complete tool call JSON. Providers must declare streaming tool support explicitly.                                        |
+| No automated user-flow E2E coverage (browser or native)                                    | No Playwright, Cypress, or mobile UI test harness exists. Unit + API-level tests (450+) are the current release gate. Adding E2E would require framework selection + CI setup. |
 
 ---
 
