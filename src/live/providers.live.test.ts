@@ -5,7 +5,7 @@
  * and per-provider API keys are present in the environment.
  *
  * Required env vars (any one provider is sufficient):
- *   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY
+ *   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY
  *
  * Run: RUN_LIVE_PROVIDER_TESTS=true OPENAI_API_KEY=sk-... npm run test:live
  *
@@ -388,6 +388,122 @@ describe("Gemini (live)", () => {
 
     // Gemini may return 200 with streamed chunks or fall back gracefully
     expect([200, 400]).toContain(res.status);
+  });
+});
+
+// ── Mistral live tests ──────────────────────────────────────────────────────
+
+describe("Mistral (live)", () => {
+  beforeAll(() => {
+    if (!skipUnlessProvider("MISTRAL_API_KEY")) {
+      console.warn(
+        "[live:skip] Mistral tests skipped. " +
+          "Set MISTRAL_API_KEY and RUN_LIVE_PROVIDER_TESTS=true to run. " +
+          "Set STRICT_LIVE_PROVIDER_TESTS=true to fail on missing provider coverage.",
+      );
+    }
+  });
+
+  it("chat completion returns text", async () => {
+    if (!skipUnlessProvider("MISTRAL_API_KEY")) return;
+
+    const apiKey = requireEnv("MISTRAL_API_KEY");
+    const { status, data } = await fetchFromProvider(
+      "https://api.mistral.ai/v1/chat/completions",
+      { Authorization: `Bearer ${apiKey}` },
+      {
+        model: "mistral-small-latest",
+        messages: [{ role: "user", content: "Reply with exactly: OK" }],
+        max_tokens: 16,
+      },
+    );
+
+    expect(status).toBe(200);
+    const d = data as Record<string, unknown>;
+    expect(d.choices).toBeDefined();
+    const choices = d.choices as Array<{ message: { content: string } }>;
+    expect(choices[0]?.message?.content).toContain("OK");
+  });
+});
+
+// ── Groq live tests ────────────────────────────────────────────────────────
+
+describe("Groq (live)", () => {
+  beforeAll(() => {
+    if (!skipUnlessProvider("GROQ_API_KEY")) {
+      console.warn(
+        "[live:skip] Groq tests skipped. " +
+          "Set GROQ_API_KEY and RUN_LIVE_PROVIDER_TESTS=true to run. " +
+          "Set STRICT_LIVE_PROVIDER_TESTS=true to fail on missing provider coverage.",
+      );
+    }
+  });
+
+  it("chat completion returns text", async () => {
+    if (!skipUnlessProvider("GROQ_API_KEY")) return;
+
+    const apiKey = requireEnv("GROQ_API_KEY");
+    const { status, data } = await fetchFromProvider(
+      "https://api.groq.com/openai/v1/chat/completions",
+      { Authorization: `Bearer ${apiKey}` },
+      {
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: "Reply with exactly: OK" }],
+        max_tokens: 16,
+      },
+    );
+
+    expect(status).toBe(200);
+    const d = data as Record<string, unknown>;
+    expect(d.choices).toBeDefined();
+    const choices = d.choices as Array<{ message: { content: string } }>;
+    expect(choices[0]?.message?.content).toContain("OK");
+  });
+});
+
+// ── OpenRouter live tests ────────────────────────────────────────────────────
+
+describe("OpenRouter (live)", () => {
+  beforeAll(() => {
+    if (!skipUnlessProvider("OPENROUTER_API_KEY")) {
+      console.warn(
+        "[live:skip] OpenRouter tests skipped. " +
+          "Set OPENROUTER_API_KEY and RUN_LIVE_PROVIDER_TESTS=true to run. " +
+          "Set STRICT_LIVE_PROVIDER_TESTS=true to fail on missing provider coverage.",
+      );
+    }
+  });
+
+  it("chat completion returns text", async () => {
+    if (!skipUnlessProvider("OPENROUTER_API_KEY")) return;
+
+    const apiKey = requireEnv("OPENROUTER_API_KEY");
+    const { status, data } = await fetchFromProvider(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://edgecase-cockpit.asher-lewis-knight.workers.dev",
+        "X-Title": "EdgeCase Cockpit",
+      },
+      {
+        model: "openrouter/free",
+        messages: [{ role: "user", content: "Reply with exactly: OK" }],
+        max_tokens: 16,
+      },
+    );
+
+    expect(status).toBe(200);
+    const d = data as Record<string, unknown>;
+    expect(d.choices).toBeDefined();
+    const choices = d.choices as Array<{ message?: { content?: string } }>;
+    const content = choices[0]?.message?.content;
+    if (content) {
+      expect(typeof content).toBe("string");
+      expect(content.length).toBeGreaterThan(0);
+    } else {
+      // Some models may return different response structures
+      expect(d).toHaveProperty("choices");
+    }
   });
 });
 

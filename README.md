@@ -579,19 +579,34 @@ Live tests call real provider APIs and require real credentials:
 
 ```bash
 # Run all live provider tests
-RUN_LIVE_PROVIDER_TESTS=true \
-  OPENAI_API_KEY=sk-... \
-  ANTHROPIC_API_KEY=sk-ant-... \
-  GEMINI_API_KEY=AIza... \
-  bun run test:live
+Create `.env.local`:
+
+RUN_LIVE_PROVIDER_TESTS=true
+STRICT_LIVE_PROVIDER_TESTS=false
+
+GEMINI_API_KEY=AIza...
+MISTRAL_API_KEY=...
+GROQ_API_KEY=gsk_...
+OPENROUTER_API_KEY=sk-or-v1-...
+
+Then run:
+
+bun run test:live
 
 # Strict mode: fail loudly if any expected key is absent
-STRICT_LIVE_PROVIDER_TESTS=true \
-  RUN_LIVE_PROVIDER_TESTS=true \
-  OPENAI_API_KEY=sk-... \
-  ANTHROPIC_API_KEY=sk-ant-... \
-  GEMINI_API_KEY=AIza... \
-  bun run test:live
+Create `.env.local`:
+
+RUN_LIVE_PROVIDER_TESTS=true
+STRICT_LIVE_PROVIDER_TESTS=true
+
+GEMINI_API_KEY=AIza...
+MISTRAL_API_KEY=...
+GROQ_API_KEY=gsk_...
+OPENROUTER_API_KEY=sk-or-v1-...
+
+Then run:
+
+bun run test:live
 ```
 
 Live test coverage (all in `src/live/providers.live.test.ts`):
@@ -599,6 +614,9 @@ Live test coverage (all in `src/live/providers.live.test.ts`):
 - OpenAI: chat completion, streaming, streaming-with-tools, embeddings
 - Anthropic: chat completion, streaming-with-tools (content_block events)
 - Gemini: chat completion, streaming (OpenAI-compat path), streaming-with-tools
+- Mistral: chat completion (free-tier compatible)
+- Groq: chat completion (free-tier compatible)
+- OpenRouter: chat completion (free-tier compatible)
 
 Strict mode (`STRICT_LIVE_PROVIDER_TESTS=true`) throws an error when a required key is absent rather than silently skipping. Verified by a synthetic test in `providers.live.test.ts`.
 
