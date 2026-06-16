@@ -89,7 +89,41 @@ jobs:
 
       - name: Build macOS DMG
         if: matrix.target == 'macos'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --mac dmg --publish never
+
+      - name: Verify macOS signature and notarization
+        if: matrix.target == 'macos'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "No CSC_LINK secret; skipping signed-release verification."
+            exit 0
+          fi
+          APP_ARM64="electron/release/mac-arm64/Edgecase Cockpit.app"
+          APP_X64="electron/release/mac/Edgecase Cockpit.app"
+          for APP in "$APP_ARM64" "$APP_X64"; do
+            if [ -d "$APP" ]; then
+              echo "==> Verifying $APP"
+              codesign --verify --deep --strict --verbose=2 "$APP"
+              spctl --assess --type execute --verbose "$APP" || true
+              xcrun stapler validate "$APP" || true
+            fi
+          done
+          DMG_ARM64="electron/release/Edgecase Cockpit-1.0.0-arm64.dmg"
+          DMG_X64="electron/release/Edgecase Cockpit-1.0.0.dmg"
+          for DMG in "$DMG_ARM64" "$DMG_X64"; do
+            if [ -f "$DMG" ]; then
+              echo "==> Validating staple for $DMG"
+              xcrun stapler validate "$DMG" || true
+            fi
+          done
 
       - name: Sync Capacitor Android project
         if: matrix.target == 'android'

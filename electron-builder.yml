@@ -1,14 +1,28 @@
 # electron-builder configuration for Edgecase Cockpit desktop builds.
 #
-# Phase 4 checklist before signed release:
-#  - macOS: CSC_LINK + CSC_KEY_PASSWORD (Developer ID cert) and
-#    APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD for notarization are set in .env.local
+# Required GitHub Actions secrets for a signed release:
+#   CSC_LINK                  base64-encoded Developer ID Application .p12
+#   CSC_KEY_PASSWORD          password for the .p12
+#   APPLE_ID                  Apple ID for notarization
+#   APPLE_APP_SPECIFIC_PASSWORD  app-specific password for notarization
+#   APPLE_TEAM_ID             Apple Developer Team ID (10 characters)
+#
+# Local/dev builds: omit the secrets above to produce an unsigned .app.
+#   bun run native:desktop:build
+#
+# Verification after signed build:
+#   codesign --verify --deep --strict --verbose=2 "Edgecase Cockpit.app"
+#   spctl --assess --type execute --verbose "Edgecase Cockpit.app"
+#   xcrun stapler validate "Edgecase Cockpit.app"
+#   xcrun stapler validate "Edgecase Cockpit-1.0.0-arm64.dmg"
 #
 # Run: bun run native:desktop:build
 
 appId: uk.asherlewis.edgecase.cockpit
 productName: Edgecase Cockpit
 copyright: Copyright © 2025 Asher Lewis
+
+asar: true
 
 # electron/main.ts is compiled to electron/dist/main.js before packaging.
 # See native:desktop:build script in package.json.
@@ -21,17 +35,37 @@ files:
   - electron/dist/**/*
   # Include the Vite web build.
   - dist/client/**/*
+  # package.json is required by Electron for app metadata.
+  - package.json
+  # Exclude all node_modules. The frontend is already bundled into
+  # dist/client and Electron main/preload only need Node/Electron builtins.
+  # Keeping node_modules out of the package avoids signing huge numbers of
+  # native binaries (sharp/esbuild/workerd/rolldown/tailwindcss-oxide/etc.)
+  # and keeps the DMG small.
+  - "!node_modules"
+  - "!**/node_modules/**/*"
 
 mac:
   category: public.app-category.productivity
-  # Signing enabled via CSC_LINK + CSC_KEY_PASSWORD env vars.
-  # identity: null means unsigned (development only).
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: electron/resources/entitlements.mac.plist
+  entitlementsInherit: electron/resources/entitlements.mac.plist
+  # Signing uses CSC_LINK + CSC_KEY_PASSWORD. When those secrets are absent,
+  # electron-builder falls back to ad-hoc/unsigned (local/dev builds).
   target:
     - target: dmg
       arch:
         - arm64
         - x64
+  # Icon path is optional. Place electron/resources/icon.icns to replace the
+  # default Electron icon; otherwise the default is used for development builds.
   icon: electron/resources/icon.icns
+
+  # Notarization is performed automatically by electron-builder v25+ when
+  # APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID env vars are present.
+  # If the env vars are absent, the build remains unsigned (local/dev).
+  notarize: true
 
 # DMG window layout (macOS).
 dmg:
