@@ -13,6 +13,12 @@
  *
  * Asset paths are written as relative (./assets/…) so they resolve under
  * both file:// (Electron production) and http:// (Vite dev / CF Worker).
+ *
+ * In addition, a minimal window.$_TSR bootstrap is injected for the packaged
+ * Electron shell. TanStack Start's client entry expects SSR dehydration data;
+ * without this bootstrap it throws invariants and the window stays blank.
+ * The injected data marks the router as "SPA fallback" so the client entry
+ * calls router.load() and renders the real UI.
  */
 
 import { readFileSync, writeFileSync, readdirSync, cpSync, rmSync } from "fs";
@@ -68,6 +74,28 @@ const styleLinks = allStylesheets
   .map((href) => `    <link rel="stylesheet" href="${href}" type="text/css" />`)
   .join("\n");
 
+// Minimal bootstrap for the Electron packaged shell. TanStack Start's client
+// entry calls window.$_TSR?.h() and router.hydrate() expects a dehydrated
+// router payload. We provide an empty SPA-fallback payload so the client
+// treats this as SPA mode, keeps the root match pending until router.load()
+// finishes, and renders the real UI instead of a blank window.
+const tsrBootstrap = `    <script>
+      window.$_TSR = window.$_TSR || {};
+      window.$_TSR.h = window.$_TSR.h || function () {};
+      window.$_TSR.e = window.$_TSR.e || function () {};
+      window.$_TSR.c = window.$_TSR.c || function () {};
+      window.$_TSR.p = window.$_TSR.p || function (script) {
+        (window.$_TSR.buffer = window.$_TSR.buffer || []).push(script);
+      };
+      window.$_TSR.buffer = window.$_TSR.buffer || [];
+      window.$_TSR.router = {
+        manifest: { routes: { __root__: { assets: [], preloads: [] } } },
+        matches: [],
+        lastMatchId: "",
+      };
+      window.$_TSR.initialized = true;
+    </script>`;
+
 const html = `<!doctype html>
 <html lang="en">
   <head>
@@ -81,6 +109,7 @@ const html = `<!doctype html>
       clientEntry: ${clientEntry}
     -->
 ${styleLinks}
+${tsrBootstrap}
   </head>
   <body>
     <div id="root"></div>
