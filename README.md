@@ -23,9 +23,9 @@ Native packaging tooling is present (Capacitor for iOS/Android, Electron for des
 
 `edgecase-cockpit` is a unified chat interface for both cloud LLM APIs and local/self-hosted inference endpoints. It is a **TanStack Start + React + Cloudflare Workers** application with SSR.
 
-**Device-local privacy model:** Chats, threads, and messages are stored in `localStorage` only. They never reach the server. Manual export/import (JSON/Markdown/TXT) is the cross-device portability path. RAG vector/text data is also device-local. D1 is used for distributed rate limiting, encrypted session data, and usage statistics — chat data is never stored in D1.
+**Offline-first privacy model:** Chats, threads, and messages are stored in `localStorage` by default (device-local). When a user is authenticated and opts in to sync (globally via settings or per-thread), threads are stored in D1 with encrypted provider keys. RAG vector/text data remains device-local. D1 stores: user accounts, encrypted provider keys, user settings, usage statistics, and synced threads when explicitly enabled. Guest users work entirely locally and cannot sync to D1.
 
-**API key security:** Keys are stored server-side in encrypted cookie sessions. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`.
+**API key security:** Provider keys are stored in D1 (`user_provider_keys`) with AES-256-GCM encryption per user. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`. Guests cannot store provider keys server-side.
 
 Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/schema.sql`, `wrangler.jsonc`.
 
@@ -37,12 +37,15 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 
 - Full chat cockpit: streaming responses, message editing/deletion, regeneration from any point
 - 15 provider definitions (8 cloud + 7 local) with proxy-based routing
-- Server-side encrypted session storage for API keys (browser never holds plaintext keys)
+- **Real user accounts** (register, login, logout) with bcrypt-hashed passwords
+- **Guest mode** (no account required) with data claim into a new account on registration
+- **AES-256-GCM encrypted provider keys** stored in D1 per user (`user_provider_keys`)
 - CSRF double-submit cookie protection on all mutating routes
 - D1-backed distributed rate limiter (activates at startup when DB binding is available; falls back to in-memory)
 - Storage limits enforced server-side (threads, messages, content length, attachments)
 - CSP + security headers on HTML responses
 - Thread CRUD, import/export (JSON/Markdown/TXT), fork, pin, archive, color
+- **Offline-first chat model** with opt-in sync to D1 for authenticated users
 - Offline queue with `localStorage` persistence and auto-drain on reconnect
 - Error and offline state handling (offline queue, reconnect sync, storage failure)
 - First launch / onboarding (modal, skip/complete, persistence)
@@ -62,7 +65,7 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 - Screenshot capture via `getDisplayMedia`
 - Image/video attachment support
 - Cross-tab sync for settings, threads, provider stats, and vector store cache invalidation
-- **450+ tests across 25 test files** (as of this writing; verified by `bun run test`)
+- **500+ tests across 30 test files** (as of this writing; verified by `npm run test`)
 
 Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test.ts`, `src/routes/api/*.test.ts`.
 
@@ -72,30 +75,38 @@ Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test
 
 | Data                                                | Storage                                  | Notes                                                        |
 | --------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
-| Chat threads and messages                           | `localStorage` (device-local)            | Never synced to server. Export/import via JSON/Markdown/TXT. |
-| Settings (profile, personalization, shortcuts, RAG) | `localStorage`                           | Device-local only.                                           |
-| Provider API keys                                   | Encrypted server session cookie          | Browser never holds plaintext keys.                          |
+| Chat threads and messages                           | `localStorage` (device-local) by default | Synced to D1 only when authenticated user enables sync. Guests are local-only. Export/import via JSON/Markdown/TXT always available. |
+| Settings (profile, personalization, shortcuts, RAG)   | `localStorage` by default                | User settings also stored in D1 when authenticated. Guests are local-only. |
+| Provider API keys                                   | D1 `user_provider_keys` (encrypted)      | AES-256-GCM encrypted. Guests cannot store keys server-side. |
 | RAG vectors and text chunks                         | `localStorage` + in-memory               | Device-local only.                                           |
 | Provider stats (counts, tokens, cost)               | `localStorage`                           | Device-local only.                                           |
-| Usage records (per-call model/token/cost)           | `localStorage`                           | Device-local only.                                           |
+| Usage records (per-call model/token/cost)           | D1 `usage_records` (when authenticated) | Per-user when logged in.                                     |
 | Rate limit state                                    | In-memory (fallback) or D1 `rate_limits` | Server-side for cloud providers.                             |
-| Session/security data                               | D1 `sessions`                            | Server-side only.                                            |
+| Session/security data                               | D1 `sessions` + encrypted cookie         | Server-side only.                                            |
 
 **Defaults proven by source:**
 
-- Chat data is device-local only — `src/lib/cockpit-store.ts` (`persist`, `localStorage`)
-- `_serverSyncAvailable = false` — `src/lib/vector-store.ts`; server sync functions are dormant
+- Chat data defaults to device-local (`is_local=1, sync_enabled=0`) — `src/lib/cockpit-store.ts` (`newThread`), `src/lib/db/schema.sql`
+- Guest users cannot store provider keys in D1 — `src/lib/session.server.ts` (`setProviderCreds` throws for guests)
+- Authenticated users can sync threads to D1 via `sync_enabled` flag — `src/lib/db/schema.sql`, `src/routes/api/threads.ts`
+- Provider API keys stored in D1 with AES-256-GCM encryption — `src/lib/db/schema.sql`, `src/lib/encryption.server.ts`
+- `_serverSyncAvailable = false` — `src/lib/vector-store.ts`; server RAG sync functions are dormant
 - Provider API keys stripped from `localStorage` in `persist()` before every write
 - `normalizeSettings()` migrates legacy settings so missing fields default to safe values
 
-**What D1 stores (server-side only, no chat content):**
+**What D1 stores (server-side):**
 
+- `users`: registered user accounts (email, password hash)
+- `user_provider_keys`: encrypted provider API keys per user (AES-256-GCM)
+- `user_settings`: per-user settings (profile, personalization, sync preferences)
+- `threads`: chat threads when `sync_enabled=1` (otherwise device-local)
 - `sessions`: encrypted session data (no message content)
 - `rate_limits`: rate limiter window state
+- `guest_sessions`: ephemeral anonymous sessions (30-day TTL)
 
-**What D1 does NOT store:**
+**What D1 does NOT store by default:**
 
-- Chat threads, messages, or conversation history — all device-local in `localStorage`
+- Chat threads for guests or users with `sync_enabled=0` — all device-local in `localStorage`
 - RAG vectors, text chunks, or embeddings — all device-local in `localStorage`
 - Provider stats (calls, tokens, cost) — all device-local in `localStorage`
 
@@ -105,7 +116,7 @@ Sources: `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`, `src/lib/db/sche
 
 ## 4. Manual chat portability
 
-> **Manual export/import is the only cross-device chat portability path.** There is no automatic cross-device chat sync. JSON/Markdown/TXT export and import via `cockpit-store.ts` `exportThread()` / `importThreads()` is the intended mechanism. This is intentional — the device-local default is the product's privacy model.
+> **Manual export/import is always available as a cross-device chat portability path.** For authenticated users, opt-in sync to D1 is also available (per-thread or globally). JSON/Markdown/TXT export and import via `cockpit-store.ts` `exportThread()` / `importThreads()` works regardless of sync state.
 
 - **Export formats:** JSON (full thread with all messages), Markdown, plain text
 - **Import:** `store.importThreads(threads)` accepts a thread JSON array and merges into local state
@@ -131,6 +142,12 @@ src/
 │       ├── health.ts
 │       ├── session.ts
 │       ├── stats.ts
+│       ├── settings.ts        # User settings (GET/POST, auth required)
+│       ├── auth/
+│       │   ├── register.ts      # User registration
+│       │   ├── login.ts         # User login
+│       │   ├── logout.ts        # User logout
+│       │   └── me.ts            # Current user profile
 │       ├── threads.ts
 │       ├── threads.$id.ts
 │       ├── threads.import.ts
@@ -419,10 +436,12 @@ Source: `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts`.
 
 ### API key handling
 
-- Keys stored in encrypted cookie sessions server-side only (`session.server.ts`)
+- Keys stored in D1 (`user_provider_keys`) with AES-256-GCM encryption per user (`session.server.ts` + `encryption.server.ts`)
+- Session cookie only stores session ID, user ID, and guest session ID — no provider keys
 - Browser never sees plaintext keys after migration
 - `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`
 - Legacy keys in `localStorage` are auto-migrated to the server on first hydration
+- Guests cannot store provider keys server-side (401 on proxy routes that need keys)
 
 ### Message sanitization
 
@@ -453,7 +472,7 @@ Source: `src/lib/env.server.ts`, `src/lib/csrf.server.ts`, `src/lib/csp.server.t
 }
 ```
 
-D1 is configured with a real database ID and `DB` binding. The device-local privacy boundary is enforced in code — D1 is used for rate limiting, encrypted sessions, and usage/stats only.
+D1 is configured with a real database ID and `DB` binding. The device-local default is enforced in code — chat data is `localStorage` by default and only synced to D1 when an authenticated user explicitly enables it.
 
 ### D1 schema setup
 
@@ -461,7 +480,7 @@ D1 is configured with a real database ID and `DB` binding. The device-local priv
 wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql
 ```
 
-Tables: `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`.
+Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`.
 
 ### Startup guards (cold start)
 
@@ -478,6 +497,7 @@ Tables: `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`,
 | Name                          | Required               | Purpose                                                            |
 | ----------------------------- | ---------------------- | ------------------------------------------------------------------ |
 | `SESSION_SECRET`              | **Yes**                | Encryption key for cookie sessions (≥32 chars)                     |
+| `ENCRYPTION_KEY`              | No                     | Dedicated AES-256-GCM key for provider key encryption (falls back to `SESSION_SECRET`) |
 | `NODE_ENV`                    | No                     | Runtime environment (`development` / `production`)                 |
 | `LOG_LEVEL`                   | No                     | Structured logger level                                            |
 | `DB`                          | Yes (platform binding) | Cloudflare D1 binding (configured in `wrangler.jsonc`)             |
@@ -488,11 +508,12 @@ Tables: `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`,
 ### Production deployment checklist
 
 - [ ] Set `SESSION_SECRET` to a random 32+ character string
+- [ ] Optionally set `ENCRYPTION_KEY` to a dedicated 32+ character string for provider key encryption (falls back to `SESSION_SECRET` if not set)
 - [x] D1 database ID and `DB` binding configured in `wrangler.jsonc`
 - [ ] Run `wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql` to create tables
 - [ ] Either set `RATE_LIMIT_BACKEND=d1` (recommended for multi-node) or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
-- [ ] Confirm `syncChatsToServer` (default `false`) and `syncRagVectorsToServer` (default `false`) match your data residency intent — **D1 is not automatic chat storage**
-- [ ] **Do not enable server chat/RAG sync without reviewing privacy implications** — these settings write full message content and text chunks to D1
+- [ ] Confirm D1 schema includes `user_accounts`, `user_provider_keys`, `user_settings`, `threads` (with `sync_enabled`/`is_local` columns), `guest_sessions`, `sessions`, `rate_limits`, `usage_records`, `provider_stats`, `vector_docs`
+- [ ] **Do not enable thread sync without reviewing privacy implications** — this writes full message content to D1 for authenticated users who opt in
 - [ ] If the custom provider needs to reach arbitrary hosts, set `PROXY_ALLOW_CUSTOM_WILDCARD=true`; otherwise leave blocked
 - [ ] Run `bun run test && bun run typecheck && bun run lint && bun run build` before deploying
 
@@ -511,8 +532,7 @@ Settings are persisted in `localStorage` under `cockpit.settings.v2`. API keys a
 | Active provider    | activeProviderId                                                                                                                            | `cockpit-store.ts`                       |
 | Pinned providers   | pinnedProviderIds[]                                                                                                                         | `cockpit-store.ts`                       |
 | Cost overrides     | per-provider { input, output } USD/1K tokens                                                                                                | `cockpit-store.ts` (`costOverrides`)     |
-| Chat sync (opt-in) | syncChatsToServer (default false)                                                                                                           | `cockpit-store.ts`                       |
-| RAG sync (opt-in)  | syncRagVectorsToServer (default false)                                                                                                      | `cockpit-store.ts`                       |
+| Account            | email, password (server-side)                                                                                                               | `src/lib/auth.server.ts`                 |
 
 The Settings UI (`src/routes/settings.tsx`) exposes all of these with immediate persistence. Cost override changes are applied instantly to future cost estimates via `setCostOverrides()`.
 
@@ -653,7 +673,7 @@ Schemas registered via `registerLocalTool` or `registerProviderTools` are visibl
 
 Default `bun run test` runs without credentials. Live provider behavior (streaming, tools, embeddings against real APIs) is only tested via `RUN_LIVE_PROVIDER_TESTS=true`. Source: `src/live/providers.live.test.ts`.
 
-> **Privacy model:** Chat data is strictly device-local. No chat content, RAG vectors, or provider stats are stored on the server. D1 stores only session/security data and rate-limit state. Export/import is the cross-device portability path. Source: `src/lib/cockpit-store.ts`, `src/lib/db/schema.sql`.
+> **Privacy model:** Chat data defaults to device-local (`localStorage`). Sync to D1 is opt-in for authenticated users (per-thread or globally). Guests work entirely locally. RAG vectors and provider stats are always device-local. D1 stores user accounts, encrypted provider keys, user settings, synced threads (when enabled), sessions, rate limits, and usage records. Source: `src/lib/cockpit-store.ts`, `src/lib/db/schema.sql`, `src/lib/session.server.ts`.
 
 ### D1 rate-limit counting is eventually consistent across multiple Workers
 

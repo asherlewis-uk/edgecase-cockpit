@@ -12,6 +12,14 @@ vi.mock("@/lib/session.server", () => ({
   setProviderCreds: vi.fn(),
   getProviderCreds: vi.fn(),
   clearProviderCreds: vi.fn(),
+  getAuthUserId: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/db", () => ({
+  getAllUserProviderKeys: vi.fn().mockResolvedValue({}),
+  getUserProviderKey: vi.fn().mockResolvedValue(null),
+  setUserProviderKey: vi.fn().mockResolvedValue(undefined),
+  clearUserProviderKey: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/validate-key.server", () => ({
@@ -33,7 +41,9 @@ import {
   setProviderCreds,
   clearProviderCreds,
   getProviderCreds,
+  getAuthUserId,
 } from "@/lib/session.server";
+import { getAllUserProviderKeys } from "@/lib/db";
 import { validateProviderKey } from "@/lib/validate-key.server";
 import { clearRateLimitBuckets } from "@/lib/rate-limit.server";
 
@@ -316,16 +326,16 @@ describe("POST /api/keys/validate", () => {
   });
 
   it("returns validation results for stored providers", async () => {
-    vi.mocked(getCockpitSession).mockResolvedValue({
-      data: {
-        id: "test-session",
-        providers: {
-          openai: { apiKey: "sk-test" },
-          anthropic: { apiKey: "sk-invalid" },
-        },
-      },
-      update: vi.fn(),
-    } as any);
+    vi.mocked(getAuthUserId).mockResolvedValue("user-123");
+    vi.mocked(getAllUserProviderKeys).mockResolvedValue({
+      openai: { apiKeyEncrypted: "enc-sk-test", baseUrl: undefined, model: undefined },
+      anthropic: { apiKeyEncrypted: "enc-sk-invalid", baseUrl: undefined, model: undefined },
+    });
+    vi.mocked(getProviderCreds).mockImplementation(async (providerId) => {
+      if (providerId === "openai") return { apiKey: "sk-test" };
+      if (providerId === "anthropic") return { apiKey: "sk-invalid" };
+      return null;
+    });
     vi.mocked(validateProviderKey).mockImplementation(async (provider) => {
       if (provider.id === "openai") return { valid: true };
       return { valid: false, error: "auth_failed" };
@@ -423,22 +433,17 @@ describe("GET /api/keys/status", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.mocked(getAllUserProviderKeys).mockResolvedValue({});
     const mod = await import("@/routes/api/keys/status");
     handler = (mod.Route.options as any).server.handlers.GET;
   });
 
   it("returns provider status map", async () => {
-    const mockSession = {
-      data: {
-        id: "session-1",
-        providers: {
-          openai: { apiKey: "sk-set", baseUrl: undefined, model: "gpt-4o" },
-          anthropic: { apiKey: "", baseUrl: undefined, model: undefined },
-        },
-      },
-      update: vi.fn(),
-    };
-    vi.mocked(getCockpitSession).mockResolvedValue(mockSession as any);
+    vi.mocked(getAuthUserId).mockResolvedValue("user-123");
+    vi.mocked(getAllUserProviderKeys).mockResolvedValue({
+      openai: { apiKeyEncrypted: "enc-sk-set", baseUrl: undefined, model: "gpt-4o" },
+      anthropic: { apiKeyEncrypted: "", baseUrl: undefined, model: undefined },
+    });
 
     const res = await handler();
     expect(res.status).toBe(200);

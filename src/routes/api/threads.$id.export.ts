@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/threads/$id/export")({
           return Response.json({ error: "Missing thread id" }, { status: 400 });
         }
 
-        const thread = await getThread(session.data.id, id);
+        const thread = await getThread(session.data.id, id, session.data.userId);
         if (!thread) {
           return Response.json({ error: "Thread not found" }, { status: 404 });
         }

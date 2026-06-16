@@ -59,7 +59,14 @@ describe("POST /api/stats", () => {
     });
     const res = await handler({ request: req });
     expect(res.status).toBe(200);
-    expect(upsertProviderStat).toHaveBeenCalledWith("test-session", "openai", "call", 100, 50);
+    expect(upsertProviderStat).toHaveBeenCalledWith(
+      "test-session",
+      "openai",
+      "call",
+      100,
+      50,
+      undefined,
+    );
     expect(createUsageRecord).toHaveBeenCalled();
     const recordArg = vi.mocked(createUsageRecord).mock.calls[0][0];
     expect(recordArg.providerId).toBe("openai");
@@ -67,6 +74,7 @@ describe("POST /api/stats", () => {
     expect(recordArg.outputTokens).toBe(50);
     expect(recordArg.model).toBe("gpt-4o");
     expect(recordArg.threadId).toBe("thread-1");
+    expect(recordArg.userId).toBeUndefined();
   });
 
   it("returns 403 for missing CSRF token", async () => {

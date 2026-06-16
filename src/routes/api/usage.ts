@@ -17,8 +17,8 @@ export const Route = createFileRoute("/api/usage")({
           return rateLimitResponse(rl.retryAfter);
         }
 
-        const aggregate = await getAggregateUsage(session.data.id);
-        const messageCount = await getMessageCount(session.data.id);
+        const aggregate = await getAggregateUsage(session.data.id, session.data.userId);
+        const messageCount = await getMessageCount(session.data.id, undefined, session.data.userId);
 
         return Response.json({
           usage: {

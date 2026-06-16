@@ -42,6 +42,8 @@ const CreateThreadBody = z.object({
     .default([]),
   updatedAt: z.number(),
   temporary: z.boolean().optional(),
+  syncEnabled: z.boolean().optional(),
+  isLocal: z.boolean().optional(),
 });
 
 const BulkDeleteBody = z.object({
@@ -59,7 +61,7 @@ export const Route = createFileRoute("/api/threads")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
         await dbCreateSession(session.data.id);
-        const threads = await dbGetThreads(session.data.id);
+        const threads = await dbGetThreads(session.data.id, session.data.userId);
         return Response.json({ threads });
       },
 
@@ -103,7 +105,7 @@ export const Route = createFileRoute("/api/threads")({
         }
 
         const limits = getStorageLimits();
-        const threadCount = await getThreadCount(session.data.id);
+        const threadCount = await getThreadCount(session.data.id, session.data.userId);
         if (threadCount >= limits.maxThreadsPerSession) {
           return limitViolationResponse({
             field: "threads",
@@ -118,10 +120,12 @@ export const Route = createFileRoute("/api/threads")({
           messages: parsed.data.messages,
           updatedAt: parsed.data.updatedAt,
           temporary: parsed.data.temporary,
+          syncEnabled: parsed.data.syncEnabled,
+          isLocal: parsed.data.isLocal,
         };
 
         await dbCreateSession(session.data.id);
-        await dbCreateThread(session.data.id, thread);
+        await dbCreateThread(session.data.id, thread, session.data.userId);
         return Response.json({ ok: true, thread });
       },
 
@@ -154,7 +158,11 @@ export const Route = createFileRoute("/api/threads")({
           );
         }
 
-        const deleted = await dbDeleteThreads(session.data.id, parsed.data.ids);
+        const deleted = await dbDeleteThreads(
+          session.data.id,
+          parsed.data.ids,
+          session.data.userId,
+        );
         return Response.json({ ok: true, deleted });
       },
     },

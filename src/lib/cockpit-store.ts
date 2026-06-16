@@ -91,6 +91,8 @@ export type Thread = {
   pinned?: boolean;
   archived?: boolean;
   color?: string;
+  syncEnabled?: boolean;
+  isLocal?: boolean;
 };
 
 function titleForFirstUserMessage(msg: Message) {
@@ -649,6 +651,8 @@ export const store = {
       temporary: opts?.temporary,
       pinned: false,
       archived: false,
+      isLocal: true,
+      syncEnabled: false,
     };
     state = {
       ...state,
@@ -691,6 +695,8 @@ export const store = {
       temporary: false,
       pinned: false,
       archived: false,
+      isLocal: true,
+      syncEnabled: false,
     };
     state = {
       ...state,
@@ -851,6 +857,8 @@ export const store = {
       updatedAt: t.updatedAt || now,
       pinned: !!t.pinned,
       archived: !!t.archived,
+      isLocal: t.isLocal !== false,
+      syncEnabled: t.syncEnabled === true,
     }));
     state = { ...state, threads: [...next, ...state.threads] };
     persist();

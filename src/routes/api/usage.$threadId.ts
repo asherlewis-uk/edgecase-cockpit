@@ -23,8 +23,8 @@ export const Route = createFileRoute("/api/usage/$threadId")({
           return Response.json({ error: "Missing threadId" }, { status: 400 });
         }
 
-        const messageCount = await getMessageCount(session.data.id, threadId);
-        const usage = await getUsageForThread(session.data.id, threadId);
+        const messageCount = await getMessageCount(session.data.id, threadId, session.data.userId);
+        const usage = await getUsageForThread(session.data.id, threadId, session.data.userId);
 
         // Fallback: estimate tokens from thread messages if no usage records exist
         let inputTokens = usage.inputTokens;
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/usage/$threadId")({
         let estimatedCost = usage.estimatedCost;
 
         if (usage.count === 0) {
-          const thread = await getThread(session.data.id, threadId);
+          const thread = await getThread(session.data.id, threadId, session.data.userId);
           if (thread) {
             for (const m of thread.messages) {
               const tokens = estimateTokens(m.content);

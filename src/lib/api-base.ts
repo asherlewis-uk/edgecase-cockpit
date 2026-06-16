@@ -108,9 +108,11 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 
   if (!base) return fetch(url, init);
 
-  // Native context: add bypass header and merge any caller-supplied headers.
+  // Native context: add bypass header, credentials, and merge any caller-supplied headers.
+  // credentials: 'include' is required so the encrypted session cookie is sent
+  // cross-origin from app:// / file:// / capacitor:// to the deployed Worker.
   const headers = new Headers(init?.headers);
   headers.set("X-Native-App", "1");
 
-  return fetch(url, { ...init, headers });
+  return fetch(url, { ...init, headers, credentials: "include" });
 }

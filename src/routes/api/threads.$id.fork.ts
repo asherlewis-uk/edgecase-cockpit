@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/threads/$id/fork")({
           return Response.json({ error: "Missing thread id" }, { status: 400 });
         }
 
-        const original = await getThread(session.data.id, id);
+        const original = await getThread(session.data.id, id, session.data.userId);
         if (!original) {
           return Response.json({ error: "Thread not found" }, { status: 404 });
         }
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/api/threads/$id/fork")({
         }
 
         const limits = getStorageLimits();
-        const threadCount = await getThreadCount(session.data.id);
+        const threadCount = await getThreadCount(session.data.id, session.data.userId);
         if (threadCount >= limits.maxThreadsPerSession) {
           return limitViolationResponse({
             field: "threads",
@@ -59,9 +59,11 @@ export const Route = createFileRoute("/api/threads/$id/fork")({
           updatedAt: Date.now(),
           pinned: false,
           archived: false,
+          isLocal: true,
+          syncEnabled: false,
         };
 
-        await createThread(session.data.id, newThread);
+        await createThread(session.data.id, newThread, session.data.userId);
         return Response.json({ ok: true, thread: newThread });
       },
     },

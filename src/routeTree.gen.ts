@@ -19,6 +19,7 @@ import { Route as ApiVectorDocsRouteImport } from './routes/api/vector-docs'
 import { Route as ApiUsageRouteImport } from './routes/api/usage'
 import { Route as ApiThreadsRouteImport } from './routes/api/threads'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
+import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiSessionRouteImport } from './routes/api/session'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiUsageThreadIdRouteImport } from './routes/api/usage.$threadId'
@@ -34,6 +35,10 @@ import { Route as ApiKeysValidateRouteImport } from './routes/api/keys/validate'
 import { Route as ApiKeysStatusRouteImport } from './routes/api/keys/status'
 import { Route as ApiKeysSetRouteImport } from './routes/api/keys/set'
 import { Route as ApiKeysClearRouteImport } from './routes/api/keys/clear'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiThreadsIdPinRouteImport } from './routes/api/threads.$id.pin'
 import { Route as ApiThreadsIdForkRouteImport } from './routes/api/threads.$id.fork'
 import { Route as ApiThreadsIdExportRouteImport } from './routes/api/threads.$id.export'
@@ -87,6 +92,11 @@ const ApiThreadsRoute = ApiThreadsRouteImport.update({
 const ApiStatsRoute = ApiStatsRouteImport.update({
   id: '/api/stats',
   path: '/api/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettingsRoute = ApiSettingsRouteImport.update({
+  id: '/api/settings',
+  path: '/api/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSessionRoute = ApiSessionRouteImport.update({
@@ -164,6 +174,26 @@ const ApiKeysClearRoute = ApiKeysClearRouteImport.update({
   path: '/api/keys/clear',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiThreadsIdPinRoute = ApiThreadsIdPinRouteImport.update({
   id: '/pin',
   path: '/pin',
@@ -194,11 +224,16 @@ export interface FileRoutesByFullPath {
   '/videos': typeof VideosRoute
   '/api/health': typeof ApiHealthRoute
   '/api/session': typeof ApiSessionRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/stats': typeof ApiStatsRoute
   '/api/threads': typeof ApiThreadsRouteWithChildren
   '/api/usage': typeof ApiUsageRouteWithChildren
   '/api/vector-docs': typeof ApiVectorDocsRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
   '/api/keys/status': typeof ApiKeysStatusRoute
@@ -225,11 +260,16 @@ export interface FileRoutesByTo {
   '/videos': typeof VideosRoute
   '/api/health': typeof ApiHealthRoute
   '/api/session': typeof ApiSessionRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/stats': typeof ApiStatsRoute
   '/api/threads': typeof ApiThreadsRouteWithChildren
   '/api/usage': typeof ApiUsageRouteWithChildren
   '/api/vector-docs': typeof ApiVectorDocsRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
   '/api/keys/status': typeof ApiKeysStatusRoute
@@ -257,11 +297,16 @@ export interface FileRoutesById {
   '/videos': typeof VideosRoute
   '/api/health': typeof ApiHealthRoute
   '/api/session': typeof ApiSessionRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/stats': typeof ApiStatsRoute
   '/api/threads': typeof ApiThreadsRouteWithChildren
   '/api/usage': typeof ApiUsageRouteWithChildren
   '/api/vector-docs': typeof ApiVectorDocsRoute
   '/thread/$id': typeof ThreadIdRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/keys/clear': typeof ApiKeysClearRoute
   '/api/keys/set': typeof ApiKeysSetRoute
   '/api/keys/status': typeof ApiKeysStatusRoute
@@ -290,11 +335,16 @@ export interface FileRouteTypes {
     | '/videos'
     | '/api/health'
     | '/api/session'
+    | '/api/settings'
     | '/api/stats'
     | '/api/threads'
     | '/api/usage'
     | '/api/vector-docs'
     | '/thread/$id'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
     | '/api/keys/clear'
     | '/api/keys/set'
     | '/api/keys/status'
@@ -321,11 +371,16 @@ export interface FileRouteTypes {
     | '/videos'
     | '/api/health'
     | '/api/session'
+    | '/api/settings'
     | '/api/stats'
     | '/api/threads'
     | '/api/usage'
     | '/api/vector-docs'
     | '/thread/$id'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
     | '/api/keys/clear'
     | '/api/keys/set'
     | '/api/keys/status'
@@ -352,11 +407,16 @@ export interface FileRouteTypes {
     | '/videos'
     | '/api/health'
     | '/api/session'
+    | '/api/settings'
     | '/api/stats'
     | '/api/threads'
     | '/api/usage'
     | '/api/vector-docs'
     | '/thread/$id'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
     | '/api/keys/clear'
     | '/api/keys/set'
     | '/api/keys/status'
@@ -384,11 +444,16 @@ export interface RootRouteChildren {
   VideosRoute: typeof VideosRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiSessionRoute: typeof ApiSessionRoute
+  ApiSettingsRoute: typeof ApiSettingsRoute
   ApiStatsRoute: typeof ApiStatsRoute
   ApiThreadsRoute: typeof ApiThreadsRouteWithChildren
   ApiUsageRoute: typeof ApiUsageRouteWithChildren
   ApiVectorDocsRoute: typeof ApiVectorDocsRoute
   ThreadIdRoute: typeof ThreadIdRoute
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiKeysClearRoute: typeof ApiKeysClearRoute
   ApiKeysSetRoute: typeof ApiKeysSetRoute
   ApiKeysStatusRoute: typeof ApiKeysStatusRoute
@@ -471,6 +536,13 @@ declare module '@tanstack/react-router' {
       path: '/api/stats'
       fullPath: '/api/stats'
       preLoaderRoute: typeof ApiStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settings': {
+      id: '/api/settings'
+      path: '/api/settings'
+      fullPath: '/api/settings'
+      preLoaderRoute: typeof ApiSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/session': {
@@ -578,6 +650,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKeysClearRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/threads/$id/pin': {
       id: '/api/threads/$id/pin'
       path: '/pin'
@@ -671,11 +771,16 @@ const rootRouteChildren: RootRouteChildren = {
   VideosRoute: VideosRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiSessionRoute: ApiSessionRoute,
+  ApiSettingsRoute: ApiSettingsRoute,
   ApiStatsRoute: ApiStatsRoute,
   ApiThreadsRoute: ApiThreadsRouteWithChildren,
   ApiUsageRoute: ApiUsageRouteWithChildren,
   ApiVectorDocsRoute: ApiVectorDocsRoute,
   ThreadIdRoute: ThreadIdRoute,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiKeysClearRoute: ApiKeysClearRoute,
   ApiKeysSetRoute: ApiKeysSetRoute,
   ApiKeysStatusRoute: ApiKeysStatusRoute,

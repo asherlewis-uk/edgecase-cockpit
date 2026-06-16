@@ -76,7 +76,7 @@ export const Route = createFileRoute("/api/threads/import")({
         }
 
         const limits = getStorageLimits();
-        const currentThreadCount = await getThreadCount(session.data.id);
+        const currentThreadCount = await getThreadCount(session.data.id, session.data.userId);
         const allowedToImport = Math.max(0, limits.maxThreadsPerSession - currentThreadCount);
         if (allowedToImport === 0) {
           return limitViolationResponse({
@@ -97,8 +97,10 @@ export const Route = createFileRoute("/api/threads/import")({
             updatedAt: t.updatedAt ?? now,
             pinned: false,
             archived: false,
+            isLocal: true,
+            syncEnabled: false,
           };
-          await createThread(session.data.id, thread);
+          await createThread(session.data.id, thread, session.data.userId);
           imported++;
         }
 

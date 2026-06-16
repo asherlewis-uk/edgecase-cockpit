@@ -36,6 +36,8 @@ const PatchThreadBody = z.object({
   temporary: z.boolean().optional(),
   pinned: z.boolean().optional(),
   archived: z.boolean().optional(),
+  syncEnabled: z.boolean().optional(),
+  isLocal: z.boolean().optional(),
 });
 
 export const Route = createFileRoute("/api/threads/$id")({
@@ -52,7 +54,7 @@ export const Route = createFileRoute("/api/threads/$id")({
           return Response.json({ error: "Missing thread id" }, { status: 400 });
         }
 
-        const thread = await getThread(session.data.id, id);
+        const thread = await getThread(session.data.id, id, session.data.userId);
         if (!thread) {
           return Response.json({ error: "Thread not found" }, { status: 404 });
         }
@@ -61,7 +63,7 @@ export const Route = createFileRoute("/api/threads/$id")({
       },
 
       PATCH: async ({ request, params }) => {
-        const csrfCheck = validateCsrfToken(request);
+        const csrfCheck = await validateCsrfToken(request);
         if (csrfCheck !== true) return csrfCheck;
 
         const session = await getCockpitSession();
@@ -115,17 +117,19 @@ export const Route = createFileRoute("/api/threads/$id")({
         if (parsed.data.temporary !== undefined) updates.temporary = parsed.data.temporary;
         if (parsed.data.pinned !== undefined) updates.pinned = parsed.data.pinned;
         if (parsed.data.archived !== undefined) updates.archived = parsed.data.archived;
+        if (parsed.data.syncEnabled !== undefined) updates.syncEnabled = parsed.data.syncEnabled;
+        if (parsed.data.isLocal !== undefined) updates.isLocal = parsed.data.isLocal;
 
         if (Object.keys(updates).length === 0) {
           return Response.json({ error: "No fields to update" }, { status: 400 });
         }
 
-        await updateThread(session.data.id, id, updates);
+        await updateThread(session.data.id, id, updates, session.data.userId);
         return Response.json({ ok: true });
       },
 
       DELETE: async ({ params, request }) => {
-        const csrfCheck = validateCsrfToken(request);
+        const csrfCheck = await validateCsrfToken(request);
         if (csrfCheck !== true) return csrfCheck;
 
         const session = await getCockpitSession();
@@ -143,7 +147,7 @@ export const Route = createFileRoute("/api/threads/$id")({
           return Response.json({ error: "Missing thread id" }, { status: 400 });
         }
 
-        await deleteThread(session.data.id, id);
+        await deleteThread(session.data.id, id, session.data.userId);
         return Response.json({ ok: true });
       },
     },

@@ -12,7 +12,8 @@ export const Route = createFileRoute("/api/vector-docs")({
 
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
-        const docs = await getVectorDocs(sessionId);
+        const userId = session.data.userId;
+        const docs = await getVectorDocs(sessionId, userId);
         return Response.json({ docs });
       },
       POST: async ({ request }) => {
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/api/vector-docs")({
 
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
+        const userId = session.data.userId;
 
         const body = (await request.json()) as {
           id: string;
@@ -36,6 +38,7 @@ export const Route = createFileRoute("/api/vector-docs")({
           embedding: body.embedding,
           metadata: body.metadata,
           createdAt: Date.now(),
+          userId,
         });
 
         return Response.json({ ok: true });
@@ -46,7 +49,8 @@ export const Route = createFileRoute("/api/vector-docs")({
 
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
-        await clearVectorDocs(sessionId);
+        const userId = session.data.userId;
+        await clearVectorDocs(sessionId, userId);
         return Response.json({ ok: true });
       },
     },

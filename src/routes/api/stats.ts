@@ -29,7 +29,7 @@ export const Route = createFileRoute("/api/stats")({
         if (!session.data.id) {
           return Response.json({ stats: {} });
         }
-        const stats = await dbGetProviderStats(session.data.id);
+        const stats = await dbGetProviderStats(session.data.id, session.data.userId);
         return Response.json({ stats });
       },
 
@@ -65,6 +65,7 @@ export const Route = createFileRoute("/api/stats")({
           parsed.data.kind,
           parsed.data.inputTokens,
           parsed.data.outputTokens,
+          session.data.userId,
         );
 
         // If token data is provided, also record a detailed usage row.
@@ -86,6 +87,7 @@ export const Route = createFileRoute("/api/stats")({
               parsed.data.outputTokens,
             ),
             createdAt: Date.now(),
+            userId: session.data.userId,
           });
         }
 
@@ -105,7 +107,7 @@ export const Route = createFileRoute("/api/stats")({
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }
-        await dbResetProviderStats(session.data.id);
+        await dbResetProviderStats(session.data.id, session.data.userId);
         return Response.json({ ok: true });
       },
     },

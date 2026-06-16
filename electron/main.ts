@@ -122,6 +122,10 @@ function createWindow(): void {
   // In production (app:// origin) the browser blocks fetch to localhost
   // due to CORS. We intercept response headers from localhost endpoints and
   // inject permissive CORS headers so on-device models work without proxy.
+  //
+  // For the deployed Worker API we also need to support credentials (cookies).
+  // The renderer origin is app:// or file://; we set the exact origin and
+  // Allow-Credentials so the encrypted session cookie is sent cross-origin.
   const localFilter = {
     urls: [
       `${NATIVE_API_URL}/*`,
@@ -133,8 +137,27 @@ function createWindow(): void {
 
   win.webContents.session.webRequest.onHeadersReceived(localFilter, (details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
-    // Inject CORS headers to allow app:// / capacitor:// origins
-    responseHeaders["Access-Control-Allow-Origin"] = ["*"];
+    const isWorkerApi = details.url.startsWith(NATIVE_API_URL);
+
+    if (isWorkerApi) {
+      // For the deployed Worker, set the exact renderer origin so credentials
+      // (session cookies) are accepted by the browser's CORS policy.
+      let rendererOrigin = "app://";
+      try {
+        const rendererUrl = win.webContents.getURL();
+        if (rendererUrl) {
+          rendererOrigin = new URL(rendererUrl).origin;
+        }
+      } catch {
+        /* keep default */
+      }
+      responseHeaders["Access-Control-Allow-Origin"] = [rendererOrigin];
+      responseHeaders["Access-Control-Allow-Credentials"] = ["true"];
+    } else {
+      // For localhost providers, keep permissive CORS (no credentials needed).
+      responseHeaders["Access-Control-Allow-Origin"] = ["*"];
+    }
+
     responseHeaders["Access-Control-Allow-Methods"] = ["GET, POST, PUT, DELETE, OPTIONS"];
     responseHeaders["Access-Control-Allow-Headers"] = ["*"];
     callback({ responseHeaders, cancel: false });
