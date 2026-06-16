@@ -14,6 +14,12 @@ const DEV_URL = process.env.ELECTRON_DEV_URL ?? "http://localhost:5173";
 // These match the defaultBaseUrl values of all local providers.
 const LOCAL_PROVIDER_PORTS = [11434, 1234, 8000, 8080, 8081, 8787];
 
+// Deployed Cloudflare Worker API used by packaged native builds.
+// Matches the default in src/lib/api-base.ts; can be overridden via env.
+const NATIVE_API_URL =
+  process.env.VITE_NATIVE_API_URL?.replace(/\/+$/, "") ||
+  "https://edgecase-cockpit.asher-lewis-knight.workers.dev";
+
 // Privilege the custom app:// scheme so it behaves like a standard secure origin
 // (required for module scripts, fetch, and relative asset resolution).
 protocol.registerSchemesAsPrivileged([
@@ -102,7 +108,7 @@ function createWindow(): void {
     minHeight: 600,
     title: "Edgecase Cockpit",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "..", "preload.cjs"),
       // Context isolation keeps Node.js APIs out of renderer code.
       contextIsolation: true,
       // nodeIntegration must stay false — renderer talks to the CF Worker, not Node.
@@ -118,6 +124,7 @@ function createWindow(): void {
   // inject permissive CORS headers so on-device models work without proxy.
   const localFilter = {
     urls: [
+      `${NATIVE_API_URL}/*`,
       ...LOCAL_PROVIDER_PORTS.map((port) => `http://localhost:${port}/*`),
       ...LOCAL_PROVIDER_PORTS.map((port) => `http://127.0.0.1:${port}/*`),
       "http://*.local/*",
@@ -131,6 +138,20 @@ function createWindow(): void {
     responseHeaders["Access-Control-Allow-Methods"] = ["GET, POST, PUT, DELETE, OPTIONS"];
     responseHeaders["Access-Control-Allow-Headers"] = ["*"];
     callback({ responseHeaders, cancel: false });
+  });
+
+  // Capture renderer console messages so packaging/runtime errors are visible.
+  // Use the Event<WebContentsConsoleMessageEventParams> object (the only non-deprecated API).
+  win.webContents.on("console-message", (details) => {
+    const { level, message, lineNumber, sourceId } = details as unknown as {
+      level: "debug" | "info" | "warning" | "error";
+      message: string;
+      lineNumber: number;
+      sourceId: string;
+    };
+    const label =
+      level === "error" ? "error" : level === "warning" ? "warn" : level === "info" ? "info" : "verbose";
+    console.error(`[renderer:${label}] ${sourceId}:${lineNumber} ${message}`);
   });
 
   // Minimal load-failure logging so future packaging/runtime issues are

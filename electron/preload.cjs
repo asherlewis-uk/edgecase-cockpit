@@ -3,8 +3,11 @@
 // this app's renderer talks only to the Cloudflare Worker API, so no
 // bridge APIs are needed at this stage.
 //
+// This file is CommonJS because Electron's preload script loader evaluates
+// it as a classic script, not an ES module, regardless of package.json type.
+//
 // Keep this file present — it is referenced in main.ts webPreferences.preload.
 // Add contextBridge.exposeInMainWorld(...) here when/if native file-system
 // or platform integration is needed (Phase 4+).
 
-export {};
+module.exports = {};

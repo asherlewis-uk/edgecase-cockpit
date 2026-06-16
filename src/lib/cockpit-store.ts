@@ -989,8 +989,10 @@ export function providerHasKey(id: string): boolean {
   return !!state.providerKeyStatus[id];
 }
 
+const IDLE_VALIDATION_STATUS = { status: "idle" } as const;
+
 export function getProviderValidationStatus(id: string) {
-  return state.providerValidationStatus[id] ?? { status: "idle" };
+  return state.providerValidationStatus[id] ?? IDLE_VALIDATION_STATUS;
 }
 
 export function setProviderValidationStatus(

@@ -20,10 +20,13 @@ interface CapacitorWindow {
 
 export function isNativeContext(): boolean {
   if (typeof window === "undefined") return false;
-  // file:// protocol → Electron production
+  // file:// = legacy Electron production, app:// = Electron custom protocol
   // window.location may be unavailable in test environments; guard defensively.
   try {
-    if (window.location?.protocol === "file:") return true;
+    // file:// = legacy Electron, app:// = Electron with custom protocol,
+    // capacitor:// = Capacitor WebView
+    const proto = window.location?.protocol;
+    if (proto === "file:" || proto === "app:") return true;
   } catch {
     /* window.location unavailable (e.g. test env) — treat as non-native */
   }

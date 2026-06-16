@@ -8,8 +8,15 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["main.ts", "preload.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "main.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }

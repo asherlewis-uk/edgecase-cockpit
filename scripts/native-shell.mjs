@@ -14,11 +14,14 @@
  * Asset paths are written as relative (./assets/…) so they resolve under
  * both file:// (Electron production) and http:// (Vite dev / CF Worker).
  *
- * In addition, a minimal window.$_TSR bootstrap is injected for the packaged
- * Electron shell. TanStack Start's client entry expects SSR dehydration data;
- * without this bootstrap it throws invariants and the window stays blank.
- * The injected data marks the router as "SPA fallback" so the client entry
- * calls router.load() and renders the real UI.
+ * In addition, the generated client bundle is patched for the packaged
+ * Electron shell:
+ *   - TanStack Start's client entry uses hydrateRoot(document, ...), which
+ *     fails when the static shell contains injected bootstrap script tags.
+ *     We rewrite it to createRoot(document).render(...) for client-only
+ *     rendering in the native shell.
+ *   - A minimal window.$_TSR bootstrap is injected so StartClient can enter
+ *     SPA mode and call router.load() without SSR dehydrated state.
  */
 
 import { readFileSync, writeFileSync, readdirSync, cpSync, rmSync } from "fs";
@@ -119,6 +122,25 @@ ${tsrBootstrap}
 `;
 
 writeFileSync(`${distClient}/index.html`, html, "utf8");
+
+// Patch the client bundle to use client-only rendering (createRoot) instead
+// of hydration (hydrateRoot). The static native shell has injected bootstrap
+// script tags that React's hydrateRoot would mismatch against.
+const bundlePath = `${distClient}${clientEntry.replace(/^\./, "")}`;
+let bundle = readFileSync(bundlePath, "utf8");
+const originalHydrate = "hydrateRoot(document,";
+const replacementRender = "createRoot(document).render(";
+if (bundle.includes(originalHydrate)) {
+  bundle = bundle.replaceAll(originalHydrate, replacementRender);
+  writeFileSync(bundlePath, bundle, "utf8");
+  console.log(`[native-shell] Patched ${bundlePath} for client-only render`);
+} else if (!bundle.includes(replacementRender)) {
+  console.warn(
+    `[native-shell] Could not find hydrateRoot(document,...) in ${bundlePath}; ` +
+      `client-only patch may be incomplete.`,
+  );
+}
+
 console.log(`[native-shell] Wrote ${distClient}/index.html`);
 console.log(`  clientEntry: ${clientEntry}`);
 console.log(`  stylesheets: ${allStylesheets.join(", ")}`);

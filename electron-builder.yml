@@ -31,8 +31,10 @@ directories:
   output: electron/release
 
 files:
-  # Include the compiled Electron main/preload.
+  # Include the compiled Electron main.
   - electron/dist/**/*
+  # Include the CommonJS preload script (Electron loads it as a classic script).
+  - electron/preload.cjs
   # Include the Vite web build.
   - dist/client/**/*
   # package.json is required by Electron for app metadata.
