@@ -9,9 +9,7 @@ const IV_LENGTH_BYTES = 12; // 96-bit IV for GCM
 function getEncryptionKey(): string {
   const key = process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET;
   if (!key || key.length < 32) {
-    throw new Error(
-      "ENCRYPTION_KEY or SESSION_SECRET must be set and at least 32 characters long",
-    );
+    throw new Error("ENCRYPTION_KEY or SESSION_SECRET must be set and at least 32 characters long");
   }
   return key;
 }

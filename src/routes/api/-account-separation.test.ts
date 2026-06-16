@@ -36,7 +36,12 @@ vi.mock("@/lib/db", async (importOriginal) => {
   };
 });
 
-import { getAuthUserId, getGuestSessionId, getProviderCreds, setProviderCreds } from "@/lib/session.server";
+import {
+  getAuthUserId,
+  getGuestSessionId,
+  getProviderCreds,
+  setProviderCreds,
+} from "@/lib/session.server";
 import { encrypt, decrypt } from "@/lib/encryption.server";
 import {
   getUserProviderKey,
@@ -64,13 +69,19 @@ describe("Account Isolation", () => {
   });
 
   it("getProviderCreds returns decrypted key for authenticated users", async () => {
-    vi.mocked(getProviderCreds).mockResolvedValue({ apiKey: "sk-test", baseUrl: undefined, model: "gpt-4o" });
+    vi.mocked(getProviderCreds).mockResolvedValue({
+      apiKey: "sk-test",
+      baseUrl: undefined,
+      model: "gpt-4o",
+    });
     const creds = await getProviderCreds("openai");
     expect(creds).toEqual({ apiKey: "sk-test", baseUrl: undefined, model: "gpt-4o" });
   });
 
   it("setProviderCreds throws for guests", async () => {
-    vi.mocked(setProviderCreds).mockRejectedValue(new Error("Authentication required to store provider credentials"));
+    vi.mocked(setProviderCreds).mockRejectedValue(
+      new Error("Authentication required to store provider credentials"),
+    );
     await expect(setProviderCreds("openai", { apiKey: "sk-test" })).rejects.toThrow(
       "Authentication required to store provider credentials",
     );
@@ -78,7 +89,11 @@ describe("Account Isolation", () => {
 
   it("setProviderCreds encrypts and stores for authenticated users", async () => {
     vi.mocked(setProviderCreds).mockResolvedValue(undefined);
-    await setProviderCreds("openai", { apiKey: "sk-test", baseUrl: "https://api.openai.com", model: "gpt-4o" });
+    await setProviderCreds("openai", {
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com",
+      model: "gpt-4o",
+    });
     expect(setProviderCreds).toHaveBeenCalledWith("openai", {
       apiKey: "sk-test",
       baseUrl: "https://api.openai.com",
@@ -94,8 +109,12 @@ describe("Account Isolation", () => {
     const keysA = await getAllUserProviderKeys("user-a");
     const keysB = await getAllUserProviderKeys("user-b");
 
-    expect(keysA).toEqual({ openai: { apiKeyEncrypted: "enc:sk-1", baseUrl: undefined, model: undefined } });
-    expect(keysB).toEqual({ openai: { apiKeyEncrypted: "enc:sk-1", baseUrl: undefined, model: undefined } });
+    expect(keysA).toEqual({
+      openai: { apiKeyEncrypted: "enc:sk-1", baseUrl: undefined, model: undefined },
+    });
+    expect(keysB).toEqual({
+      openai: { apiKeyEncrypted: "enc:sk-1", baseUrl: undefined, model: undefined },
+    });
     // Verify each was called with the correct user ID
     expect(getAllUserProviderKeys).toHaveBeenCalledWith("user-a");
     expect(getAllUserProviderKeys).toHaveBeenCalledWith("user-b");

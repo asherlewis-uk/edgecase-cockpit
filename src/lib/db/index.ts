@@ -531,7 +531,10 @@ export async function getVectorDocs(
 // Guest Sessions
 // ---------------------------------------------------------------------------
 
-export async function createGuestSession(id: string, data: Record<string, unknown> = {}): Promise<void> {
+export async function createGuestSession(
+  id: string,
+  data: Record<string, unknown> = {},
+): Promise<void> {
   const db = getDB();
   const now = Date.now();
   const expiresAt = now + 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -543,9 +546,13 @@ export async function createGuestSession(id: string, data: Record<string, unknow
     .run();
 }
 
-export async function getGuestSession(
-  id: string,
-): Promise<{ id: string; data: Record<string, unknown>; created_at: number; updated_at: number; expires_at: number } | null> {
+export async function getGuestSession(id: string): Promise<{
+  id: string;
+  data: Record<string, unknown>;
+  created_at: number;
+  updated_at: number;
+  expires_at: number;
+} | null> {
   const db = getDB();
   const row = await db.prepare("SELECT * FROM guest_sessions WHERE id = ?1").bind(id).first();
   if (!row) return null;
@@ -632,7 +639,9 @@ export async function getUserProviderKey(
 ): Promise<{ apiKeyEncrypted: string; baseUrl?: string; model?: string } | null> {
   const db = getDB();
   const row = await db
-    .prepare("SELECT api_key_encrypted, base_url, model FROM user_provider_keys WHERE user_id = ?1 AND provider_id = ?2")
+    .prepare(
+      "SELECT api_key_encrypted, base_url, model FROM user_provider_keys WHERE user_id = ?1 AND provider_id = ?2",
+    )
     .bind(userId, providerId)
     .first<{ api_key_encrypted: string; base_url: string | null; model: string | null }>();
   if (!row) return null;
@@ -677,9 +686,16 @@ export async function getAllUserProviderKeys(
 ): Promise<Record<string, { apiKeyEncrypted: string; baseUrl?: string; model?: string }>> {
   const db = getDB();
   const result = await db
-    .prepare("SELECT provider_id, api_key_encrypted, base_url, model FROM user_provider_keys WHERE user_id = ?1")
+    .prepare(
+      "SELECT provider_id, api_key_encrypted, base_url, model FROM user_provider_keys WHERE user_id = ?1",
+    )
     .bind(userId)
-    .all<{ provider_id: string; api_key_encrypted: string; base_url: string | null; model: string | null }>();
+    .all<{
+      provider_id: string;
+      api_key_encrypted: string;
+      base_url: string | null;
+      model: string | null;
+    }>();
   const keys: Record<string, { apiKeyEncrypted: string; baseUrl?: string; model?: string }> = {};
   for (const row of result.results) {
     keys[row.provider_id] = {
@@ -837,7 +853,9 @@ export async function setUserSettings(
 export async function getSyncedThreads(userId: string): Promise<Thread[]> {
   const db = getDB();
   const result = await db
-    .prepare("SELECT * FROM threads WHERE user_id = ?1 AND sync_enabled = 1 AND is_local = 0 ORDER BY updated_at DESC")
+    .prepare(
+      "SELECT * FROM threads WHERE user_id = ?1 AND sync_enabled = 1 AND is_local = 0 ORDER BY updated_at DESC",
+    )
     .bind(userId)
     .all();
   const rows = result.results as unknown as ThreadRow[];
@@ -847,12 +865,13 @@ export async function getSyncedThreads(userId: string): Promise<Thread[]> {
 export async function getSyncedThreadCount(userId: string): Promise<number> {
   const db = getDB();
   const row = await db
-    .prepare("SELECT COUNT(*) as count FROM threads WHERE user_id = ?1 AND sync_enabled = 1 AND is_local = 0")
+    .prepare(
+      "SELECT COUNT(*) as count FROM threads WHERE user_id = ?1 AND sync_enabled = 1 AND is_local = 0",
+    )
     .bind(userId)
     .first<{ count: number }>();
   return row?.count ?? 0;
 }
-
 
 export async function clearVectorDocs(sessionId: string, userId?: string): Promise<void> {
   const db = getDB();

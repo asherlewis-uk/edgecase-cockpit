@@ -243,7 +243,10 @@ export async function claimGuestSession(guestId: string, userId: string): Promis
   await db.prepare("DELETE FROM guest_sessions WHERE id = ?1").bind(guestId).run();
 }
 
-export async function createGuestSession(id: string, data: Record<string, unknown> = {}): Promise<void> {
+export async function createGuestSession(
+  id: string,
+  data: Record<string, unknown> = {},
+): Promise<void> {
   const db = getDB();
   const now = Date.now();
   const expiresAt = now + 30 * 24 * 60 * 60 * 1000; // 30 days

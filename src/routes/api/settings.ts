@@ -94,13 +94,18 @@ export const Route = createFileRoute("/api/settings")({
           settings.ragJson = JSON.stringify(body.rag);
         }
         if (body.activeProviderId !== undefined) {
-          settings.activeProviderId = typeof body.activeProviderId === "string" ? body.activeProviderId : undefined;
+          settings.activeProviderId =
+            typeof body.activeProviderId === "string" ? body.activeProviderId : undefined;
         }
         if (body.pinnedProviderIds !== undefined) {
-          settings.pinnedProviderIdsJson = JSON.stringify(Array.isArray(body.pinnedProviderIds) ? body.pinnedProviderIds : []);
+          settings.pinnedProviderIdsJson = JSON.stringify(
+            Array.isArray(body.pinnedProviderIds) ? body.pinnedProviderIds : [],
+          );
         }
         if (body.costOverrides !== undefined) {
-          settings.costOverridesJson = body.costOverrides ? JSON.stringify(body.costOverrides) : undefined;
+          settings.costOverridesJson = body.costOverrides
+            ? JSON.stringify(body.costOverrides)
+            : undefined;
         }
         if (body.onboardingCompleted !== undefined) {
           settings.onboardingCompleted = Boolean(body.onboardingCompleted);

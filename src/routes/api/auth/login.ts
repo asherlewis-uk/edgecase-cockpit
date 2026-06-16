@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getUserByEmail, verifyPassword, stripPassword, claimGuestSession } from "@/lib/auth.server";
+import {
+  getUserByEmail,
+  verifyPassword,
+  stripPassword,
+  claimGuestSession,
+} from "@/lib/auth.server";
 import { setAuthSession, getGuestSessionId } from "@/lib/session.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
 import { sessionRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
