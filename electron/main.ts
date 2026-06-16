@@ -150,7 +150,13 @@ function createWindow(): void {
       sourceId: string;
     };
     const label =
-      level === "error" ? "error" : level === "warning" ? "warn" : level === "info" ? "info" : "verbose";
+      level === "error"
+        ? "error"
+        : level === "warning"
+          ? "warn"
+          : level === "info"
+            ? "info"
+            : "verbose";
     console.error(`[renderer:${label}] ${sourceId}:${lineNumber} ${message}`);
   });
 
