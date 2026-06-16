@@ -84,9 +84,10 @@ async function registerAppProtocol(): Promise<void> {
   for (const p of [protocol, cockpitSession.protocol]) {
     try {
       await p.handle("app", handler);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Electron throws if the scheme is already handled; ignore that.
-      if (!/already registered|is already handled/i.test(err?.message ?? "")) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/already registered|is already handled/i.test(message)) {
         throw err;
       }
     }
@@ -134,11 +135,14 @@ function createWindow(): void {
 
   // Minimal load-failure logging so future packaging/runtime issues are
   // visible in the terminal / system logs.
-  win.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    console.error(
-      `[electron] did-fail-load: ${errorCode} ${errorDescription} at ${validatedURL} (mainFrame=${isMainFrame})`,
-    );
-  });
+  win.webContents.on(
+    "did-fail-load",
+    (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      console.error(
+        `[electron] did-fail-load: ${errorCode} ${errorDescription} at ${validatedURL} (mainFrame=${isMainFrame})`,
+      );
+    },
+  );
 
   if (DEV) {
     win.loadURL(DEV_URL);
