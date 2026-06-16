@@ -52,7 +52,7 @@ export function ChatMessages({
             />
           );
         })}
-        ;;
+
         {error && (
           <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
             {isCoolingDown ? <Clock className="size-4" /> : <AlertCircle className="size-4" />}
