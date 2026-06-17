@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getCockpitSession } from "@/lib/session.server";
 import { getUsageForThread, getMessageCount, getThread } from "@/lib/db";
 import { usageRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
-import { estimateTokens, estimateCost } from "@/lib/tokens";
+import { estimateTokensAsync, estimateCost } from "@/lib/tokens";
 
 export const Route = createFileRoute("/api/usage/$threadId")({
   server: {
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/api/usage/$threadId")({
           const thread = await getThread(session.data.id, threadId, session.data.userId);
           if (thread) {
             for (const m of thread.messages) {
-              const tokens = estimateTokens(m.content);
+              const tokens = await estimateTokensAsync(m.content);
               if (m.role === "assistant") {
                 outputTokens += tokens;
               } else {

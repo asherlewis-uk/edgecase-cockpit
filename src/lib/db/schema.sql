@@ -105,9 +105,16 @@ CREATE TABLE IF NOT EXISTS provider_stats (
   calls INTEGER NOT NULL DEFAULT 0,
   errors INTEGER NOT NULL DEFAULT 0,
   input_tokens INTEGER NOT NULL DEFAULT 0,
-  output_tokens INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY(user_id, provider_id)
+  output_tokens INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_stats_guest_provider
+  ON provider_stats(session_id, provider_id)
+  WHERE user_id IS NULL AND session_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_stats_user_provider
+  ON provider_stats(user_id, provider_id)
+  WHERE user_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_provider_stats_session
   ON provider_stats(session_id);

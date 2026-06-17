@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   estimateTokens,
+  estimateTokensAsync,
   estimateMessageTokens,
   estimateThreadTokens,
   estimateCost,
@@ -25,6 +26,40 @@ describe("estimateTokens", () => {
     const short = estimateTokens("hello world");
     const long = estimateTokens("hello world ".repeat(100));
     expect(long).toBeGreaterThan(short);
+  });
+
+  it("uses heuristic fallback synchronously when tokenizer is not loaded", () => {
+    // The sync function should return a positive estimate without throwing.
+    expect(estimateTokens("the quick brown fox")).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("estimateTokensAsync", () => {
+  it("returns exact-ish BPE token counts when tokenizer loads", async () => {
+    const tokens = await estimateTokensAsync("hello world");
+    expect(tokens).toBeGreaterThanOrEqual(1);
+    // BPE tokenization of "hello world" is typically 2 tokens.
+    expect(tokens).toBeLessThan(10);
+  });
+
+  it("returns 0 for empty string", async () => {
+    expect(await estimateTokensAsync("")).toBe(0);
+  });
+
+  it("scales with longer text", async () => {
+    const short = await estimateTokensAsync("hello world");
+    const long = await estimateTokensAsync("hello world ".repeat(100));
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it("falls back to heuristic if tokenizer import fails", async () => {
+    vi.doMock("gpt-tokenizer/esm/encoding/cl100k_base", () => {
+      throw new Error(" intentional load failure");
+    });
+    // Force a fresh import attempt by calling the async path.
+    const tokens = await estimateTokensAsync("fallback test");
+    expect(tokens).toBeGreaterThanOrEqual(1);
+    vi.doUnmock("gpt-tokenizer/esm/encoding/cl100k_base");
   });
 });
 

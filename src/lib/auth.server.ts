@@ -3,6 +3,7 @@
 // No bcrypt/argon2 dependencies — avoids native module issues on Edge runtime.
 
 import { getDB } from "@/lib/platform.server";
+import { claimGuestSession as claimGuestData } from "@/lib/db";
 
 const PBKDF2_ITERATIONS = 600_000; // OWASP 2023 recommendation for PBKDF2-HMAC-SHA256
 const PBKDF2_KEYLEN_BITS = 256; // 32 bytes
@@ -205,42 +206,7 @@ export function requireAuthResponse(): Response {
 // ── Guest Session Claim ──────────────────────────────────────────────────────
 
 export async function claimGuestSession(guestId: string, userId: string): Promise<void> {
-  const db = getDB();
-
-  // Migrate threads
-  await db
-    .prepare(
-      "UPDATE threads SET user_id = ?1, session_id = NULL WHERE session_id = ?2 AND user_id IS NULL",
-    )
-    .bind(userId, guestId)
-    .run();
-
-  // Migrate provider_stats
-  await db
-    .prepare(
-      "UPDATE provider_stats SET user_id = ?1, session_id = NULL WHERE session_id = ?2 AND user_id IS NULL",
-    )
-    .bind(userId, guestId)
-    .run();
-
-  // Migrate usage_records
-  await db
-    .prepare(
-      "UPDATE usage_records SET user_id = ?1, session_id = NULL WHERE session_id = ?2 AND user_id IS NULL",
-    )
-    .bind(userId, guestId)
-    .run();
-
-  // Migrate vector_docs
-  await db
-    .prepare(
-      "UPDATE vector_docs SET user_id = ?1, session_id = NULL WHERE session_id = ?2 AND user_id IS NULL",
-    )
-    .bind(userId, guestId)
-    .run();
-
-  // Delete the guest session
-  await db.prepare("DELETE FROM guest_sessions WHERE id = ?1").bind(guestId).run();
+  await claimGuestData(guestId, userId);
 }
 
 export async function createGuestSession(

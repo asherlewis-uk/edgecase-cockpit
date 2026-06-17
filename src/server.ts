@@ -4,6 +4,7 @@ import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { setPlatformEnv, getDB } from "./lib/platform.server";
 import { withCspHeaders } from "./lib/csp.server";
+import { CSRF_COOKIE, setCsrfCookie } from "./lib/csrf.server";
 import { validateEnv } from "./lib/env.server";
 import {
   warnInMemoryRateLimitInProduction,
@@ -13,10 +14,8 @@ import { logCustomProviderPolicy } from "./lib/proxy-guard.server";
 
 // ── Startup guards (run once per cold start) ─────────────────────────────
 
-let envValid = false;
 try {
   validateEnv();
-  envValid = true;
 } catch (e) {
   console.error("[env]", e instanceof Error ? e.message : String(e));
 }
@@ -47,6 +46,16 @@ type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
 
+const RUNTIME_ENV_KEYS = [
+  "SESSION_SECRET",
+  "ENCRYPTION_KEY",
+  "NODE_ENV",
+  "LOG_LEVEL",
+  "RATE_LIMIT_BACKEND",
+  "ALLOW_IN_MEMORY_RATE_LIMIT",
+  "PROXY_ALLOW_CUSTOM_WILDCARD",
+] as const;
+
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
 async function getServerEntry(): Promise<ServerEntry> {
@@ -62,6 +71,53 @@ function brandedErrorResponse(): Response {
   return new Response(renderErrorPage(), {
     status: 500,
     headers: { "content-type": "text/html; charset=utf-8" },
+  });
+}
+
+function misconfiguredResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      error: "Server misconfigured",
+      detail:
+        "Required environment variables are missing or invalid. " +
+        "Check server logs for the full diagnostic. " +
+        "SESSION_SECRET is required everywhere, and ENCRYPTION_KEY is required in production/D1.",
+    }),
+    {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
+function runtimeEnvRecord(env: unknown): Record<string, unknown> {
+  return typeof env === "object" && env !== null ? (env as Record<string, unknown>) : {};
+}
+
+function syncRuntimeEnvToProcess(env: Record<string, unknown>): void {
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = env[key];
+    if (typeof value === "string") {
+      process.env[key] = value;
+    }
+  }
+}
+
+function hasCookie(request: Request, name: string): boolean {
+  const cookie = request.headers.get("cookie");
+  if (!cookie) return false;
+  return cookie.split(";").some((pair) => pair.trim().startsWith(`${name}=`));
+}
+
+function withCsrfCookieIfMissing(response: Response, request: Request): Response {
+  if (hasCookie(request, CSRF_COOKIE)) return response;
+
+  const headers = new Headers(response.headers);
+  headers.append("Set-Cookie", setCsrfCookie());
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
   });
 }
 
@@ -109,24 +165,16 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      // ── Per-request startup guard ────────────────────────────────────
-      if (!envValid) {
-        return new Response(
-          JSON.stringify({
-            error: "Server misconfigured",
-            detail:
-              "Required environment variables are missing or invalid. " +
-              "Check server logs for the full diagnostic. " +
-              "At minimum, SESSION_SECRET must be set to a random string of 32+ characters.",
-          }),
-          {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
+      const runtimeEnv = runtimeEnvRecord(env);
+      syncRuntimeEnvToProcess(runtimeEnv);
+      setPlatformEnv(env);
+      try {
+        validateEnv(runtimeEnv);
+      } catch (e) {
+        console.error("[env]", e instanceof Error ? e.message : String(e));
+        return misconfiguredResponse();
       }
 
-      setPlatformEnv(env);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       const normalized = await normalizeCatastrophicSsrResponse(response);
@@ -144,7 +192,7 @@ export default {
           (env as Record<string, unknown>).NODE_ENV === "development"
             ? "development"
             : "production";
-        return withCspHeaders(normalized, mode);
+        return withCsrfCookieIfMissing(withCspHeaders(normalized, mode), request);
       }
 
       return normalized;

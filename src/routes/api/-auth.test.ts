@@ -6,7 +6,7 @@ vi.mock("@/lib/session.server", () => ({
   getCockpitSession: vi.fn(),
   setAuthSession: vi.fn(),
   clearAuthSession: vi.fn(),
-  getGuestSessionId: vi.fn().mockResolvedValue(null),
+  getGuestSessionId: vi.fn().mockResolvedValue(undefined),
   clearGuestSessionId: vi.fn().mockResolvedValue(undefined),
   getAuthUserId: vi.fn().mockResolvedValue(null),
 }));
@@ -16,6 +16,7 @@ vi.mock("@/lib/auth.server", () => ({
   createUser: vi.fn(),
   getUserByEmail: vi.fn(),
   verifyPassword: vi.fn(),
+  claimGuestSession: vi.fn().mockResolvedValue(undefined),
   stripPassword: vi.fn((u: Record<string, unknown>) => {
     const { password_hash, ...rest } = u;
     return rest;
@@ -54,13 +55,19 @@ vi.mock("@/lib/db", () => ({
   claimGuestSession: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { getCockpitSession, setAuthSession, clearAuthSession } from "@/lib/session.server";
+import {
+  getCockpitSession,
+  setAuthSession,
+  clearAuthSession,
+  getGuestSessionId,
+} from "@/lib/session.server";
 import {
   createUser,
   getUserByEmail,
   verifyPassword,
   getUserById,
   hashPassword,
+  claimGuestSession,
 } from "@/lib/auth.server";
 import { getThread, getThreads, getThreadCount, getProviderStats } from "@/lib/db";
 import { clearRateLimitBuckets } from "@/lib/rate-limit.server";
@@ -82,6 +89,8 @@ function mockSession(sessionData: Record<string, unknown>) {
 beforeEach(() => {
   clearRateLimitBuckets();
   vi.clearAllMocks();
+  vi.mocked(getGuestSessionId).mockResolvedValue(undefined);
+  vi.mocked(claimGuestSession).mockResolvedValue(undefined);
   mockSession({ id: "test-session" });
 });
 
@@ -120,6 +129,40 @@ describe("POST /api/auth/register", () => {
     expect(body.user.display_name).toBe("New User");
     expect(body.user.password_hash).toBeUndefined();
     expect(setAuthSession).toHaveBeenCalledWith("user-1", "new@example.com");
+  });
+
+  it("captures and claims guest data before register clears guest state", async () => {
+    const mockUser = {
+      id: "user-1",
+      email: "new@example.com",
+      display_name: "New User",
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(hashPassword).mockResolvedValue("hashed-password");
+    vi.mocked(createUser).mockResolvedValue({ user: mockUser });
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/register");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "new@example.com",
+          password: "password123",
+          displayName: "New User",
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).toHaveBeenCalledWith("guest-session", "user-1");
+    expect(vi.mocked(getGuestSessionId).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(setAuthSession).mock.invocationCallOrder[0],
+    );
   });
 
   it("rejects duplicate email with 409", async () => {
@@ -216,6 +259,40 @@ describe("POST /api/auth/login", () => {
     expect(body.user.email).toBe("login@example.com");
     expect(body.user.password_hash).toBeUndefined();
     expect(setAuthSession).toHaveBeenCalledWith("user-1", "login@example.com");
+  });
+
+  it("captures and claims guest data before login clears guest state", async () => {
+    const fullUser = {
+      id: "user-1",
+      email: "login@example.com",
+      password_hash: "hashed",
+      display_name: "Login User",
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(getUserByEmail).mockResolvedValue(fullUser as any);
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/login");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "login@example.com",
+          password: "correct-password",
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).toHaveBeenCalledWith("guest-session", "user-1");
+    expect(vi.mocked(getGuestSessionId).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(setAuthSession).mock.invocationCallOrder[0],
+    );
   });
 
   it("rejects wrong password with 401", async () => {

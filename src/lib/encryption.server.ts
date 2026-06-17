@@ -1,17 +1,26 @@
 // Server-side AES-256-GCM encryption for sensitive user data.
 // Uses Web Crypto API (native in Cloudflare Workers).
-// The encryption key is derived from SESSION_SECRET or a dedicated ENCRYPTION_KEY.
+// Production encrypts sensitive data with a dedicated ENCRYPTION_KEY.
 
 const AES_ALGORITHM = "AES-GCM";
 const AES_KEY_LENGTH = 256;
 const IV_LENGTH_BYTES = 12; // 96-bit IV for GCM
 
 function getEncryptionKey(): string {
-  const key = process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET;
-  if (!key || key.length < 32) {
-    throw new Error("ENCRYPTION_KEY or SESSION_SECRET must be set and at least 32 characters long");
+  const key = process.env.ENCRYPTION_KEY;
+  if (key && key.length >= 32) {
+    return key;
   }
-  return key;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("ENCRYPTION_KEY must be set and at least 32 characters long in production");
+  }
+
+  const fallback = process.env.SESSION_SECRET;
+  if (!fallback || fallback.length < 32) {
+    throw new Error("SESSION_SECRET must be set and at least 32 characters long");
+  }
+  return fallback;
 }
 
 async function deriveAesKey(secret: string): Promise<CryptoKey> {

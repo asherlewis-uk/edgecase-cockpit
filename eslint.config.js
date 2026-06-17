@@ -7,7 +7,15 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", ".output", ".vinxi", "ios/**", "android/**", "electron/release/**"],
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      ".gitnexus/**",
+      "ios/**",
+      "android/**",
+      "electron/release/**",
+    ],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

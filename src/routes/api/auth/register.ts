@@ -46,11 +46,13 @@ export const Route = createFileRoute("/api/auth/register")({
           return Response.json({ error: result.error }, { status: 409 });
         }
 
+        // Capture the guest owner before login clears guest session state.
+        const guestId = await getGuestSessionId();
+
         // Immediately log the user in after registration
         await setAuthSession(result.user.id, result.user.email);
 
         // Claim any guest session data into the new user account
-        const guestId = await getGuestSessionId();
         if (guestId) {
           await claimGuestSession(guestId, result.user.id);
         }

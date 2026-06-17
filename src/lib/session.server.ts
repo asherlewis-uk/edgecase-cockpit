@@ -66,12 +66,15 @@ export async function getAuthUserId(): Promise<string | undefined> {
 export async function getGuestSessionId(): Promise<string | undefined> {
   const s = await getCockpitSession();
   if (s.data.userId) return undefined; // authenticated users are not guests
-  if (!s.data.guestSessionId) {
-    const guestId = crypto.randomUUID();
-    await s.update({ ...s.data, guestSessionId: guestId });
-    return guestId;
+
+  const sessionId = s.data.id ?? s.data.guestSessionId ?? crypto.randomUUID();
+  const guestId = sessionId;
+
+  if (s.data.guestSessionId !== guestId || s.data.id !== sessionId) {
+    await s.update({ ...s.data, id: sessionId, guestSessionId: guestId });
   }
-  return s.data.guestSessionId;
+
+  return guestId;
 }
 
 /** Clear the guest session ID (e.g., after claiming). */

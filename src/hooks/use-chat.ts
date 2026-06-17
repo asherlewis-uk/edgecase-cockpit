@@ -15,7 +15,7 @@ import {
   type ChatMessage,
 } from "@/lib/providers";
 import { retryWithBackoff } from "@/lib/retry";
-import { estimateTokens, extractProviderUsage } from "@/lib/tokens";
+import { estimateTokens, extractProviderUsage, primeTokenizer } from "@/lib/tokens";
 import {
   type ToolDef,
   type ToolCall,
@@ -160,6 +160,9 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Prime the lightweight tokenizer in the background so subsequent token
+    // estimates use OpenAI-compatible BPE counts instead of the heuristic.
+    primeTokenizer();
     setIsOnline(navigator.onLine);
     const on = () => {
       setIsOnline(true);

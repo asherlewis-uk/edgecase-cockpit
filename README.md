@@ -9,15 +9,15 @@
 
 | Target                     | V1 required        | Status                    | Notes                                                              |
 | -------------------------- | ------------------ | ------------------------- | ------------------------------------------------------------------ |
-| macOS native (Electron)    | **Yes**            | ⚠️ Scaffolded, unsigned   | CORS bypass configured for localhost providers; `electron/main.ts` |
-| iOS native (Capacitor)     | **Yes**            | ⚠️ Scaffolded, unverified | `NSLocalNetworkUsageDescription` + `CapacitorHttp` enabled         |
-| Android native (Capacitor) | **Yes**            | ⚠️ Scaffolded, unverified | `usesCleartextTraffic="true"` + `CapacitorHttp` enabled            |
+| macOS native (Electron)    | **Yes**            | ⚠️ Build pipeline verified, packaging hangs in headless env | `bun run native:desktop:dev` builds + compiles; prior DMG exists; signing/notarization requires certs |
+| iOS native (Capacitor)     | **Yes**            | ✅ Build verified         | `bun run native:ios:sync` + `xcodebuild` (arm64) succeed with `CODE_SIGNING_ALLOWED=NO` |
+| Android native (Capacitor) | **Yes**            | ✅ Build verified         | `bun run native:android:sync` + `./gradlew assembleDebug` succeed                       |
 | Web build (Vite)           | Supporting surface | ✅ Builds                 | `bun run build` passes — client + SSR artifacts in `dist/`         |
 | Cloudflare Workers backend | Supporting surface | ✅ Configured             | `wrangler.jsonc` + D1 configured; deployment is a separate step    |
 
 **V1 is not achieved by scaffolding alone.** A passing web/Cloudflare build is a prerequisite, and native projects exist, but V1 requires verified, signed, installable native applications for macOS, iOS, and Android with automated user-flow coverage.
 
-Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). The iOS Xcode project, Android Gradle project, and Electron builder config are all in the repo. However, **none have been verified as release-ready builds** — there is no automated user-flow E2E coverage for any native target, no signing/notarization for macOS, and no app-store submission pipeline for iOS/Android. See [`docs/roadmap/FUTURE_ENHANCEMENTS.md`](docs/roadmap/FUTURE_ENHANCEMENTS.md) for the remaining V1 native blockers.
+Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). The iOS Xcode project and Android Gradle project now compile successfully in this environment (`CODE_SIGNING_ALLOWED=NO` for iOS, debug signing for Android). Electron compile and native-shell generation are verified, but Electron packaging via `electron-builder` stalls in this headless environment (prior DMGs exist). Release-ready artifacts still require signing/notarization credentials for macOS, a provisioning profile for iOS, and a keystore for Android. See [`docs/roadmap/FUTURE_ENHANCEMENTS.md`](docs/roadmap/FUTURE_ENHANCEMENTS.md) for the remaining V1 native blockers.
 
 ## 1. What is edgecase-cockpit?
 
@@ -477,7 +477,8 @@ D1 is configured with a real database ID and `DB` binding. The device-local defa
 ### D1 schema setup
 
 ```bash
-wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql
+bunx wrangler d1 migrations list edgecase-cockpit --remote
+bunx wrangler d1 migrations apply edgecase-cockpit --remote
 ```
 
 Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`.
@@ -486,7 +487,7 @@ Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessi
 
 `server.ts` runs at module init:
 
-1. **`validateEnv()`** — validates `SESSION_SECRET` ≥32 chars; returns 503 for all requests if invalid
+1. **`validateEnv()`** — validates `SESSION_SECRET` ≥32 chars, and validates production/D1 `ENCRYPTION_KEY` ≥32 chars; returns 503 for all requests if invalid
 2. **D1 binding check** — warns if the `DB` platform binding is not available
 3. **`configureRateLimiterFromEnv()`** — selects D1 or in-memory backend based on `RATE_LIMIT_BACKEND` env var
 4. **`warnInMemoryRateLimitInProduction()`** — emits `console.error` if in-memory is used in production without acknowledgement
@@ -494,25 +495,25 @@ Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessi
 
 ### Environment variables
 
-| Name                          | Required               | Purpose                                                            |
-| ----------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| `SESSION_SECRET`              | **Yes**                | Encryption key for cookie sessions (≥32 chars)                     |
-| `ENCRYPTION_KEY`              | No                     | Dedicated AES-256-GCM key for provider key encryption (falls back to `SESSION_SECRET`) |
-| `NODE_ENV`                    | No                     | Runtime environment (`development` / `production`)                 |
-| `LOG_LEVEL`                   | No                     | Structured logger level                                            |
-| `DB`                          | Yes (platform binding) | Cloudflare D1 binding (configured in `wrangler.jsonc`)             |
-| `RATE_LIMIT_BACKEND`          | No                     | `auto` (default), `d1`, or `memory`                                |
-| `ALLOW_IN_MEMORY_RATE_LIMIT`  | Production opt-in      | Set `true` to acknowledge in-memory rate limiting in production    |
-| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production opt-in      | Set `true` to allow wildcard host matching for the custom provider |
+| Name                          | Required                 | Purpose                                                            |
+| ----------------------------- | ------------------------ | ------------------------------------------------------------------ |
+| `SESSION_SECRET`              | **Yes**                  | Encryption key for cookie sessions (≥32 chars)                     |
+| `ENCRYPTION_KEY`              | **Yes in production/D1** | Dedicated AES-256-GCM key for provider key encryption (≥32 chars)  |
+| `NODE_ENV`                    | No                       | Runtime environment (`development` / `production`)                 |
+| `LOG_LEVEL`                   | No                       | Structured logger level                                            |
+| `DB`                          | Yes (platform binding)   | Cloudflare D1 binding (configured in `wrangler.jsonc`)             |
+| `RATE_LIMIT_BACKEND`          | No                       | `auto` (default), `d1`, or `memory`                                |
+| `ALLOW_IN_MEMORY_RATE_LIMIT`  | Production opt-in        | Set `true` to acknowledge in-memory rate limiting in production    |
+| `PROXY_ALLOW_CUSTOM_WILDCARD` | Production opt-in        | Set `true` to allow wildcard host matching for the custom provider |
 
 ### Production deployment checklist
 
 - [ ] Set `SESSION_SECRET` to a random 32+ character string
-- [ ] Optionally set `ENCRYPTION_KEY` to a dedicated 32+ character string for provider key encryption (falls back to `SESSION_SECRET` if not set)
+- [ ] Set `ENCRYPTION_KEY` to a different random 32+ character string for provider key encryption
 - [x] D1 database ID and `DB` binding configured in `wrangler.jsonc`
-- [ ] Run `wrangler d1 execute edgecase-cockpit --file=src/lib/db/schema.sql` to create tables
+- [ ] Run `bunx wrangler d1 migrations apply edgecase-cockpit --remote` to apply one-time D1 migrations
 - [ ] Either set `RATE_LIMIT_BACKEND=d1` (recommended for multi-node) or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
-- [ ] Confirm D1 schema includes `user_accounts`, `user_provider_keys`, `user_settings`, `threads` (with `sync_enabled`/`is_local` columns), `guest_sessions`, `sessions`, `rate_limits`, `usage_records`, `provider_stats`, `vector_docs`
+- [ ] Confirm D1 schema includes `users`, `user_provider_keys`, `user_settings`, `threads` (with `sync_enabled`/`is_local` columns), `guest_sessions`, `sessions`, `rate_limits`, `usage_records`, `provider_stats`, `vector_docs`
 - [ ] **Do not enable thread sync without reviewing privacy implications** — this writes full message content to D1 for authenticated users who opt in
 - [ ] If the custom provider needs to reach arbitrary hosts, set `PROXY_ALLOW_CUSTOM_WILDCARD=true`; otherwise leave blocked
 - [ ] Run `bun run test && bun run typecheck && bun run lint && bun run build` before deploying
@@ -683,9 +684,9 @@ The D1 backend maintains in-memory buckets per Worker (synchronous) and persists
 
 Default rates in `_COST_DEFAULTS` are static and may become stale as provider pricing changes. Per-provider overrides are supported via `setCostOverrides()` in settings. Source: `src/lib/tokens.ts`.
 
-### Token estimation is heuristic when provider response contains no usage metadata
+### Token estimation uses an OpenAI-compatible BPE tokenizer with heuristic fallback
 
-`estimateTokens` uses `text.length / 4` and `wordCount × 1.3` averaged. Exact counts are extracted when providers include usage metadata (OpenAI, Anthropic, Gemini). Local providers and providers that omit usage in their responses use heuristic estimation. Source: `src/lib/tokens.ts` (`extractProviderUsage`, `estimateTokens`).
+When a provider response contains no usage metadata, `estimateTokens` lazy-loads `gpt-tokenizer` (`cl100k_base` encoding) to produce BPE token counts. A lightweight character/word heuristic is retained as a synchronous fallback for the first estimate and for constrained environments where the tokenizer chunk cannot load. Exact counts are still extracted when providers include usage metadata (OpenAI, Anthropic, Gemini). Source: `src/lib/tokens.ts` (`extractProviderUsage`, `estimateTokens`, `estimateTokensAsync`).
 
 ### Custom provider wildcard host matching is blocked in production by default
 
@@ -741,26 +742,26 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 
 ## 17. V1 native release status
 
-**Native scaffolding exists, but is not verified as release-ready.**
+**Native build scaffolding is verified for iOS and Android; Electron compile and native-shell are verified; full packaging/signing requires external certificates and a GUI/CI environment.**
 
 The following native packaging tooling is present in this repository:
 
 | Item                                              | Status                    | Verified by source                                                               |
 | ------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
 | Native packaging framework (Capacitor + Electron) | ✅ Present                | `capacitor.config.ts`, `@capacitor/*` deps, `electron` + `electron-builder` deps |
-| macOS build command (Electron)                    | ✅ Exists                 | `bun run native:desktop:build`                                                   |
+| macOS build command (Electron)                    | ✅ Verified (compile + native-shell) | `bun run native:desktop:dev` builds and compiles; `npx electron-builder build` stalls in headless env but prior DMGs exist |
 | macOS install/run command (Electron dev)          | ✅ Exists                 | `bun run native:desktop:dev`                                                     |
-| macOS app bundle                                  | ⚠️ Unsigned `.app` exists | `electron/release/mac-arm64/Edgecase Cockpit.app` (unsigned)                     |
-| macOS signing / notarization config               | ❌ Not configured         | `electron-builder.yml` has `identity: null` (development only)                   |
-| iOS Xcode project (Capacitor)                     | ✅ Present                | `ios/App/App.xcodeproj/` with icons, splash, storyboards                         |
+| macOS app bundle                                  | ⚠️ Unsigned `.app` exists | `electron/release/mac-arm64/Edgecase Cockpit.app` (unsigned); prior `electron-builder` runs produced DMGs |
+| macOS signing / notarization config               | ⚠️ Configured, needs secrets | `electron-builder.yml` ready; requires `CSC_LINK`, `APPLE_ID`, etc. in CI/secrets |
+| iOS Xcode project (Capacitor)                     | ✅ Build verified         | `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO build` succeeds |
 | iOS bundle ID                                     | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
 | iOS app icon / permissions                        | ✅ Configured             | `ios/App/App/Assets.xcassets/AppIcon.appiconset/`                                |
-| Android Gradle project (Capacitor)                | ✅ Present                | `android/app/build.gradle`, `android/app/src/main/AndroidManifest.xml`           |
+| Android Gradle project (Capacitor)                | ✅ Build verified         | `./gradlew assembleDebug` succeeds after `bun run native:android:sync`            |
 | Android application ID                            | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
 | Android app icon / permissions                    | ✅ Configured             | `android/app/src/main/res/mipmap-*/`                                             |
-| PWA manifest / service worker                     | ❌ Not present            | No `manifest.json`, `manifest.webmanifest`, or service worker file found         |
-| Native release scripts / CI jobs                  | ❌ Do not exist           | No GitHub Actions or CI workflows for native builds                              |
-| Automated user-flow E2E (browser or native)       | ❌ Do not exist           | No Playwright, Cypress, or mobile UI test harness                                |
+| PWA manifest / service worker                     | ⚠️ Not present            | PWA manifest not a V1 native target; add only if web-install is required         |
+| Native release scripts / CI jobs                  | ✅ Scripts exist; CI not added | `bun run native:desktop:build`, `native:ios:sync`, `native:android:sync` exist; CI job blocked until signing certs are available |
+| Automated user-flow E2E (browser or native)       | ⚠️ Not implemented        | No Playwright/Cypress/mobile harness; accepted limitation per `docs/roadmap/FUTURE_ENHANCEMENTS.md` |
 
 ### What exists (native scaffolding)
 
@@ -781,7 +782,24 @@ bun run native:desktop:dev   # Dev build + compile + run Electron
 bun run native:desktop:build # Build + compile + package unsigned .app
 ```
 
-These commands produce native artifacts, but **none are verified as release-ready** — there is no automated user-flow E2E coverage for any native target, and the Electron `.app` is unsigned.
+iOS and Android native builds are verified with `CODE_SIGNING_ALLOWED=NO` / debug signing. Electron compile and native-shell generation are verified; Electron packaging (`electron-builder`) stalls in this headless environment but previously produced unsigned DMGs. Release-ready artifacts require signing certificates, provisioning profiles / keystores, and either a GUI environment or CI runner with the correct secrets.
+
+### Verified native build commands
+
+Commands that passed in this environment (no device launch required):
+
+```bash
+# iOS: sync assets, then build the Xcode project for arm64 without signing
+bun run native:ios:sync
+xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'generic/platform=iOS' -derivedDataPath /tmp/edgecase-ios-derived CODE_SIGNING_ALLOWED=NO build
+
+# Android: sync assets, then assemble a debug APK
+bun run native:android:sync
+cd android && ./gradlew assembleDebug
+
+# Electron: build the client shell and compile the main process
+bun run native:desktop:dev   # builds + compiles; GUI launch requires display
+```
 
 ### Native transport configuration for local providers
 

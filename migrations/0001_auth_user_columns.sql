@@ -1,6 +1,7 @@
--- Auth migration for existing Cockpit databases
--- Apply this to an existing D1 database that already has the V1 schema.
--- Run with: wrangler d1 execute cockpit-db --file=src/lib/db/migration_auth.sql
+-- Migration 0001: add auth tables and user_id columns.
+-- One-time D1 migration for existing V1 databases.
+-- Preferred command:
+--   wrangler d1 migrations apply edgecase-cockpit --remote
 
 -- ── Users table (new) ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
@@ -13,9 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ── Add user_id columns to existing tables ────────────────────────────────
--- D1/SQLite supports ADD COLUMN for existing tables.
--- FK constraints are advisory-only unless PRAGMA foreign_keys=ON.
-
+-- D1/SQLite ADD COLUMN is not fully idempotent. Run the README preflight
+-- checks first; this migration should be applied once through Wrangler.
 ALTER TABLE threads ADD COLUMN user_id TEXT;
 ALTER TABLE provider_stats ADD COLUMN user_id TEXT;
 ALTER TABLE usage_records ADD COLUMN user_id TEXT;

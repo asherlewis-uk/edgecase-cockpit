@@ -44,7 +44,7 @@ export async function getSession(
 
 interface ThreadRow {
   id: string;
-  session_id: string;
+  session_id: string | null;
   user_id: string | null;
   title: string;
   messages: string;
@@ -83,9 +83,18 @@ function ownerWhere(
   prefix = "",
 ): { sql: string; params: unknown[] } {
   if (userId) {
-    return { sql: `${prefix}user_id = ?1`, params: [userId] };
+    return { sql: `${prefix}user_id = ?`, params: [userId] };
   }
-  return { sql: `${prefix}session_id = ?1`, params: [sessionId] };
+  return { sql: `${prefix}session_id = ? AND ${prefix}user_id IS NULL`, params: [sessionId] };
+}
+
+function sessionIdForOwner(sessionId: string, userId?: string): string | null {
+  return userId ? null : sessionId;
+}
+
+function getChangeCount(result: unknown): number {
+  const meta = (result as { meta?: { changes?: unknown } }).meta;
+  return typeof meta?.changes === "number" ? meta.changes : 0;
 }
 
 export async function getThreads(sessionId: string, userId?: string): Promise<Thread[]> {
@@ -122,7 +131,7 @@ export async function createThread(
     )
     .bind(
       thread.id,
-      sessionId,
+      sessionIdForOwner(sessionId, userId),
       userId ?? null,
       thread.title,
       JSON.stringify(sanitizedMessages),
@@ -297,7 +306,7 @@ export async function getMessageCount(
 // ---------------------------------------------------------------------------
 
 interface StatRow {
-  session_id: string;
+  session_id: string | null;
   user_id: string | null;
   provider_id: string;
   calls: number;
@@ -343,19 +352,50 @@ export async function upsertProviderStat(
 ): Promise<void> {
   const db = getDB();
   const column = kind === "call" ? "calls" : "errors";
-  const inputClause = typeof inputTokens === "number" ? ", input_tokens = input_tokens + ?" : "";
-  const outputClause =
-    typeof outputTokens === "number" ? ", output_tokens = output_tokens + ?" : "";
-  const params: unknown[] = [sessionId, providerId, userId ?? null];
-  if (typeof inputTokens === "number") params.push(inputTokens);
-  if (typeof outputTokens === "number") params.push(outputTokens);
-  await db
-    .prepare(
-      `INSERT INTO provider_stats (session_id, provider_id, user_id, calls, errors, input_tokens, output_tokens) VALUES (?1, ?2, ?3, 0, 0, 0, 0)
-       ON CONFLICT(session_id, provider_id) DO UPDATE SET ${column} = ${column} + 1${inputClause}${outputClause}`,
-    )
-    .bind(...params)
-    .run();
+  const whereSql = userId
+    ? "user_id = ? AND provider_id = ?"
+    : "session_id = ? AND user_id IS NULL AND provider_id = ?";
+  const whereParams: unknown[] = userId ? [userId, providerId] : [sessionId, providerId];
+  const setClauses = [`${column} = ${column} + 1`];
+  const updateParams: unknown[] = [];
+
+  if (typeof inputTokens === "number") {
+    setClauses.push("input_tokens = input_tokens + ?");
+    updateParams.push(inputTokens);
+  }
+  if (typeof outputTokens === "number") {
+    setClauses.push("output_tokens = output_tokens + ?");
+    updateParams.push(outputTokens);
+  }
+
+  const update = async () =>
+    db
+      .prepare(`UPDATE provider_stats SET ${setClauses.join(", ")} WHERE ${whereSql}`)
+      .bind(...updateParams, ...whereParams)
+      .run();
+
+  const updateResult = await update();
+  if (getChangeCount(updateResult) > 0) return;
+
+  try {
+    await db
+      .prepare(
+        "INSERT INTO provider_stats (session_id, user_id, provider_id, calls, errors, input_tokens, output_tokens) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+      )
+      .bind(
+        sessionIdForOwner(sessionId, userId),
+        userId ?? null,
+        providerId,
+        kind === "call" ? 1 : 0,
+        kind === "error" ? 1 : 0,
+        typeof inputTokens === "number" ? inputTokens : 0,
+        typeof outputTokens === "number" ? outputTokens : 0,
+      )
+      .run();
+  } catch (error) {
+    const retryResult = await update();
+    if (getChangeCount(retryResult) === 0) throw error;
+  }
 }
 
 export async function resetProviderStats(sessionId: string, userId?: string): Promise<void> {
@@ -390,7 +430,7 @@ export async function createUsageRecord(record: {
     )
     .bind(
       record.id,
-      record.sessionId,
+      sessionIdForOwner(record.sessionId, record.userId),
       record.userId ?? null,
       record.providerId,
       record.model ?? null,
@@ -490,7 +530,7 @@ export async function upsertVectorDoc(doc: {
     )
     .bind(
       doc.id,
-      doc.sessionId,
+      sessionIdForOwner(doc.sessionId, doc.userId),
       doc.userId ?? null,
       doc.text,
       JSON.stringify(doc.embedding),
@@ -593,6 +633,51 @@ export async function deleteGuestSession(id: string): Promise<void> {
 export async function claimGuestSession(guestId: string, userId: string): Promise<void> {
   const db = getDB();
 
+  const guestStats = await db
+    .prepare(
+      "SELECT provider_id, SUM(calls) AS calls, SUM(errors) AS errors, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens FROM provider_stats WHERE session_id = ?1 AND user_id IS NULL GROUP BY provider_id",
+    )
+    .bind(guestId)
+    .all<{
+      provider_id: string;
+      calls: number;
+      errors: number;
+      input_tokens: number;
+      output_tokens: number;
+    }>();
+
+  for (const stat of guestStats.results) {
+    const updateResult = await db
+      .prepare(
+        "UPDATE provider_stats SET calls = calls + ?1, errors = errors + ?2, input_tokens = input_tokens + ?3, output_tokens = output_tokens + ?4 WHERE user_id = ?5 AND provider_id = ?6",
+      )
+      .bind(
+        stat.calls,
+        stat.errors,
+        stat.input_tokens,
+        stat.output_tokens,
+        userId,
+        stat.provider_id,
+      )
+      .run();
+
+    if (getChangeCount(updateResult) === 0) {
+      await db
+        .prepare(
+          "INSERT INTO provider_stats (session_id, user_id, provider_id, calls, errors, input_tokens, output_tokens) VALUES (NULL, ?1, ?2, ?3, ?4, ?5, ?6)",
+        )
+        .bind(
+          userId,
+          stat.provider_id,
+          stat.calls,
+          stat.errors,
+          stat.input_tokens,
+          stat.output_tokens,
+        )
+        .run();
+    }
+  }
+
   // Migrate threads
   await db
     .prepare(
@@ -601,12 +686,10 @@ export async function claimGuestSession(guestId: string, userId: string): Promis
     .bind(userId, guestId)
     .run();
 
-  // Migrate provider_stats
+  // Remove guest provider stats after merging them into the user row.
   await db
-    .prepare(
-      "UPDATE provider_stats SET user_id = ?1, session_id = NULL WHERE session_id = ?2 AND user_id IS NULL",
-    )
-    .bind(userId, guestId)
+    .prepare("DELETE FROM provider_stats WHERE session_id = ?1 AND user_id IS NULL")
+    .bind(guestId)
     .run();
 
   // Migrate usage_records

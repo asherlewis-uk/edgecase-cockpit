@@ -1,5 +1,40 @@
 // Token counting and cost estimation for LLM provider usage.
-// Uses character/word-based heuristics — no heavy WASM dependency (Cloudflare Workers-safe).
+// Uses gpt-tokenizer (OpenAI-compatible BPE) when available, with a lightweight
+// character/word heuristic fallback. The tokenizer is lazy-loaded so the main
+// bundle is not inflated unless token estimation is actually invoked.
+
+// ---------------------------------------------------------------------------
+// Lazy tokenizer
+// ---------------------------------------------------------------------------
+
+type TokenizerApi = { encode: (text: string) => number[] };
+let _tokenizer: TokenizerApi | null | "loading" = null;
+let _tokenizerPromise: Promise<TokenizerApi | null> | null = null;
+
+async function loadTokenizer(): Promise<TokenizerApi | null> {
+  if (_tokenizer && _tokenizer !== "loading") return _tokenizer;
+  if (_tokenizerPromise) return _tokenizerPromise;
+
+  _tokenizer = "loading";
+  _tokenizerPromise = import("gpt-tokenizer/esm/encoding/cl100k_base")
+    .then((mod) => {
+      const api = mod.default ?? mod;
+      _tokenizer = api as TokenizerApi;
+      return _tokenizer;
+    })
+    .catch((err) => {
+      console.warn("Failed to load gpt-tokenizer, falling back to heuristic:", err);
+      _tokenizer = null;
+      return null;
+    });
+
+  return _tokenizerPromise;
+}
+
+/** Start loading the tokenizer in the background. Safe to call repeatedly. */
+export function primeTokenizer(): void {
+  void loadTokenizer();
+}
 
 // ---------------------------------------------------------------------------
 // Token estimation
@@ -7,16 +42,46 @@
 
 /**
  * Estimate token count for a string of text.
- * Combines two heuristics and takes the average:
- *   1. ~4 characters per token (industry standard for English)
- *   2. words × 1.3 (words tend to be ~1.3 tokens each)
+ *
+ * Uses gpt-tokenizer (OpenAI BPE) when available. Falls back to the previous
+ * lightweight heuristic:
+ *   1. ~4 characters per token
+ *   2. words × 1.3
+ * The fallback is kept for environments where the tokenizer module cannot be
+ * loaded (e.g. constrained Worker deployments) and for synchronous callers.
  */
 export function estimateTokens(text: string): number {
   if (!text) return 0;
+
+  // If the tokenizer has already loaded synchronously (it won't; imports are
+  // async), use it. Otherwise use the heuristic synchronously. Async callers
+  // that need the exact count can call estimateTokensAsync.
+  if (_tokenizer && _tokenizer !== "loading") {
+    try {
+      return Math.max(1, _tokenizer.encode(text).length);
+    } catch {
+      // fall through
+    }
+  }
+
   const charEstimate = text.length / 4;
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const wordEstimate = wordCount * 1.3;
   return Math.max(1, Math.round((charEstimate + wordEstimate) / 2));
+}
+
+/** Async variant that attempts to load the real tokenizer first. */
+export async function estimateTokensAsync(text: string): Promise<number> {
+  if (!text) return 0;
+  const tokenizer = await loadTokenizer();
+  if (tokenizer) {
+    try {
+      return Math.max(1, tokenizer.encode(text).length);
+    } catch {
+      // fall through to heuristic
+    }
+  }
+  return estimateTokens(text);
 }
 
 export function estimateMessageTokens(msg: { content: string }): number {

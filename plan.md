@@ -384,7 +384,7 @@ If a pass requires reverting, use `git checkout -- <files>` or `git reset` to th
 
 ### Schema / DB
 - `src/lib/db/schema.sql`
-- `src/lib/db/migration_auth.sql` (or new migration file)
+- `migrations/0001_auth_user_columns.sql` and `migrations/0002_user_account_ownership.sql`
 - `src/lib/db/index.ts`
 
 ### Backend Auth / Session

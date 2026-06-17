@@ -54,10 +54,12 @@ export const Route = createFileRoute("/api/auth/login")({
           return Response.json({ error: "Invalid email or password" }, { status: 401 });
         }
 
+        // Capture the guest owner before login clears guest session state.
+        const guestId = await getGuestSessionId();
+
         await setAuthSession(user.id, user.email);
 
         // Claim any guest session data into the user account
-        const guestId = await getGuestSessionId();
         if (guestId) {
           await claimGuestSession(guestId, user.id);
         }
