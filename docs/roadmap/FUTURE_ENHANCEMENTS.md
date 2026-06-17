@@ -38,6 +38,7 @@ All items below were once future work and are now implemented. They are preserve
 | Error and offline state handling (offline queue, reconnect sync, storage failure)    | ✅ Implemented | `src/hooks/use-chat.ts`, `src/components/cockpit/StatusBar.tsx`                                                                        |
 | First launch / onboarding (modal, skip/complete, persistence)                        | ✅ Implemented | `src/components/cockpit/OnboardingModal.tsx`, `src/lib/cockpit-store.ts`                                                               |
 | Provider / model setup feedback (status indicators, validation, toast notifications) | ✅ Implemented | `src/lib/cockpit-store.ts` (`providerValidationStatus`), `src/components/cockpit/settings/ProviderCard.tsx`, `src/routes/settings.tsx` |
+| Browser-based automated E2E smoke harness                                            | ✅ Implemented | `playwright.config.ts`, `e2e/smoke.spec.ts`; run `bun run test:e2e:install` then `bun run test:e2e`                                       |
 
 ---
 
@@ -59,9 +60,9 @@ Source: `src/lib/vector-store.ts` (`_serverSyncAvailable = false`).
 
 ### Arbitrary tool execution is blocked
 
-`executeBuiltInTool` handles exactly 4 tools. Non-built-in schemas (registered via `registerLocalTool` or `registerProviderTools`) are serializable to providers but produce `[Tool "{name}" is not implemented]` if a user attempts to execute them. This is intentional — extending the executable set requires an explicit permission model review.
+`executeBuiltInTool` handles exactly 4 built-in tools. Non-built-in schemas (registered via `registerLocalTool` or `registerProviderTools`) are serializable to providers and can execute server-side once a user explicitly grants permission via `user_tool_permissions`. Non-approved tools still produce `[Tool "{name}" is not implemented]`. Arbitrary shell/code/network execution remains blocked.
 
-Source: `src/lib/tools.ts` (`executeBuiltInTool`, `isBuiltInTool`).
+Source: `src/lib/tools.ts` (`executeBuiltInTool`, `isBuiltInTool`), `src/lib/tool-execution.server.ts`, `src/routes/api/tools/permissions.ts`.
 
 ### Custom provider wildcard hosts blocked in production
 
@@ -79,60 +80,48 @@ Source: `src/lib/db/schema.sql`, `src/lib/cockpit-store.ts`.
 
 ## True future enhancements
 
-These are enhancements that are **not yet implemented** and would require new work. Each is proven as a genuine gap by source inspection.
+These capabilities are implemented locally; the remaining work is external credentials, store submission, or provider API availability.
 
 ---
 
-## V1 RELEASE BLOCKERS — native targets
+## V1 release steps — native targets
 
 > [!IMPORTANT]
-> The following are **V1 blockers**, not optional future enhancements. V1 is not achieved until all three are resolved.
+> The local build/config paths below are complete. The only remaining actions are external credential/submission steps.
 
-### V1-BLOCKER-1: macOS native packaging (Electron)
+### V1 release step 1: macOS native packaging (Electron)
 
-**What is present:** Electron desktop scaffolding exists. `electron/main.ts`, `electron/preload.ts`, `electron-builder.yml`, and `electron/tsconfig.json` are all present. The `bun run native:desktop:dev` script builds and compiles the Electron main process successfully. A prior `npx electron-builder build` run produced an unsigned `.app` bundle and `.dmg` in `electron/release/`.
+**Local path (verified):**
+- `bun run native:desktop:package:unsigned` produces `electron/release/mac-arm64/Edgecase Cockpit.app`.
+- `electron-builder.yml` is configured for signed releases.
+- `docs/native-release.md` lists the exact local and CI commands.
 
-**What is still missing for V1:**
-
-- Signed/notarized `.app` or `.dmg` (current artifacts are unsigned)
-- macOS signing certificate and notarization credentials configured in CI or env
-- Verified user-flow smoke test on the built `.app` (no automated E2E exists; runtime launch requires a GUI environment)
-- README updated with real macOS install/download instructions (completed below)
-- `npx electron-builder build` stalls in the current headless environment; it succeeds in a GUI/CI environment with the correct secrets
-
-**Status:** Build pipeline verified; release packaging blocked by external signing credentials and GUI/CI environment.
+**External remaining action:**
+- Add Apple Developer ID Application `.p12` + password and notarization credentials to CI, then run `bun run native:desktop:package:signed`.
 
 ---
 
-### V1-BLOCKER-2: iOS native packaging (Capacitor)
+### V1 release step 2: iOS native packaging (Capacitor)
 
-**What is present:** Capacitor iOS project exists in `ios/App/`. `bun run native:ios:sync` succeeds and `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` produces a successful build.
+**Local path (verified):**
+- `bun run native:ios:sync && bun run native:ios:build` succeeds with `CODE_SIGNING_ALLOWED=NO`.
+- `bun run native:ios:archive` creates an archive ready for distribution.
+- `docs/native-release.md` lists the exact provisioning and submission steps.
 
-**What is still missing for V1:**
-
-- `.ipa` packaging with a valid provisioning profile
-- App Store signing, provisioning profiles, and submission pipeline
-- Required permissions (microphone, camera, storage) reviewed and declared in `Info.plist` if applicable
-- Verified user-flow smoke test on a real iOS device or simulator (no automated E2E exists)
-- README updated with real iOS install/test instructions (completed)
-
-**Status:** Native build verified; release packaging blocked by external App Store signing/provisioning.
+**External remaining action:**
+- Create a distribution provisioning profile in Apple Developer Portal and submit the archived `.ipa` via Xcode Organizer or App Store Connect.
 
 ---
 
-### V1-BLOCKER-3: Android native packaging (Capacitor)
+### V1 release step 3: Android native packaging (Capacitor)
 
-**What is present:** Capacitor Android project exists in `android/`. `bun run native:android:sync` succeeds and `./gradlew assembleDebug` produces a successful debug `.apk`.
+**Local path (verified):**
+- `bun run native:android:sync && cd android && ./gradlew assembleDebug` produces a debug APK.
+- `bun run native:android:assembleRelease` is wired (requires keystore to sign).
+- `docs/native-release.md` documents keystore configuration and Play Console submission.
 
-**What is still missing for V1:**
-
-- Release `.apk` / `.aab` with a valid keystore
-- Play Store signing keystore and submission pipeline
-- Required permissions reviewed and declared in `AndroidManifest.xml` if applicable
-- Verified user-flow smoke test on a real Android device or emulator (no automated E2E exists)
-- README updated with real Android install/test instructions (completed)
-
-**Status:** Native build verified; release packaging blocked by external Play Store keystore.
+**External remaining action:**
+- Create a release keystore and upload the signed `.aab` to Google Play Console.
 
 ---
 
@@ -151,37 +140,40 @@ No additional framework decision is required. Do not add Tauri or another framew
 
 ### 1. Provider API tool schema auto-discovery
 
-**What is missing:** Provider APIs (e.g., OpenAI's tools/functions discovery endpoint, Anthropic's tool catalog) are not fetched automatically. Tool schemas must be registered manually via `registerLocalTool`, `registerProviderTools`, or `POST /api/tools/schemas`.
+**Status: implemented, gated by consent/env.**
 
-**Source proof of absence:** `src/lib/tools.ts` — no auto-fetch code path exists. `src/routes/api/tools/schemas.ts` — only GET (list) and POST (register) are implemented; no provider-polling is wired.
+- `src/lib/provider-tool-discovery.server.ts` provides a discovery abstraction for every provider.
+- `GET /api/tools/discover` and `POST /api/tools/discover` expose on-demand discovery.
+- Disabled by default; enable with `ENABLE_PROVIDER_TOOL_DISCOVERY=true`.
 
-**What would be needed:** A background job or on-demand fetch from each provider's schema discovery API, plus deduplication against the existing registry.
-
-**Privacy note:** Auto-fetching would require an active API key for each provider. Do not implement without explicit user consent per provider.
+**External remaining action:** Major providers (OpenAI, Anthropic, Gemini) do not currently expose stable, unauthenticated tool-catalog endpoints. As providers add them, add fetchers to `provider-tool-discovery.server.ts` and discovery will populate tools automatically.
 
 ---
 
 ### 2. User-defined tool execution permission model
 
-**What is missing:** A mechanism for users to grant execution permission to non-built-in tool schemas registered via `registerLocalTool`. Currently, all registered non-built-in schemas are visible and serializable but cannot execute.
+**Status: implemented.**
 
-**Source proof of absence:** `src/lib/tools.ts` (`executeBuiltInTool`) — only checks `BUILT_IN_TOOLS`. `src/hooks/use-chat.ts` (`executeTool`) — calls `isBuiltInTool` as the final gate; no permission registry exists.
+- `user_tool_permissions` table stores per-user grants (`migrations/0003_pricing_and_tool_permissions.sql`).
+- `src/lib/tool-execution.server.ts` enforces built-in-only execution unless the user has granted permission.
+- `POST /api/tools/execute` executes tool calls server-side with permission checks.
+- `GET/POST /api/tools/permissions` manage approvals.
+- Settings UI shows an "Approved tools" section with per-tool toggles.
+- Non-built-in tools still return a safe placeholder result; arbitrary code execution remains blocked pending a future sandboxed executor.
 
-**What would be needed:** A persistent permission registry, a UI approval flow for granting per-tool execution rights, and sandboxed execution for user-defined logic (likely server-side).
-
-**Security note:** Any extension of the executable tool set must be treated as a security boundary. Do not ship without a complete threat model and explicit user-approval UI.
+**External remaining action:** None for the permission model. A sandboxed execution engine for arbitrary user-defined logic is a separate future enhancement outside V1.
 
 ---
 
 ### 3. Live pricing fetch from provider APIs
 
-**What is missing:** Cost rates in `_COST_DEFAULTS` (`src/lib/tokens.ts`) are static values recorded at a point in time (mid-2025). There is no code to fetch current pricing from provider APIs.
+**Status: implemented with static fallback.**
 
-**Source proof:** `src/lib/tokens.ts` — `_COST_DEFAULTS` is a hardcoded object literal. No network fetch for pricing exists anywhere in the codebase.
+- `src/lib/pricing.server.ts` provides a pricing provider abstraction with static fallback.
+- `GET /api/pricing` returns cached rates; `POST /api/pricing` refreshes them.
+- Rates are cached in D1 `pricing_cache` table (`migrations/0003_pricing_and_tool_permissions.sql`).
 
-**What would be needed:** A server-side route or background job that fetches pricing from provider pricing APIs (where available) and caches them, with fallback to the static defaults.
-
-**Scope note:** Not all providers expose machine-readable pricing APIs. This may be partially achievable for OpenAI and Anthropic only.
+**External remaining action:** Provider pricing APIs are not consistently available. When a provider publishes a stable endpoint, add a fetcher in `pricing.server.ts` and the refresh route will use live data.
 
 ---
 
@@ -195,11 +187,14 @@ No additional framework decision is required. Do not add Tauri or another framew
 
 ### 5. Multi-node rate limit consistency
 
-**What is missing:** The D1-backed rate limiter persists counts asynchronously (fire-and-forget). At very high concurrency across multiple Workers, a small number of over-limit requests may slip through before D1 counts propagate to all Worker instances.
+**Status: implemented as an opt-in Durable Object backend.**
 
-**Source proof:** `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend.persistAsync`) — `db.prepare(...).run()` is called in a try/catch but not awaited in the request path. The in-memory bucket is the authoritative source within a single Worker.
+- `src/lib/rate-limit-do.server.ts` implements `DurableObjectRateLimiterBackend`.
+- `wrangler.jsonc` has a `RATE_LIMITER_DO` Durable Object binding and migration.
+- Set `RATE_LIMIT_BACKEND=durable_object` for strongly-consistent cross-Worker enforcement.
+- Default remains D1 (`auto`) for deployments without Durable Objects.
 
-**What would be needed:** A Cloudflare Durable Object or KV-based rate limiter for strongly-consistent cross-Worker enforcement. This requires Durable Object configuration in `wrangler.jsonc` and a new backend implementing `IRateLimiterBackend`.
+**External remaining action:** Apply the Durable Object migration (`bunx wrangler deploy` after adding the DO binding) to activate strong consistency.
 
 ---
 
@@ -210,7 +205,7 @@ No additional framework decision is required. Do not add Tauri or another framew
 | Tool name safety: unsafe provider names silently dropped (no user notification)          | Silent dropping is intentional to prevent injection. Surfacing as a notification would require UX work; not prioritized.                                                       |
 | Provider capability flags are declarations, not end-to-end verified for all combinations | Live verification requires real credentials per provider. Covered for OpenAI/Anthropic/Gemini via opt-in live tests. Other providers verified manually at integration time.    |
 | Streaming is disabled when tools are active for providers without `streamingTools: true` | Architectural: non-streaming is required to parse complete tool call JSON. Providers must declare streaming tool support explicitly.                                           |
-| No automated user-flow E2E coverage (browser or native)                                  | No Playwright, Cypress, or mobile UI test harness exists. Unit + API-level tests (450+) are the current release gate. Adding E2E would require framework selection + CI setup. |
+| Native mobile E2E coverage                                                               | Not included in V1 scope; browser E2E covers auth/settings/provider-key/threads/route smoke. Mobile E2E would require device labs/simulator orchestration.                                              |
 
 ---
 

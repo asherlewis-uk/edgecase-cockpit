@@ -71,7 +71,7 @@ export const Route = createFileRoute("/api/threads/$id")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = threadsRateLimit(session.data.id);
+        const rl = await threadsRateLimit(session.data.id);
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }
@@ -137,7 +137,7 @@ export const Route = createFileRoute("/api/threads/$id")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = threadsRateLimit(session.data.id);
+        const rl = await threadsRateLimit(session.data.id);
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

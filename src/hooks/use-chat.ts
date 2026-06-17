@@ -29,10 +29,13 @@ import {
   extractAnthropicToolCallDelta,
   validateToolCall,
   sanitizeToolCallArgs,
+  isBuiltInTool,
 } from "@/lib/tools";
 import { embedTexts } from "@/lib/embeddings";
 import { addVectorDocs, searchVectorStore, chunkText } from "@/lib/vector-store";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api-base";
+import { csrfHeaders } from "@/lib/cockpit-store";
 
 // ── Offline queue localStorage persistence ──────────────────────────────────
 const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";
@@ -622,7 +625,20 @@ export function useChat({ onAuthError }: UseChatOptions = {}) {
         return;
       }
 
-      const result = await executeBuiltInTool(call.name, call.arguments);
+      let result: string;
+
+      if (isBuiltInTool(call.name)) {
+        result = await executeBuiltInTool(call.name, call.arguments);
+      } else {
+        const res = await apiFetch("/api/tools/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeaders() },
+          body: JSON.stringify({ call }),
+        });
+        const json = (await res.json()) as { ok: boolean; content?: string; error?: string };
+        result = json.ok ? (json.content ?? "") : `[${json.error ?? "Tool execution failed"}]`;
+      }
+
       store.addMessage(threadId, {
         id: crypto.randomUUID(),
         role: "tool",

@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/stats")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = statsRateLimit(`stats:${session.data.id}`);
+        const rl = await statsRateLimit(`stats:${session.data.id}`);
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }
@@ -103,7 +103,7 @@ export const Route = createFileRoute("/api/stats")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = statsRateLimit(`stats:${session.data.id}`);
+        const rl = await statsRateLimit(`stats:${session.data.id}`);
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

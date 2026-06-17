@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/session")({
         const csrfCheck = validateCsrfToken(request);
         if (csrfCheck !== true) return csrfCheck;
 
-        const rl = sessionRateLimit("session:global");
+        const rl = await sessionRateLimit("session:global");
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

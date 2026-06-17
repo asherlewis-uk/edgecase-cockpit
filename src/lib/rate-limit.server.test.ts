@@ -27,17 +27,17 @@ describe("rate-limit.server", () => {
     clearRateLimitBuckets();
   });
 
-  it("allows the first request", () => {
-    const result = checkRateLimit({ key: "test:a", limit: 3, windowMs: 1000 });
+  it("allows the first request", async () => {
+    const result = await checkRateLimit({ key: "test:a", limit: 3, windowMs: 1000 });
     expect(result.ok).toBe(true);
   });
 
-  it("blocks after limit is reached", () => {
+  it("blocks after limit is reached", async () => {
     const key = "test:b";
     for (let i = 0; i < 3; i++) {
-      expect(checkRateLimit({ key, limit: 3, windowMs: 1000 }).ok).toBe(true);
+      expect((await checkRateLimit({ key, limit: 3, windowMs: 1000 })).ok).toBe(true);
     }
-    const result = checkRateLimit({ key, limit: 3, windowMs: 1000 });
+    const result = await checkRateLimit({ key, limit: 3, windowMs: 1000 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.retryAfter).toBeGreaterThan(0);
@@ -46,16 +46,16 @@ describe("rate-limit.server", () => {
 
   it("resets the bucket after the window expires", async () => {
     const key = "test:c";
-    expect(checkRateLimit({ key, limit: 1, windowMs: 25 }).ok).toBe(true);
-    expect(checkRateLimit({ key, limit: 1, windowMs: 25 }).ok).toBe(false);
+    expect((await checkRateLimit({ key, limit: 1, windowMs: 25 })).ok).toBe(true);
+    expect((await checkRateLimit({ key, limit: 1, windowMs: 25 })).ok).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 35));
-    expect(checkRateLimit({ key, limit: 1, windowMs: 25 }).ok).toBe(true);
+    expect((await checkRateLimit({ key, limit: 1, windowMs: 25 })).ok).toBe(true);
   });
 
-  it("tracks independent buckets per key", () => {
-    expect(checkRateLimit({ key: "test:d1", limit: 1, windowMs: 1000 }).ok).toBe(true);
-    expect(checkRateLimit({ key: "test:d1", limit: 1, windowMs: 1000 }).ok).toBe(false);
-    expect(checkRateLimit({ key: "test:d2", limit: 1, windowMs: 1000 }).ok).toBe(true);
+  it("tracks independent buckets per key", async () => {
+    expect((await checkRateLimit({ key: "test:d1", limit: 1, windowMs: 1000 })).ok).toBe(true);
+    expect((await checkRateLimit({ key: "test:d1", limit: 1, windowMs: 1000 })).ok).toBe(false);
+    expect((await checkRateLimit({ key: "test:d2", limit: 1, windowMs: 1000 })).ok).toBe(true);
   });
 
   it("returns a 429 response with retry-after", () => {
@@ -64,52 +64,52 @@ describe("rate-limit.server", () => {
     expect(response.headers.get("retry-after")).toBe("42");
   });
 
-  it("keysRateLimit uses a low threshold", () => {
+  it("keysRateLimit uses a low threshold", async () => {
     const sessionId = "session-1";
     for (let i = 0; i < 20; i++) {
-      expect(keysRateLimit(sessionId).ok).toBe(true);
+      expect((await keysRateLimit(sessionId)).ok).toBe(true);
     }
-    expect(keysRateLimit(sessionId).ok).toBe(false);
+    expect((await keysRateLimit(sessionId)).ok).toBe(false);
   });
 
-  it("usageRateLimit is more permissive than keys", () => {
+  it("usageRateLimit is more permissive than keys", async () => {
     const sessionId = "session-2";
     for (let i = 0; i < 60; i++) {
-      expect(usageRateLimit(sessionId).ok).toBe(true);
+      expect((await usageRateLimit(sessionId)).ok).toBe(true);
     }
-    expect(usageRateLimit(sessionId).ok).toBe(false);
+    expect((await usageRateLimit(sessionId)).ok).toBe(false);
   });
 
-  it("healthRateLimit is the most permissive preset", () => {
+  it("healthRateLimit is the most permissive preset", async () => {
     const clientId = "client-1";
     for (let i = 0; i < 120; i++) {
-      expect(healthRateLimit(clientId).ok).toBe(true);
+      expect((await healthRateLimit(clientId)).ok).toBe(true);
     }
-    expect(healthRateLimit(clientId).ok).toBe(false);
+    expect((await healthRateLimit(clientId)).ok).toBe(false);
   });
 
-  it("threadsRateLimit allows 60 requests per minute", () => {
+  it("threadsRateLimit allows 60 requests per minute", async () => {
     const sessionId = "session-threads";
     for (let i = 0; i < 60; i++) {
-      expect(threadsRateLimit(sessionId).ok).toBe(true);
+      expect((await threadsRateLimit(sessionId)).ok).toBe(true);
     }
-    expect(threadsRateLimit(sessionId).ok).toBe(false);
+    expect((await threadsRateLimit(sessionId)).ok).toBe(false);
   });
 
-  it("sessionRateLimit allows 30 requests per minute", () => {
-    expect(sessionRateLimit("session:global").ok).toBe(true);
+  it("sessionRateLimit allows 30 requests per minute", async () => {
+    expect((await sessionRateLimit("session:global")).ok).toBe(true);
     for (let i = 1; i < 30; i++) {
-      expect(sessionRateLimit("session:global").ok).toBe(true);
+      expect((await sessionRateLimit("session:global")).ok).toBe(true);
     }
-    expect(sessionRateLimit("session:global").ok).toBe(false);
+    expect((await sessionRateLimit("session:global")).ok).toBe(false);
   });
 
-  it("statsRateLimit allows 60 requests per minute", () => {
+  it("statsRateLimit allows 60 requests per minute", async () => {
     const key = "stats:session-1";
     for (let i = 0; i < 60; i++) {
-      expect(statsRateLimit(key).ok).toBe(true);
+      expect((await statsRateLimit(key)).ok).toBe(true);
     }
-    expect(statsRateLimit(key).ok).toBe(false);
+    expect((await statsRateLimit(key)).ok).toBe(false);
   });
 });
 
@@ -178,7 +178,7 @@ describe("tryActivateD1RateLimiter", () => {
     expect(result).toBe(false);
   });
 
-  it("after D1 activation, rate limiting still functions correctly", () => {
+  it("after D1 activation, rate limiting still functions correctly", async () => {
     const mockDb = {
       prepare: vi.fn().mockReturnValue({
         first: vi.fn().mockReturnValue(null),
@@ -192,11 +192,11 @@ describe("tryActivateD1RateLimiter", () => {
     clearRateLimitBuckets();
 
     // Should allow requests up to limit
-    const r1 = checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
+    const r1 = await checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
     expect(r1.ok).toBe(true);
-    const r2 = checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
+    const r2 = await checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
     expect(r2.ok).toBe(true);
-    const r3 = checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
+    const r3 = await checkRateLimit({ key: "d1-test", limit: 2, windowMs: 1000 });
     expect(r3.ok).toBe(false);
   });
 

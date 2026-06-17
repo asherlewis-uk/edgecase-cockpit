@@ -21,9 +21,13 @@ import { Route as ApiThreadsRouteImport } from './routes/api/threads'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiSessionRouteImport } from './routes/api/session'
+import { Route as ApiPricingRouteImport } from './routes/api/pricing'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiUsageThreadIdRouteImport } from './routes/api/usage.$threadId'
 import { Route as ApiToolsSchemasRouteImport } from './routes/api/tools/schemas'
+import { Route as ApiToolsPermissionsRouteImport } from './routes/api/tools/permissions'
+import { Route as ApiToolsExecuteRouteImport } from './routes/api/tools/execute'
+import { Route as ApiToolsDiscoverRouteImport } from './routes/api/tools/discover'
 import { Route as ApiThreadsImportRouteImport } from './routes/api/threads.import'
 import { Route as ApiThreadsIdRouteImport } from './routes/api/threads.$id'
 import { Route as ApiProxyTranscribeRouteImport } from './routes/api/proxy/transcribe'
@@ -104,6 +108,11 @@ const ApiSessionRoute = ApiSessionRouteImport.update({
   path: '/api/session',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPricingRoute = ApiPricingRouteImport.update({
+  id: '/api/pricing',
+  path: '/api/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -117,6 +126,21 @@ const ApiUsageThreadIdRoute = ApiUsageThreadIdRouteImport.update({
 const ApiToolsSchemasRoute = ApiToolsSchemasRouteImport.update({
   id: '/api/tools/schemas',
   path: '/api/tools/schemas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolsPermissionsRoute = ApiToolsPermissionsRouteImport.update({
+  id: '/api/tools/permissions',
+  path: '/api/tools/permissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolsExecuteRoute = ApiToolsExecuteRouteImport.update({
+  id: '/api/tools/execute',
+  path: '/api/tools/execute',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolsDiscoverRoute = ApiToolsDiscoverRouteImport.update({
+  id: '/api/tools/discover',
+  path: '/api/tools/discover',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiThreadsImportRoute = ApiThreadsImportRouteImport.update({
@@ -223,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/pricing': typeof ApiPricingRoute
   '/api/session': typeof ApiSessionRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/stats': typeof ApiStatsRoute
@@ -245,6 +270,9 @@ export interface FileRoutesByFullPath {
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
   '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/tools/discover': typeof ApiToolsDiscoverRoute
+  '/api/tools/execute': typeof ApiToolsExecuteRoute
+  '/api/tools/permissions': typeof ApiToolsPermissionsRoute
   '/api/tools/schemas': typeof ApiToolsSchemasRoute
   '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
   '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
@@ -259,6 +287,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/pricing': typeof ApiPricingRoute
   '/api/session': typeof ApiSessionRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/stats': typeof ApiStatsRoute
@@ -281,6 +310,9 @@ export interface FileRoutesByTo {
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
   '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/tools/discover': typeof ApiToolsDiscoverRoute
+  '/api/tools/execute': typeof ApiToolsExecuteRoute
+  '/api/tools/permissions': typeof ApiToolsPermissionsRoute
   '/api/tools/schemas': typeof ApiToolsSchemasRoute
   '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
   '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
@@ -296,6 +328,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/pricing': typeof ApiPricingRoute
   '/api/session': typeof ApiSessionRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/stats': typeof ApiStatsRoute
@@ -318,6 +351,9 @@ export interface FileRoutesById {
   '/api/proxy/transcribe': typeof ApiProxyTranscribeRoute
   '/api/threads/$id': typeof ApiThreadsIdRouteWithChildren
   '/api/threads/import': typeof ApiThreadsImportRoute
+  '/api/tools/discover': typeof ApiToolsDiscoverRoute
+  '/api/tools/execute': typeof ApiToolsExecuteRoute
+  '/api/tools/permissions': typeof ApiToolsPermissionsRoute
   '/api/tools/schemas': typeof ApiToolsSchemasRoute
   '/api/usage/$threadId': typeof ApiUsageThreadIdRoute
   '/api/keys/validate/$providerId': typeof ApiKeysValidateProviderIdRoute
@@ -334,6 +370,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/api/health'
+    | '/api/pricing'
     | '/api/session'
     | '/api/settings'
     | '/api/stats'
@@ -356,6 +393,9 @@ export interface FileRouteTypes {
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
     | '/api/threads/import'
+    | '/api/tools/discover'
+    | '/api/tools/execute'
+    | '/api/tools/permissions'
     | '/api/tools/schemas'
     | '/api/usage/$threadId'
     | '/api/keys/validate/$providerId'
@@ -370,6 +410,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/api/health'
+    | '/api/pricing'
     | '/api/session'
     | '/api/settings'
     | '/api/stats'
@@ -392,6 +433,9 @@ export interface FileRouteTypes {
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
     | '/api/threads/import'
+    | '/api/tools/discover'
+    | '/api/tools/execute'
+    | '/api/tools/permissions'
     | '/api/tools/schemas'
     | '/api/usage/$threadId'
     | '/api/keys/validate/$providerId'
@@ -406,6 +450,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/videos'
     | '/api/health'
+    | '/api/pricing'
     | '/api/session'
     | '/api/settings'
     | '/api/stats'
@@ -428,6 +473,9 @@ export interface FileRouteTypes {
     | '/api/proxy/transcribe'
     | '/api/threads/$id'
     | '/api/threads/import'
+    | '/api/tools/discover'
+    | '/api/tools/execute'
+    | '/api/tools/permissions'
     | '/api/tools/schemas'
     | '/api/usage/$threadId'
     | '/api/keys/validate/$providerId'
@@ -443,6 +491,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   VideosRoute: typeof VideosRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiPricingRoute: typeof ApiPricingRoute
   ApiSessionRoute: typeof ApiSessionRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiStatsRoute: typeof ApiStatsRoute
@@ -463,6 +512,9 @@ export interface RootRouteChildren {
   ApiProxyEmbeddingsRoute: typeof ApiProxyEmbeddingsRoute
   ApiProxyModelsRoute: typeof ApiProxyModelsRoute
   ApiProxyTranscribeRoute: typeof ApiProxyTranscribeRoute
+  ApiToolsDiscoverRoute: typeof ApiToolsDiscoverRoute
+  ApiToolsExecuteRoute: typeof ApiToolsExecuteRoute
+  ApiToolsPermissionsRoute: typeof ApiToolsPermissionsRoute
   ApiToolsSchemasRoute: typeof ApiToolsSchemasRoute
 }
 
@@ -552,6 +604,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pricing': {
+      id: '/api/pricing'
+      path: '/api/pricing'
+      fullPath: '/api/pricing'
+      preLoaderRoute: typeof ApiPricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -571,6 +630,27 @@ declare module '@tanstack/react-router' {
       path: '/api/tools/schemas'
       fullPath: '/api/tools/schemas'
       preLoaderRoute: typeof ApiToolsSchemasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tools/permissions': {
+      id: '/api/tools/permissions'
+      path: '/api/tools/permissions'
+      fullPath: '/api/tools/permissions'
+      preLoaderRoute: typeof ApiToolsPermissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tools/execute': {
+      id: '/api/tools/execute'
+      path: '/api/tools/execute'
+      fullPath: '/api/tools/execute'
+      preLoaderRoute: typeof ApiToolsExecuteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tools/discover': {
+      id: '/api/tools/discover'
+      path: '/api/tools/discover'
+      fullPath: '/api/tools/discover'
+      preLoaderRoute: typeof ApiToolsDiscoverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/threads/import': {
@@ -770,6 +850,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   VideosRoute: VideosRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiPricingRoute: ApiPricingRoute,
   ApiSessionRoute: ApiSessionRoute,
   ApiSettingsRoute: ApiSettingsRoute,
   ApiStatsRoute: ApiStatsRoute,
@@ -790,6 +871,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProxyEmbeddingsRoute: ApiProxyEmbeddingsRoute,
   ApiProxyModelsRoute: ApiProxyModelsRoute,
   ApiProxyTranscribeRoute: ApiProxyTranscribeRoute,
+  ApiToolsDiscoverRoute: ApiToolsDiscoverRoute,
+  ApiToolsExecuteRoute: ApiToolsExecuteRoute,
+  ApiToolsPermissionsRoute: ApiToolsPermissionsRoute,
   ApiToolsSchemasRoute: ApiToolsSchemasRoute,
 }
 export const routeTree = rootRouteImport

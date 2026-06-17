@@ -15,6 +15,20 @@
     "binding": "ASSETS",
     "directory": ".output/public",
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_DO",
+        "class_name": "RateLimiterDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v3-rate-limiter-do",
+      "new_classes": ["RateLimiterDurableObject"]
+    }
+  ],
   "no_bundle": true,
   "rules": [
     {

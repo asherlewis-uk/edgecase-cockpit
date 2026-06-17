@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/usage")({
           return Response.json({ error: "No session" }, { status: 401 });
         }
 
-        const rl = usageRateLimit(session.data.id);
+        const rl = await usageRateLimit(session.data.id);
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

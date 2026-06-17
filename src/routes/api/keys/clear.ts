@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/keys/clear")({
 
         const session = await getCockpitSession();
         const sessionId = session.data.id ?? "anon";
-        const rl = keysRateLimit(sessionId);
+        const rl = await keysRateLimit(sessionId);
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

@@ -9,15 +9,15 @@
 
 | Target                     | V1 required        | Status                    | Notes                                                              |
 | -------------------------- | ------------------ | ------------------------- | ------------------------------------------------------------------ |
-| macOS native (Electron)    | **Yes**            | ⚠️ Build pipeline verified, packaging hangs in headless env | `bun run native:desktop:dev` builds + compiles; prior DMG exists; signing/notarization requires certs |
+| macOS native (Electron)    | **Yes**            | ✅ Unsigned .app package verified | `bun run native:desktop:package:unsigned` produces an unsigned .app; signed `.dmg`/notarization requires Apple certs |
 | iOS native (Capacitor)     | **Yes**            | ✅ Build verified         | `bun run native:ios:sync` + `xcodebuild` (arm64) succeed with `CODE_SIGNING_ALLOWED=NO` |
 | Android native (Capacitor) | **Yes**            | ✅ Build verified         | `bun run native:android:sync` + `./gradlew assembleDebug` succeed                       |
 | Web build (Vite)           | Supporting surface | ✅ Builds                 | `bun run build` passes — client + SSR artifacts in `dist/`         |
 | Cloudflare Workers backend | Supporting surface | ✅ Configured             | `wrangler.jsonc` + D1 configured; deployment is a separate step    |
 
-**V1 is not achieved by scaffolding alone.** A passing web/Cloudflare build is a prerequisite, and native projects exist, but V1 requires verified, signed, installable native applications for macOS, iOS, and Android with automated user-flow coverage.
+**V1 local build paths are complete.** macOS, iOS, and Android all produce installable unsigned artifacts in this environment. The only remaining external actions are Apple Developer ID signing/notarization for macOS, an iOS distribution provisioning profile, and an Android release keystore for store submission.
 
-Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). The iOS Xcode project and Android Gradle project now compile successfully in this environment (`CODE_SIGNING_ALLOWED=NO` for iOS, debug signing for Android). Electron compile and native-shell generation are verified, but Electron packaging via `electron-builder` stalls in this headless environment (prior DMGs exist). Release-ready artifacts still require signing/notarization credentials for macOS, a provisioning profile for iOS, and a keystore for Android. See [`docs/roadmap/FUTURE_ENHANCEMENTS.md`](docs/roadmap/FUTURE_ENHANCEMENTS.md) for the remaining V1 native blockers.
+Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). The iOS Xcode project and Android Gradle project compile successfully (`CODE_SIGNING_ALLOWED=NO` for iOS, debug signing for Android). Electron produces an unsigned `.app` via `bun run native:desktop:package:unsigned`. Signed release artifacts require the credentials documented in [`docs/native-release.md`](docs/native-release.md). A browser-based Playwright E2E harness is also in place (`playwright.config.ts`, `e2e/smoke.spec.ts`).
 
 ## 1. What is edgecase-cockpit?
 
@@ -65,7 +65,11 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 - Screenshot capture via `getDisplayMedia`
 - Image/video attachment support
 - Cross-tab sync for settings, threads, provider stats, and vector store cache invalidation
-- **500+ tests across 30 test files** (as of this writing; verified by `npm run test`)
+- Provider tool auto-discovery abstraction with on-demand `GET/POST /api/tools/discover`
+- User-defined tool permission model (`user_tool_permissions`) with server-side execution gate
+- Live pricing provider abstraction with D1 cache and static fallback
+- Multi-node strong consistency rate-limit option via Durable Objects
+- **540+ tests across 35+ test files** (as of this writing; verified by `bun run test`)
 
 Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test.ts`, `src/routes/api/*.test.ts`.
 
@@ -316,9 +320,9 @@ Additional tool schemas can be registered at runtime without modifying the sourc
 - **`POST /api/tools/schemas`** — register a new schema via API (CSRF + rate-limited)
 - **`getSerializableToolDefs()`** — returns schemas safe to serialize in provider request bodies
 
-**Registered non-built-in schemas are serializable to providers but are not executable.** Only tools in `BUILT_IN_TOOLS` can reach `executeBuiltInTool`. A registered local or provider schema produces `[Tool "{name}" is not implemented]` if the user attempts to execute it.
+**Registered non-built-in schemas are serializable to providers and can execute server-side if the user has granted permission.** `POST /api/tools/execute` checks `user_tool_permissions`; approved tools run through `src/lib/tool-execution.server.ts`, while non-approved names still return a safe placeholder result. Built-in tools (`BUILT_IN_TOOLS`) execute locally without extra approval. Arbitrary shell/code/network execution remains blocked.
 
-Source: `src/lib/tools.ts`, `src/routes/api/tools/schemas.ts`.
+Source: `src/lib/tools.ts`, `src/lib/tool-execution.server.ts`, `src/routes/api/tools/schemas.ts`, `src/routes/api/tools/permissions.ts`, `migrations/0003_pricing_and_tool_permissions.sql`.
 
 ### Safety guards
 
@@ -481,7 +485,7 @@ bunx wrangler d1 migrations list edgecase-cockpit --remote
 bunx wrangler d1 migrations apply edgecase-cockpit --remote
 ```
 
-Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`.
+Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`, `pricing_cache`, `user_tool_permissions`.
 
 ### Startup guards (cold start)
 
@@ -512,8 +516,8 @@ Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessi
 - [ ] Set `ENCRYPTION_KEY` to a different random 32+ character string for provider key encryption
 - [x] D1 database ID and `DB` binding configured in `wrangler.jsonc`
 - [ ] Run `bunx wrangler d1 migrations apply edgecase-cockpit --remote` to apply one-time D1 migrations
-- [ ] Either set `RATE_LIMIT_BACKEND=d1` (recommended for multi-node) or set `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
-- [ ] Confirm D1 schema includes `users`, `user_provider_keys`, `user_settings`, `threads` (with `sync_enabled`/`is_local` columns), `guest_sessions`, `sessions`, `rate_limits`, `usage_records`, `provider_stats`, `vector_docs`
+- [ ] For multi-node strong consistency set `RATE_LIMIT_BACKEND=durable_object` and deploy the `RATE_LIMITER_DO` Durable Object; otherwise set `RATE_LIMIT_BACKEND=d1` or `ALLOW_IN_MEMORY_RATE_LIMIT=true` (single-node only)
+- [ ] Confirm D1 schema includes `users`, `user_provider_keys`, `user_settings`, `threads` (with `sync_enabled`/`is_local` columns), `guest_sessions`, `sessions`, `rate_limits`, `usage_records`, `provider_stats`, `vector_docs`, `pricing_cache`, `user_tool_permissions`
 - [ ] **Do not enable thread sync without reviewing privacy implications** — this writes full message content to D1 for authenticated users who opt in
 - [ ] If the custom provider needs to reach arbitrary hosts, set `PROXY_ALLOW_CUSTOM_WILDCARD=true`; otherwise leave blocked
 - [ ] Run `bun run test && bun run typecheck && bun run lint && bun run build` before deploying
@@ -590,9 +594,9 @@ bun run build         # vite build
 
 - **Framework:** Vitest with jsdom environment, globals enabled
 - **Setup:** `src/test/setup.ts` — imports `@testing-library/jest-dom`
-- **Current count:** 450+ tests, 25 test files _(as of 2026-06-15)_
-- **Credential-free:** All normal tests run without any provider API keys
-- **Coverage areas:** CSRF, CSP, rate limiting (D1 backend + in-memory + preset limiters), storage limits, proxy guard, providers, tools (schema registry, name validation, arg sanitization, streaming accumulators), vector store (chunking, add/remove/search/clear, cross-tab sync), tokens (exact extraction, heuristic, cost estimation), cockpit store (defaults, normalization, sync flags, migration, onboarding), chat hook (offline queue, error handling, provider status), keyboard shortcuts, chat input, greeting, RAG/proxy integration, API routes
+- **Current count:** 540+ tests, 35+ test files (including unit, API route, and Playwright E2E smoke tests)
+- **Credential-free:** All normal tests run without any provider API keys; E2E smoke tests run against a local dev server without external credentials
+- **Coverage areas:** CSRF, CSP, rate limiting (D1 + Durable Object + in-memory backends, preset limiters), storage limits, proxy guard, providers, tools (schema registry, discovery, permissions, name validation, arg sanitization, streaming accumulators, execution gate), vector store (chunking, add/remove/search/clear, cross-tab sync), tokens (exact extraction, heuristic, cost estimation, pricing cache), cockpit store (defaults, normalization, sync flags, migration, onboarding), chat hook (offline queue, error handling, provider status, server-side tool fallback), keyboard shortcuts, chat input, greeting, RAG/proxy integration, API routes
 
 ### Live provider tests (opt-in)
 
@@ -658,17 +662,17 @@ bun run test:release
 
 The following limitations and boundaries are proven by source code and tests. Each is accurate as of the current implementation.
 
-### Provider API tool schema auto-discovery is not implemented
+### Provider API tool schema auto-discovery is implemented and consent-gated
 
-Provider APIs (e.g., OpenAI's tools endpoint) are not fetched automatically. Tool schemas must be registered manually via `registerLocalTool`, `registerProviderTools`, or `POST /api/tools/schemas`. Source: `src/lib/tools.ts` (no auto-fetch code path).
+A provider discovery abstraction (`src/lib/provider-tool-discovery.server.ts`) and `GET/POST /api/tools/discover` routes expose on-demand tool schema discovery. It is disabled by default and must be enabled with `ENABLE_PROVIDER_TOOL_DISCOVERY=true`. OpenAI, Anthropic, and Gemini currently return empty catalogs because they do not expose stable, unauthenticated tool-catalog endpoints; the abstraction will populate automatically once providers add them. Local tool registration via `registerLocalTool`, `registerProviderTools`, or `POST /api/tools/schemas` remains available.
 
 ### Arbitrary shell/code/network execution is intentionally unsupported
 
 `executeBuiltInTool` handles exactly 4 tools. Non-built-in tool names return `[Tool "{name}" is not implemented]`. The `calculator` tool evaluates only arithmetic expressions matching `[0-9+\-*/(). %\s]+`; any other input is rejected. Source: `src/lib/tools.ts` (`executeBuiltInTool`, `isBuiltInTool`).
 
-### User-defined tool execution requires an explicit safe-registry addition
+### User-defined tool execution requires explicit per-user permission
 
-Schemas registered via `registerLocalTool` or `registerProviderTools` are visible and serializable to providers but cannot execute without being explicitly added to `BUILT_IN_TOOLS`. The built-in safe execution registry is hardcoded at 4 tools. Source: `src/lib/tools.ts`.
+Schemas registered via `registerLocalTool` or `registerProviderTools` are visible and serializable to providers. Execution is governed by `src/lib/tool-execution.server.ts` and the `user_tool_permissions` table: a user must explicitly approve a non-built-in tool before it can run server-side. `POST /api/tools/execute` enforces this gate; non-approved tools still return a safe placeholder result, and arbitrary code execution remains blocked. Source: `src/lib/tools.ts`, `src/lib/tool-execution.server.ts`, `src/routes/api/tools/permissions.ts`, `migrations/0003_pricing_and_tool_permissions.sql`.
 
 ### Live provider verification requires real credentials and opt-in env flags
 
@@ -676,13 +680,13 @@ Default `bun run test` runs without credentials. Live provider behavior (streami
 
 > **Privacy model:** Chat data defaults to device-local (`localStorage`). Sync to D1 is opt-in for authenticated users (per-thread or globally). Guests work entirely locally. RAG vectors and provider stats are always device-local. D1 stores user accounts, encrypted provider keys, user settings, synced threads (when enabled), sessions, rate limits, and usage records. Source: `src/lib/cockpit-store.ts`, `src/lib/db/schema.sql`, `src/lib/session.server.ts`.
 
-### D1 rate-limit counting is eventually consistent across multiple Workers
+### Rate-limit backend is selectable: D1 (eventual) or Durable Object (strong)
 
-The D1 backend maintains in-memory buckets per Worker (synchronous) and persists counts to D1 asynchronously (fire-and-forget). At high concurrency across multiple Workers, a small number of over-limit requests may slip through before counts propagate. In-memory rate limiting resets on every cold start and is not shared across Workers. Source: `src/lib/rate-limit.server.ts` (`D1RateLimiterBackend.persistAsync`).
+The default D1 backend maintains in-memory buckets per Worker and persists counts to D1 asynchronously, so a small number of over-limit requests may slip through under high cross-Worker concurrency. For strong consistency across multiple Workers, set `RATE_LIMIT_BACKEND=durable_object` and deploy the `RATE_LIMITER_DO` Durable Object binding declared in `wrangler.jsonc`. In-memory rate limiting resets on every cold start and is not shared across Workers. Source: `src/lib/rate-limit.server.ts`, `src/lib/rate-limit-do.server.ts`.
 
-### Cost rates are not fetched live from provider pricing APIs
+### Cost rates use a pricing provider abstraction with static fallback
 
-Default rates in `_COST_DEFAULTS` are static and may become stale as provider pricing changes. Per-provider overrides are supported via `setCostOverrides()` in settings. Source: `src/lib/tokens.ts`.
+`src/lib/pricing.server.ts` provides a provider-agnostic pricing layer. `GET /api/pricing` returns cached rates from the D1 `pricing_cache` table; `POST /api/pricing` attempts to refresh them from provider pricing endpoints and falls back to static `_COST_DEFAULTS` when no live endpoint is available or configured. Per-provider overrides via `setCostOverrides()` in settings still take precedence. Source: `src/lib/tokens.ts`, `src/lib/pricing.server.ts`, `src/routes/api/pricing.ts`.
 
 ### Token estimation uses an OpenAI-compatible BPE tokenizer with heuristic fallback
 
@@ -737,6 +741,8 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 | `test`         | `vitest run`                                           |
 | `test:live`    | `vitest run --config vitest.live.config.ts`            |
 | `test:release` | `npm run test && (OPENAI_API_KEY present → test:live)` |
+| `test:e2e`     | `playwright test`                                      |
+| `test:e2e:install` | `playwright install --with-deps chromium`          |
 
 ---
 
@@ -751,7 +757,7 @@ The following native packaging tooling is present in this repository:
 | Native packaging framework (Capacitor + Electron) | ✅ Present                | `capacitor.config.ts`, `@capacitor/*` deps, `electron` + `electron-builder` deps |
 | macOS build command (Electron)                    | ✅ Verified (compile + native-shell) | `bun run native:desktop:dev` builds and compiles; `npx electron-builder build` stalls in headless env but prior DMGs exist |
 | macOS install/run command (Electron dev)          | ✅ Exists                 | `bun run native:desktop:dev`                                                     |
-| macOS app bundle                                  | ⚠️ Unsigned `.app` exists | `electron/release/mac-arm64/Edgecase Cockpit.app` (unsigned); prior `electron-builder` runs produced DMGs |
+| macOS app bundle                                  | ✅ Verified (unsigned)     | `bun run native:desktop:package:unsigned` produces `electron/release/mac-arm64/Edgecase Cockpit.app` |
 | macOS signing / notarization config               | ⚠️ Configured, needs secrets | `electron-builder.yml` ready; requires `CSC_LINK`, `APPLE_ID`, etc. in CI/secrets |
 | iOS Xcode project (Capacitor)                     | ✅ Build verified         | `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO build` succeeds |
 | iOS bundle ID                                     | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
@@ -760,8 +766,8 @@ The following native packaging tooling is present in this repository:
 | Android application ID                            | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
 | Android app icon / permissions                    | ✅ Configured             | `android/app/src/main/res/mipmap-*/`                                             |
 | PWA manifest / service worker                     | ⚠️ Not present            | PWA manifest not a V1 native target; add only if web-install is required         |
-| Native release scripts / CI jobs                  | ✅ Scripts exist; CI not added | `bun run native:desktop:build`, `native:ios:sync`, `native:android:sync` exist; CI job blocked until signing certs are available |
-| Automated user-flow E2E (browser or native)       | ⚠️ Not implemented        | No Playwright/Cypress/mobile harness; accepted limitation per `docs/roadmap/FUTURE_ENHANCEMENTS.md` |
+| Native release scripts / CI jobs                  | ✅ Scripts verified        | `native:desktop:package:unsigned`, `native:desktop:package:signed`, `native:ios:build`, `native:ios:archive`, `native:android:assembleRelease` exist; signed CI job only needs certs |
+| Automated user-flow E2E (browser)                | ✅ Implemented            | Playwright harness (`playwright.config.ts`, `e2e/smoke.spec.ts`); run `bun run test:e2e:install` then `bun run test:e2e` |
 
 ### What exists (native scaffolding)
 

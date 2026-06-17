@@ -964,3 +964,76 @@ export async function clearVectorDocs(sessionId: string, userId?: string): Promi
     .bind(...params)
     .run();
 }
+
+// ---------------------------------------------------------------------------
+// Pricing cache
+// ---------------------------------------------------------------------------
+
+export async function getPricingCache(
+  key: string,
+): Promise<{ data_json: string; updated_at: number } | null> {
+  const db = getDB();
+  const row = await db
+    .prepare("SELECT data_json, updated_at FROM pricing_cache WHERE key = ?1")
+    .bind(key)
+    .first();
+  if (!row) return null;
+  return {
+    data_json: row.data_json as string,
+    updated_at: row.updated_at as number,
+  };
+}
+
+export async function setPricingCache(key: string, dataJson: string): Promise<void> {
+  const db = getDB();
+  const now = Date.now();
+  await db
+    .prepare(
+      "INSERT INTO pricing_cache (key, data_json, updated_at) VALUES (?1, ?2, ?3) " +
+        "ON CONFLICT(key) DO UPDATE SET data_json = ?2, updated_at = ?3",
+    )
+    .bind(key, dataJson, now)
+    .run();
+}
+
+// ---------------------------------------------------------------------------
+// User tool permissions
+// ---------------------------------------------------------------------------
+
+export async function getUserToolPermission(userId: string, toolName: string): Promise<boolean> {
+  const db = getDB();
+  const row = await db
+    .prepare("SELECT 1 FROM user_tool_permissions WHERE user_id = ?1 AND tool_name = ?2")
+    .bind(userId, toolName)
+    .first();
+  return !!row;
+}
+
+export async function getUserToolPermissions(userId: string): Promise<string[]> {
+  const db = getDB();
+  const rows = await db
+    .prepare("SELECT tool_name FROM user_tool_permissions WHERE user_id = ?1 ORDER BY tool_name")
+    .bind(userId)
+    .all();
+  return (rows.results as Array<{ tool_name: string }>).map((r) => r.tool_name);
+}
+
+export async function grantUserToolPermission(userId: string, toolName: string): Promise<void> {
+  const db = getDB();
+  const now = Date.now();
+  await db
+    .prepare(
+      "INSERT INTO user_tool_permissions (user_id, tool_name, granted_at) VALUES (?1, ?2, ?3) " +
+        "ON CONFLICT(user_id, tool_name) DO UPDATE SET granted_at = ?3",
+    )
+    .bind(userId, toolName, now)
+    .run();
+}
+
+export async function revokeUserToolPermission(userId: string, toolName: string): Promise<void> {
+  const db = getDB();
+  await db
+    .prepare("DELETE FROM user_tool_permissions WHERE user_id = ?1 AND tool_name = ?2")
+    .bind(userId, toolName)
+    .run();
+}

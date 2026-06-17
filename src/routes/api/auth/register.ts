@@ -18,7 +18,7 @@ export const Route = createFileRoute("/api/auth/register")({
         const csrfCheck = validateCsrfToken(request);
         if (csrfCheck !== true) return csrfCheck;
 
-        const rl = sessionRateLimit("auth:register");
+        const rl = await sessionRateLimit("auth:register");
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

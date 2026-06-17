@@ -174,3 +174,22 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 
 CREATE INDEX IF NOT EXISTS idx_rate_limits_reset
   ON rate_limits(reset_at);
+
+-- ── Pricing Cache ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pricing_cache (
+  key TEXT PRIMARY KEY,
+  data_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- ── User Tool Permissions ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_tool_permissions (
+  user_id TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  granted_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, tool_name),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_tool_permissions_user
+  ON user_tool_permissions(user_id);

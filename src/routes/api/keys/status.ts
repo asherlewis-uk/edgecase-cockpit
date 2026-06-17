@@ -9,7 +9,7 @@ export const Route = createFileRoute("/api/keys/status")({
       GET: async () => {
         const userId = await getAuthUserId();
         const sessionId = userId ?? "anon";
-        const rl = keysRateLimit(sessionId);
+        const rl = await keysRateLimit(sessionId);
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

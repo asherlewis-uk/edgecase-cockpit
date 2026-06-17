@@ -12,13 +12,18 @@ export type RateLimiterConfig = {
 export type RateLimitResult = { ok: true } | { ok: false; retryAfter: number };
 
 export interface IRateLimiterBackend {
-  checkLimit(key: string, windowMs: number, limit: number): RateLimitResult;
-  clearAll(): void;
+  checkLimit(
+    key: string,
+    windowMs: number,
+    limit: number,
+  ): RateLimitResult | Promise<RateLimitResult>;
+  clearAll(): void | Promise<void>;
 }
 
 // ── D1-backed distributed limiter ───────────────────────────────────────────
 
-import { getDB } from "@/lib/platform.server";
+import { getDB, getPlatformEnv } from "@/lib/platform.server";
+import { DurableObjectRateLimiterBackend } from "./rate-limit-do.server";
 
 class D1RateLimiterBackend implements IRateLimiterBackend {
   // In-memory cache for synchronous lookups. D1 writes are fire-and-forget
@@ -26,7 +31,7 @@ class D1RateLimiterBackend implements IRateLimiterBackend {
   // IRateLimiterBackend interface.
   private buckets = new Map<string, { count: number; resetAt: number }>();
 
-  checkLimit(key: string, windowMs: number, limit: number): RateLimitResult {
+  async checkLimit(key: string, windowMs: number, limit: number): Promise<RateLimitResult> {
     const now = Date.now();
     const bucket = this.buckets.get(key);
 
@@ -102,8 +107,25 @@ export function tryActivateD1RateLimiter(): boolean {
  *
  * Returns the name of the active backend for startup diagnostics.
  */
-export function configureRateLimiterFromEnv(): "d1" | "memory" {
+export function configureRateLimiterFromEnv(): "d1" | "memory" | "durable_object" {
   const mode = (process.env.RATE_LIMIT_BACKEND ?? "auto").toLowerCase();
+
+  if (mode === "durable_object") {
+    const env = getPlatformEnv();
+    const ns = env?.RATE_LIMITER_DO as
+      | import("./rate-limit-do.server").DurableObjectNamespace
+      | undefined;
+    if (ns) {
+      _backend = new DurableObjectRateLimiterBackend(ns);
+      console.log("[rate-limit] Using Durable Object backend for strong cross-Worker consistency.");
+      return "durable_object";
+    }
+    console.error(
+      "[rate-limit] RATE_LIMIT_BACKEND=durable_object but RATE_LIMITER_DO binding is missing. " +
+        "Add the Durable Object binding to wrangler.jsonc. Falling back to D1/auto.",
+    );
+    return tryActivateD1RateLimiter() ? "d1" : "memory";
+  }
 
   if (mode === "memory") {
     console.log(
@@ -138,7 +160,8 @@ export function __resetRateLimiterBackend(): void {
 }
 
 /** Return the name of the currently active rate-limiter backend. */
-export function getActiveRateLimiterBackend(): "d1" | "memory" {
+export function getActiveRateLimiterBackend(): "d1" | "memory" | "durable_object" {
+  if (_backend instanceof DurableObjectRateLimiterBackend) return "durable_object";
   return _backend !== null ? "d1" : "memory";
 }
 
@@ -156,7 +179,7 @@ function getBackend(): IRateLimiterBackend {
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
 const _defaultBackend: IRateLimiterBackend = {
-  checkLimit(key, windowMs, limit) {
+  checkLimit(key, windowMs, limit): RateLimitResult {
     const now = Date.now();
     const bucket = buckets.get(key);
     if (!bucket || bucket.resetAt < now) {
@@ -179,10 +202,11 @@ const _defaultBackend: IRateLimiterBackend = {
 export const DEFAULT_WINDOW_MS = 60_000;
 export const DEFAULT_LIMIT = 60;
 
-export function checkRateLimit(config: RateLimiterConfig): RateLimitResult {
+export async function checkRateLimit(config: RateLimiterConfig): Promise<RateLimitResult> {
   const windowMs = config.windowMs ?? DEFAULT_WINDOW_MS;
   const limit = config.limit ?? DEFAULT_LIMIT;
-  return getBackend().checkLimit(config.key, windowMs, limit);
+  const result = getBackend().checkLimit(config.key, windowMs, limit);
+  return result instanceof Promise ? await result : result;
 }
 
 export function clearRateLimitBuckets(): void {
@@ -242,31 +266,31 @@ export function rateLimitResponse(retryAfter: number): Response {
 // Preset limiters for common non-proxy route categories.
 
 /** For credential/key routes (set/clear/validate). Low limit to deter brute force. */
-export function keysRateLimit(sessionId: string): RateLimitResult {
-  return checkRateLimit({ key: `keys:${sessionId}`, limit: 20, windowMs: 60_000 });
+export async function keysRateLimit(sessionId: string): Promise<RateLimitResult> {
+  return await checkRateLimit({ key: `keys:${sessionId}`, limit: 20, windowMs: 60_000 });
 }
 
 /** For usage/ analytics read routes. */
-export function usageRateLimit(sessionId: string): RateLimitResult {
-  return checkRateLimit({ key: `usage:${sessionId}`, limit: 60, windowMs: 60_000 });
+export async function usageRateLimit(sessionId: string): Promise<RateLimitResult> {
+  return await checkRateLimit({ key: `usage:${sessionId}`, limit: 60, windowMs: 60_000 });
 }
 
 /** For health checks. Very permissive but still bounded. */
-export function healthRateLimit(clientId: string): RateLimitResult {
-  return checkRateLimit({ key: `health:${clientId}`, limit: 120, windowMs: 60_000 });
+export async function healthRateLimit(clientId: string): Promise<RateLimitResult> {
+  return await checkRateLimit({ key: `health:${clientId}`, limit: 120, windowMs: 60_000 });
 }
 
 /** For thread mutation routes (create/update/delete/import/fork/pin). */
-export function threadsRateLimit(sessionId: string): RateLimitResult {
-  return checkRateLimit({ key: `threads:${sessionId}`, limit: 60, windowMs: 60_000 });
+export async function threadsRateLimit(sessionId: string): Promise<RateLimitResult> {
+  return await checkRateLimit({ key: `threads:${sessionId}`, limit: 60, windowMs: 60_000 });
 }
 
 /** For session bootstrap. */
-export function sessionRateLimit(key: string): RateLimitResult {
-  return checkRateLimit({ key, limit: 30, windowMs: 60_000 });
+export async function sessionRateLimit(key: string): Promise<RateLimitResult> {
+  return await checkRateLimit({ key, limit: 30, windowMs: 60_000 });
 }
 
 /** For provider stats mutation. */
-export function statsRateLimit(key: string): RateLimitResult {
+export async function statsRateLimit(key: string): Promise<RateLimitResult> {
   return checkRateLimit({ key, limit: 60, windowMs: 60_000 });
 }

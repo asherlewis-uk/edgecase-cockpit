@@ -34,6 +34,7 @@ import {
   type DetectResult,
 } from "@/lib/providers";
 import { toast } from "sonner";
+import { csrfHeaders } from "@/lib/cockpit-store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,8 @@ function SettingsPage() {
         <ExtractedUsageSection />
 
         <CostSection />
+
+        <ToolPermissionsSection />
 
         <Section title="Danger">
           <Button
@@ -1005,6 +1008,67 @@ function RagSection() {
             </div>
           </>
         )}
+      </div>
+    </Section>
+  );
+}
+
+function ToolPermissionsSection() {
+  const [tools, setTools] = useState<Array<{ name: string; source: string; approved: boolean }>>(
+    [],
+  );
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    apiFetch("/api/tools/permissions", { headers: csrfHeaders() })
+      .then((res) => res.json())
+      .then((json: { tools: Array<{ name: string; source: string; approved: boolean }> }) => {
+        setTools(json.tools ?? []);
+      })
+      .catch(() => setTools([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = async (name: string, action: "grant" | "revoke") => {
+    const res = await apiFetch("/api/tools/permissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify({ toolName: name, action }),
+    });
+    if (res.ok) {
+      setTools((prev) =>
+        prev.map((t) => (t.name === name ? { ...t, approved: action === "grant" } : t)),
+      );
+      toast.success(action === "grant" ? `Approved ${name}` : `Revoked ${name}`);
+    } else {
+      toast.error("Failed to update tool permission");
+    }
+  };
+
+  return (
+    <Section title="Approved tools">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+        <p className="text-xs text-white/50">
+          Built-in tools always run without approval. User-defined and provider-declared tools
+          require explicit permission before execution.
+        </p>
+        {loading && <p className="text-sm text-white/60">Loading...</p>}
+        {!loading && tools.length === 0 && (
+          <p className="text-sm text-white/60">No registered user-defined tools.</p>
+        )}
+        {tools.map((tool) => (
+          <div key={tool.name} className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-white">{tool.name}</p>
+              <p className="text-xs text-white/50 capitalize">{tool.source}</p>
+            </div>
+            <Switch
+              checked={tool.approved}
+              onCheckedChange={(checked) => toggle(tool.name, checked ? "grant" : "revoke")}
+            />
+          </div>
+        ))}
       </div>
     </Section>
   );

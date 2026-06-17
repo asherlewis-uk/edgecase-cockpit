@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getAllToolSchemas, getToolSchemaCounts, registerLocalTool } from "@/lib/tools";
+import {
+  discoverAllProviderTools,
+  discoverProviderTools,
+  isProviderToolDiscoveryEnabled,
+} from "@/lib/provider-tool-discovery.server";
 import { getCockpitSession } from "@/lib/session.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
 import { sessionRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 
-export const Route = createFileRoute("/api/tools/schemas")({
+export const Route = createFileRoute("/api/tools/discover")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -12,20 +16,13 @@ export const Route = createFileRoute("/api/tools/schemas")({
         if (csrfCheck !== true) return csrfCheck;
 
         const session = await getCockpitSession();
-        const rl = await sessionRateLimit(`tools-schemas:${session.data.id ?? "anon"}`);
+        const rl = await sessionRateLimit(`tools-discover:${session.data.id ?? "anon"}`);
         if (!rl.ok) return rateLimitResponse(rl.retryAfter);
 
-        const schemas = getAllToolSchemas();
-        const counts = getToolSchemaCounts();
-
+        const results = await discoverAllProviderTools();
         return Response.json({
-          schemas: schemas.map((s) => ({
-            name: s.name,
-            description: s.description,
-            source: s.source,
-            providerId: s.providerId,
-          })),
-          counts,
+          enabled: isProviderToolDiscoveryEnabled(),
+          results,
         });
       },
       POST: async ({ request }) => {
@@ -33,7 +30,7 @@ export const Route = createFileRoute("/api/tools/schemas")({
         if (csrfCheck !== true) return csrfCheck;
 
         const session = await getCockpitSession();
-        const rl = await sessionRateLimit(`tools-schemas:${session.data.id ?? "anon"}`);
+        const rl = await sessionRateLimit(`tools-discover:${session.data.id ?? "anon"}`);
         if (!rl.ok) return rateLimitResponse(rl.retryAfter);
 
         let body: unknown;
@@ -43,12 +40,13 @@ export const Route = createFileRoute("/api/tools/schemas")({
           return Response.json({ error: "Invalid JSON" }, { status: 400 });
         }
 
-        const ok = registerLocalTool(body);
-        if (!ok) {
-          return Response.json({ error: "Invalid, duplicate, or limit reached" }, { status: 400 });
+        const providerId = (body as { providerId?: string })?.providerId;
+        if (!providerId || typeof providerId !== "string") {
+          return Response.json({ error: "Missing providerId" }, { status: 400 });
         }
 
-        return Response.json({ ok: true });
+        const result = await discoverProviderTools(providerId);
+        return Response.json({ enabled: isProviderToolDiscoveryEnabled(), result });
       },
     },
   },

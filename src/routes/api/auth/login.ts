@@ -22,7 +22,7 @@ export const Route = createFileRoute("/api/auth/login")({
         const csrfCheck = validateCsrfToken(request);
         if (csrfCheck !== true) return csrfCheck;
 
-        const rl = sessionRateLimit("auth:login");
+        const rl = await sessionRateLimit("auth:login");
         if (!rl.ok) {
           return rateLimitResponse(rl.retryAfter);
         }

@@ -24,5 +24,11 @@ describe("__root route meta", () => {
 
     const twitterSite = meta.find((m) => m.name === "twitter:site")?.content;
     expect(twitterSite).toBe("@asherlewis");
+
+    // Regression guard: root route meta must not contain stale Lovable/TanStack/localhost placeholder branding.
+    const allMetaValues = meta.flatMap((m) => Object.values(m));
+    for (const value of allMetaValues) {
+      expect(String(value)).not.toMatch(/Lovable|lovable|tanstack\.dev|localhost/i);
+    }
   });
 });
