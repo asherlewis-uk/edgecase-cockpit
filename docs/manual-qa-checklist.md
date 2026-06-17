@@ -38,6 +38,8 @@
 
 ## 3. Provider Setup
 
+> **Current limitation:** Saving a provider API key calls `POST /api/keys/set`, which stores the key encrypted in D1 and requires an authenticated `user_id`. The application currently has no login/register UI, so a fresh guest user who enters a key in Settings will encounter a server error. This step can only be fully validated once an authentication UI is added, or by calling `/api/auth/register` manually via an API client.
+
 | Step | Action                                                                                                                | Expected Result                                                | Pass Criteria                                                                     | Fail Criteria                                                           |
 | ---- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | 3.1  | Navigate to the **Settings** page by clicking **Settings** in the sidebar or visiting `/settings` in the address bar. | The Settings page loads.                                       | Provider cards (e.g., OpenAI, Anthropic, Google) are visible.                     | Page is blank, shows an error, or provider cards are missing.           |

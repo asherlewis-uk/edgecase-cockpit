@@ -82,6 +82,10 @@ The `edgecase-cockpit` implementation now matches the required real-user-account
 
 ---
 
+## 7. Frontend UI Gap
+
+The architecture mismatch described above is resolved at the API and database layers. The remaining mismatch is that there is **no user-facing authentication UI**. Without login/register pages or account menus, the implemented user-account features are not reachable by end users. This should be treated as a future feature rather than a current capability.
+
 ## 7. Verification
 
 ```bash

@@ -25,6 +25,9 @@ Native packaging tooling is present (Capacitor for iOS/Android, Electron for des
 
 **Offline-first privacy model:** Chats, threads, and messages are stored in `localStorage` by default (device-local). When a user is authenticated and opts in to sync (globally via settings or per-thread), threads are stored in D1 with encrypted provider keys. RAG vector/text data remains device-local. D1 stores: user accounts, encrypted provider keys, user settings, usage statistics, and synced threads when explicitly enabled. Guest users work entirely locally and cannot sync to D1.
 
+> **Auth UI gap:** The backend supports authenticated users, encrypted provider keys, and opt-in D1 sync, but the application currently has no login, register, or account UI. A visitor using the production URL is always a guest, so server-side key storage, thread sync, and usage records are unreachable through normal use.
+
+
 **API key security:** Provider keys are stored in D1 (`user_provider_keys`) with AES-256-GCM encryption per user. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`. Guests cannot store provider keys server-side.
 
 Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/schema.sql`, `wrangler.jsonc`.
@@ -37,8 +40,8 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 
 - Full chat cockpit: streaming responses, message editing/deletion, regeneration from any point
 - 15 provider definitions (8 cloud + 7 local) with proxy-based routing
-- **Real user accounts** (register, login, logout) with bcrypt-hashed passwords
-- **Guest mode** (no account required) with data claim into a new account on registration
+- **Real user accounts backend** (register, login, logout) with PBKDF2-HMAC-SHA256 password hashing — API endpoints and tests are implemented, but there is currently no login/register UI, so normal users remain guests
+- **Guest mode** (no account required) with data claim into a new account on registration (claim logic implemented server-side; UI to create an account does not exist)
 - **AES-256-GCM encrypted provider keys** stored in D1 per user (`user_provider_keys`)
 - CSRF double-submit cookie protection on all mutating routes
 - D1-backed distributed rate limiter (activates at startup when DB binding is available; falls back to in-memory)
@@ -465,7 +468,7 @@ Source: `src/lib/env.server.ts`, `src/lib/csrf.server.ts`, `src/lib/csp.server.t
   "name": "tanstack-start-app",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts",
+  "main": ".output/server/index.mjs",
   "d1_databases": [
     {
       "binding": "DB",

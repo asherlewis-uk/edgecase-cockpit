@@ -25,7 +25,7 @@ export default defineConfig({
   "name": "edgecase-cockpit",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts", // wrangler bundles this at deploy time
+  "main": ".output/server/index.mjs", // wrangler bundles this at deploy time
   "d1_databases": [
     {
       "binding": "DB",
@@ -50,7 +50,7 @@ export default defineConfig({
 
 - **Database name:** `edgecase-cockpit`
 - **Database ID:** `f89b278d-301f-4a98-a018-b92eeb279449`
-- **Tables initialized:** `sessions`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`
+- **Tables initialized:** `users`, `guest_sessions`, `sessions`, `user_provider_keys`, `user_settings`, `threads`, `provider_stats`, `usage_records`, `vector_docs`, `rate_limits`, `pricing_cache`, `user_tool_permissions`
 - **Schema file:** `src/lib/db/schema.sql`
 
 If schema changes are needed, run:
@@ -67,11 +67,13 @@ These are set via `wrangler secret put` and are **NOT** in the repo:
 | ---------------- | ------ | ---------------------------------------------------- |
 | `SESSION_SECRET` | ✅ Set | 32+ char random string for encrypted cookie sessions |
 
-### 6. GitHub Actions Deployment (Auto-Deploy on Push to Main)
+### 6. GitHub Actions CI (Build, Package, Release — No Auto-Deploy)
 
-File: `.github/workflows/deploy.yml`
+File: `.github/workflows/ci.yml`
 
-Requires these **repository secrets** (Settings → Secrets → Actions):
+The current GitHub Actions workflow validates, builds, packages native artifacts, and creates GitHub Releases. It does **not** include a production deploy job. Production deployment to Cloudflare Workers remains manual via `bunx wrangler deploy`.
+
+If you add an automated deploy job in the future, it will require these **repository secrets** (Settings → Secrets → Actions):
 
 | Secret          | Value                              | Source                                                                                                     |
 | --------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -91,11 +93,11 @@ Requires these **repository secrets** (Settings → Secrets → Actions):
 | ----------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Local dev   | `bun run dev`     | Uses Vite dev server, D1 simulated locally if configured                                                             |
 | Build       | `bun run build`   | Produces `dist/client/` + `dist/server/`, but **do not deploy the dist files directly**                              |
-| Deploy      | `wrangler deploy` | Wrangler re-bundles from `src/server.ts` using the nitro-generated config. This is the ONLY correct deployment path. |
+| Deploy      | `bun run build && bunx wrangler deploy` | Wrangler deploys the nitro-generated `.output/server/index.mjs` and `.output/public` assets configured in `wrangler.jsonc`. This is the ONLY correct deployment path. |
 
 ### 8. Critical: Do NOT Do These
 
-1. **Do NOT** change `wrangler.jsonc` `main` to `dist/server/server.js` — this breaks the asset bundling flow.
+1. **Do NOT** change `wrangler.jsonc` `main` away from `.output/server/index.mjs` or remove `no_bundle: true` — this breaks the asset bundling flow.
 2. **Do NOT** remove `nitro: true` from `vite.config.ts` — static assets will 404 on deploy.
 3. **Do NOT** set `sideEffects: false` in `package.json` — error capture will be stripped.
 4. **Do NOT** attempt to deploy via Lovable's native hosting — the app requires Cloudflare D1 bindings and Wrangler secrets.
@@ -108,7 +110,7 @@ After any code change, verify with:
 bun run test && bun run typecheck && bun run lint && bun run build
 ```
 
-Then push to `main` — the GitHub Action will deploy automatically. The live URL is:
+Then push to `main` so CI can build/package/release. Deploy to Cloudflare manually with `bunx wrangler deploy`. The live URL is:
 **https://edgecase-cockpit.asher-lewis-knight.workers.dev**
 
 ### 10. What "Sync" Means Here
@@ -118,6 +120,6 @@ If you are editing this project in the Lovable UI, any changes you make will be 
 1. Pull the changes locally: `git pull origin main`
 2. Verify the 5 critical configs above (vite.config.ts, wrangler.jsonc, package.json sideEffects, D1 schema, secrets) have not been altered by Lovable's code generation
 3. If they were altered, restore them from the above source of truth
-4. Push to `main` — GitHub Actions deploys automatically
+4. Push to `main` to trigger CI build/package/release; deploy to Cloudflare manually with `bunx wrangler deploy`
 
-**In short:** Lovable is the editor, GitHub is the source of truth, Cloudflare is the runtime. Keep these three in sync by preserving the environmental configs above.
+**In short:** Lovable is the editor, GitHub is the source of truth, Cloudflare is the runtime. CI produces artifacts and releases; you must deploy to Cloudflare manually. Keep these three in sync by preserving the environmental configs above.

@@ -198,6 +198,23 @@ No additional framework decision is required. Do not add Tauri or another framew
 
 ---
 
+### 6. Authentication UI and OAuth/social login
+
+**Status: backend implemented, frontend missing.**
+
+- Backend email/password register/login/logout endpoints and PBKDF2 password hashing are implemented (`src/routes/api/auth/`, `src/lib/auth.server.ts`).
+- Database schema supports real `users`, encrypted `user_provider_keys`, user-scoped settings/threads/usage, and guest session claim.
+- There is **no login/register page**, no `/auth` route, and no account menu in the UI.
+- Google Sign-In, Apple Sign-In, and any other OAuth are **not implemented**.
+
+**Implementation path:**
+- Add an `/auth` TanStack route with register/login forms and an account menu.
+- Gate provider key save and server sync behind authenticated state.
+- For OAuth, add PKCE/OAuth 2.0 routes (`/api/auth/google`, `/api/auth/google/callback`, etc.), an `oauth_accounts` table linked to `users.id`, and Cloudflare secrets for client credentials.
+- Ensure `claimGuestSession` runs on first OAuth login to preserve any server-side guest data.
+
+---
+
 ## Accepted stale limitations (no action planned)
 
 | Limitation                                                                               | Reason not actioned                                                                                                                                                            |

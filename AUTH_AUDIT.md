@@ -82,6 +82,12 @@ Source files:
 
 ---
 
+## 6. Frontend Authentication Gap
+
+> **Important distinction:** This audit verifies the *backend* auth/session/user/account infrastructure. The API endpoints (`/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`) and database schema are implemented and tested.
+>
+> However, there is **no login, register, or account UI** in the application. `src/routes/` does not contain an `/auth` route or any sign-in/sign-up components. As a result, real users cannot authenticate, and server-side authenticated features (encrypted provider key storage, D1 thread sync, server-side settings, usage records) are unreachable through normal use.
+
 ## 6. Remaining Intentional Boundaries
 
 These are not auth gaps:
