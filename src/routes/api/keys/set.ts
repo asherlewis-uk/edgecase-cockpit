@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { setProviderCreds, getCockpitSession } from "@/lib/session.server";
+import { setProviderCreds, getCockpitSession, getAuthUserId } from "@/lib/session.server";
 import { PROVIDERS } from "@/lib/providers";
 import { keysRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
@@ -42,6 +42,10 @@ export const Route = createFileRoute("/api/keys/set")({
         }
         if (!PROVIDERS.some((p) => p.id === parsed.data.providerId)) {
           return Response.json({ error: "Unknown provider" }, { status: 400 });
+        }
+        const userId = await getAuthUserId();
+        if (!userId) {
+          return Response.json({ error: "Authentication required" }, { status: 401 });
         }
         await setProviderCreds(parsed.data.providerId, {
           apiKey: parsed.data.apiKey,

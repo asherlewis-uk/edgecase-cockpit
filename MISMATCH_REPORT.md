@@ -82,16 +82,24 @@ The `edgecase-cockpit` implementation now matches the required real-user-account
 
 ---
 
-## 7. Frontend UI Gap
+## 7. Frontend UI
 
-The architecture mismatch described above is resolved at the API and database layers. The remaining mismatch is that there is **no user-facing authentication UI**. Without login/register pages or account menus, the implemented user-account features are not reachable by end users. This should be treated as a future feature rather than a current capability.
+The architecture mismatch is fully resolved. The following frontend pieces are now in place:
 
-## 7. Verification
+- `src/routes/auth.tsx` — email/password sign-in and create-account UI.
+- `src/components/cockpit/AccountMenu.tsx` — account controls (sign-in prompt, user info, logout).
+- `src/routes/settings.tsx` — Account section in Settings.
+- `src/components/cockpit/settings/ProviderCard.tsx` — guest auth prompt before saving provider keys.
+- `src/lib/cockpit-store.ts` — client auth state and `hydrate()` `/api/auth/me` restoration.
+
+Real users can now reach the implemented user-account features. Google/Apple/OAuth remains future work.
+
+## 8. Verification
 
 ```bash
 bun run typecheck
 bun run lint
-bun run test        # 522 tests passing
+bun run test        # 587 tests passing
 bun run build
 ```
 

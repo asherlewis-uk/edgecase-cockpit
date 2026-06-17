@@ -155,7 +155,22 @@ describe("POST /api/keys/set", () => {
     expect(body.error).toBe("Unknown provider");
   });
 
+  it("returns 401 for unauthenticated users", async () => {
+    vi.mocked(getAuthUserId).mockResolvedValue(undefined);
+    const req = new Request("http://localhost/api/keys/set", {
+      method: "POST",
+      headers: CSRF_HEADERS,
+      body: JSON.stringify({ providerId: "openai", apiKey: "sk-test" }),
+    });
+    const res = await handler({ request: req });
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe("Authentication required");
+    expect(setProviderCreds).not.toHaveBeenCalled();
+  });
+
   it("returns 200 and stores key for valid provider", async () => {
+    vi.mocked(getAuthUserId).mockResolvedValue("user-1");
     const req = new Request("http://localhost/api/keys/set", {
       method: "POST",
       headers: CSRF_HEADERS,
@@ -173,6 +188,7 @@ describe("POST /api/keys/set", () => {
   });
 
   it("accepts optional baseUrl and model", async () => {
+    vi.mocked(getAuthUserId).mockResolvedValue("user-1");
     const req = new Request("http://localhost/api/keys/set", {
       method: "POST",
       headers: CSRF_HEADERS,

@@ -25,10 +25,10 @@ test.describe("smoke", () => {
     await expect(page.locator("text=OpenAI")).toBeVisible();
   });
 
-  test("auth page does not exist yet", async ({ page }) => {
+  test("auth page loads with sign-in and create-account tabs", async ({ page }) => {
     await page.goto("/auth");
-    // Current reality: backend auth endpoints exist, but there is no /auth UI route.
-    await expect(page.locator("text=404").or(page.locator("text=Page not found"))).toBeVisible();
+    await expect(page.locator("text=Sign in").first()).toBeVisible();
+    await expect(page.locator("text=Create account").first()).toBeVisible();
   });
 
   test("thread sidebar can create a thread", async ({ page }) => {

@@ -13,6 +13,7 @@ import { Route as VideosRouteImport } from './routes/videos'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImagesRouteImport } from './routes/images'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThreadIdRouteImport } from './routes/thread.$id'
 import { Route as ApiVectorDocsRouteImport } from './routes/api/vector-docs'
@@ -66,6 +67,11 @@ const LibraryRoute = LibraryRouteImport.update({
 const ImagesRoute = ImagesRouteImport.update({
   id: '/images',
   path: '/images',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -242,6 +248,7 @@ const ApiKeysValidateProviderIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/images': typeof ImagesRoute
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
@@ -282,6 +289,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/images': typeof ImagesRoute
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
@@ -323,6 +331,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/images': typeof ImagesRoute
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
@@ -365,6 +374,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
     | '/images'
     | '/library'
     | '/settings'
@@ -405,6 +415,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth'
     | '/images'
     | '/library'
     | '/settings'
@@ -445,6 +456,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/auth'
     | '/images'
     | '/library'
     | '/settings'
@@ -486,6 +498,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
   ImagesRoute: typeof ImagesRoute
   LibraryRoute: typeof LibraryRoute
   SettingsRoute: typeof SettingsRoute
@@ -546,6 +559,13 @@ declare module '@tanstack/react-router' {
       path: '/images'
       fullPath: '/images'
       preLoaderRoute: typeof ImagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -845,6 +865,7 @@ const ApiKeysValidateRouteWithChildren = ApiKeysValidateRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
   ImagesRoute: ImagesRoute,
   LibraryRoute: LibraryRoute,
   SettingsRoute: SettingsRoute,

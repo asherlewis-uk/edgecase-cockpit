@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { X, ArrowRight, Settings as SettingsIcon } from "lucide-react";
+import { X, ArrowRight, Settings as SettingsIcon, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, store, PROVIDERS } from "@/lib/cockpit-store";
 import {
@@ -72,6 +72,12 @@ export function OnboardingModal() {
               <p className="text-white/80 leading-relaxed">
                 Edgecase Cockpit is your personal AI control surface. Connect to cloud and local AI
                 providers, chat seamlessly, and manage your conversations in one place.
+              </p>
+              <p className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/70 leading-relaxed">
+                <Lock className="mr-1.5 inline size-3.5 text-amber-300" />
+                Provider API keys are encrypted and stored per-account. Create a free account (or
+                sign in) when you&#39;re ready to save keys and sync settings. You can also skip and
+                explore locally first.
               </p>
               <p className="text-white/80 leading-relaxed">
                 Whether you're using OpenAI, Anthropic, or running local models with Ollama or LM
@@ -215,9 +221,10 @@ export function OnboardingModal() {
                   To use {PROVIDERS.find((p) => p.id === selectedProviderId)?.name}, you'll need to:
                 </p>
                 <ol className="space-y-2 text-sm text-white/80">
-                  <li>1. Set up an API key in Settings</li>
-                  <li>2. Configure any required base URLs or model preferences</li>
-                  <li>3. Save your configuration</li>
+                  <li>1. Create a free account or sign in</li>
+                  <li>2. Set up an API key in Settings</li>
+                  <li>3. Configure any required base URLs or model preferences</li>
+                  <li>4. Save your configuration</li>
                 </ol>
               </div>
 

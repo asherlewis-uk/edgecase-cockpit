@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { apiFetch, isNativeContext } from "@/lib/api-base";
 import {
   Check,
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   ShieldX,
+  LogIn,
 } from "lucide-react";
 import {
   useStore,
@@ -47,19 +49,28 @@ export function ProviderCard({
   hasServerKey?: boolean;
 }) {
   const settings = useStore((s) => s.settings);
+  const user = useStore((s) => s.user);
   const cfg = settings.providers[p.id] ?? { apiKey: "" };
   const ready = isProviderReady(settings, p.id);
   const pinned = settings.pinnedProviderIds.includes(p.id);
   const [keyDraft, setKeyDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const validationStatus = useStore((s) => getProviderValidationStatus(p.id));
+
+  const isGuest = user === null;
 
   const saveKey = async () => {
     if (!keyDraft.trim()) return;
+    if (isGuest) {
+      setShowAuthPrompt(true);
+      return;
+    }
     setSaving(true);
+    setShowAuthPrompt(false);
     try {
-      await apiFetch("/api/keys/set", {
+      const res = await apiFetch("/api/keys/set", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({
@@ -69,6 +80,15 @@ export function ProviderCard({
           model: cfg.model,
         }),
       });
+      if (res.status === 401) {
+        setShowAuthPrompt(true);
+        store.clearUser();
+        return;
+      }
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? "Failed to save key");
+      }
       setKeyDraft("");
       await refreshProviderKeyStatus();
     } finally {
@@ -307,6 +327,22 @@ export function ProviderCard({
                 ? "Key stored in encrypted server session — never sent to the browser."
                 : "Keys are stored server-side only."}
             </span>
+            {(isGuest || showAuthPrompt) && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                <span className="flex-1">
+                  Sign in to save provider keys securely.{" "}
+                  <Link
+                    to="/auth"
+                    search={{ redirect: "/settings" }}
+                    className="underline underline-offset-2 hover:text-amber-200"
+                  >
+                    Sign in or create account
+                  </Link>
+                </span>
+                <LogIn className="size-3.5 shrink-0" />
+              </div>
+            )}
           </div>
         )}
         {p.baseUrlEditable && (

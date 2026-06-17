@@ -10,6 +10,15 @@ export type ProviderConfig = {
   model?: string; // override; falls back to provider.defaultModel
 };
 
+/** Public user profile returned by auth endpoints. Mirrors src/lib/auth.server.ts UserPublic. */
+export type UserPublic = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
 export type UserProfile = {
   displayName: string;
   handle?: string;
@@ -429,6 +438,8 @@ type State = {
   settings: Settings;
   threads: Thread[];
   activeThreadId: string | null;
+  /** Runtime-only: currently authenticated user, or null for guests. */
+  user: UserPublic | null;
   /** Runtime-only: which provider ids have a key stored server-side. */
   providerKeyStatus: Record<string, boolean>;
   /** Runtime-only: validation status for each provider. */
@@ -447,6 +458,7 @@ let state: State = {
   settings: defaultSettings,
   threads: [],
   activeThreadId: null,
+  user: null,
   providerKeyStatus: {},
   providerValidationStatus: {},
 };
@@ -466,6 +478,7 @@ function hydrate() {
     settings: normalizeSettings(rawSettings),
     threads: readArr<Thread>(THREADS_KEY),
     activeThreadId: null,
+    user: state.user,
     providerKeyStatus: {},
     providerValidationStatus: {},
   };
@@ -479,6 +492,8 @@ function hydrate() {
   void migrateLocalKeysToServer(legacyProviderKeys);
   // Fetch server-side key status to populate readiness indicators.
   void refreshProviderKeyStatus();
+  // Restore authenticated user from the encrypted cookie via /api/auth/me.
+  void fetchMe();
 }
 
 const listeners = new Set<() => void>();
@@ -546,6 +561,26 @@ export const store = {
   subscribe: (l: () => void) => {
     listeners.add(l);
     return () => listeners.delete(l);
+  },
+  setUser(user: UserPublic | null) {
+    state = { ...state, user };
+    emit();
+  },
+  clearUser() {
+    state = { ...state, user: null };
+    emit();
+  },
+  async logout() {
+    try {
+      await apiFetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      });
+    } catch {
+      /* ignore */
+    }
+    state = { ...state, user: null };
+    emit();
   },
   updateSettings(patch: Partial<Settings>) {
     state = {
@@ -914,6 +949,7 @@ export const store = {
       settings: normalizeSettings(defaultSettings),
       threads: [],
       activeThreadId: null,
+      user: null,
       providerKeyStatus: {},
       providerValidationStatus: {},
     };
@@ -922,6 +958,80 @@ export const store = {
     void apiFetch("/api/keys/clear", { method: "POST" });
   },
 };
+
+async function authRequest(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: true; user: UserPublic } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify(body),
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      return { ok: false, error: typeof json.error === "string" ? json.error : "Request failed" };
+    }
+    const user = (json.user ?? null) as UserPublic | null;
+    if (!user) {
+      return { ok: false, error: "Invalid response from server" };
+    }
+    state = { ...state, user };
+    emit();
+    return { ok: true, user };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function fetchMe(): Promise<UserPublic | null> {
+  try {
+    const res = await apiFetch("/api/auth/me");
+    if (!res.ok) {
+      state = { ...state, user: null };
+      emit();
+      return null;
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const user = (json.user ?? null) as UserPublic | null;
+    state = { ...state, user };
+    emit();
+    return user;
+  } catch {
+    state = { ...state, user: null };
+    emit();
+    return null;
+  }
+}
+
+export async function register(
+  email: string,
+  password: string,
+  displayName?: string,
+): Promise<{ ok: true; user: UserPublic } | { ok: false; error: string }> {
+  return authRequest("/api/auth/register", { email, password, displayName });
+}
+
+export async function login(
+  email: string,
+  password: string,
+): Promise<{ ok: true; user: UserPublic } | { ok: false; error: string }> {
+  return authRequest("/api/auth/login", { email, password });
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await apiFetch("/api/auth/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+    });
+  } catch {
+    /* ignore */
+  }
+  state = { ...state, user: null };
+  emit();
+}
 
 async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
   if (entries.length === 0) return;

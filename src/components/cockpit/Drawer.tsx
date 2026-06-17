@@ -16,6 +16,7 @@ import {
   X,
   Pin,
 } from "lucide-react";
+import { AccountMenu } from "@/components/cockpit/AccountMenu";
 import { useRef, useState } from "react";
 
 type Props = {
@@ -212,33 +213,18 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
               }}
             />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center overflow-hidden rounded-full bg-white/[0.08] text-sm font-semibold text-white ring-1 ring-white/15">
-              {settings.profile.avatarDataUrl ? (
-                <img
-                  src={settings.profile.avatarDataUrl}
-                  alt=""
-                  className="size-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-            <div className="flex-1">
-              <div className="text-[15px] text-white/95">{displayName}</div>
-              <div className="truncate text-xs text-white/45">{profileContext}</div>
-            </div>
-            <button
-              onClick={() => {
-                onOpenChange(false);
-                navigate({ to: "/settings" });
-              }}
-              className="grid size-10 place-items-center rounded-full text-white/70 transition hover:bg-white/10"
-              aria-label="Open settings page"
-            >
-              <SettingsIcon className="size-5" strokeWidth={1.6} />
-            </button>
-          </div>
+          <AccountMenu variant="drawer" onAction={() => onOpenChange(false)} />
+          <button
+            onClick={() => {
+              onOpenChange(false);
+              navigate({ to: "/settings" });
+            }}
+            className="mt-3 grid w-full place-items-center rounded-full border border-white/10 bg-white/[0.03] py-2 text-sm text-white/70 transition hover:bg-white/10"
+            aria-label="Open settings page"
+          >
+            <SettingsIcon className="mr-2 inline size-4" strokeWidth={1.6} />
+            Open settings
+          </button>
         </div>
       </SheetContent>
     </Sheet>

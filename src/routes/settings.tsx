@@ -50,6 +50,7 @@ import { PersonalizationSection as ExtractedPersonalizationSection } from "@/com
 import { ProfileSection as ExtractedProfileSection } from "@/components/cockpit/settings/ProfileSection";
 import { ProviderCard as ExtractedProviderCard } from "@/components/cockpit/settings/ProviderCard";
 import { UsageSection as ExtractedUsageSection } from "@/components/cockpit/settings/UsageSection";
+import { AccountMenu } from "@/components/cockpit/AccountMenu";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -123,6 +124,10 @@ function SettingsPage() {
 
       <div className="mx-auto max-w-3xl space-y-8 px-4 py-6">
         <ExtractedProfileSection />
+
+        <Section title="Account">
+          <AccountMenu variant="settings" />
+        </Section>
 
         <ExtractedPersonalizationSection />
 

@@ -21,15 +21,15 @@
 
 | Item | Status | Evidence | User impact | Suggested next action | Implementation required? |
 | --- | --- | --- | --- | --- | --- |
-| User creation backend | Verified | `/api/auth/register.ts`, `auth.server.ts`, `-auth.test.ts` | No user impact today because no UI exposes it. | Add login/register UI or document as future work. | Yes (UI + routing) |
+| User creation backend | Verified | `/api/auth/register.ts`, `auth.server.ts`, `-auth.test.ts`, `src/routes/auth.tsx` | Exposed via `/auth` route; guests can create accounts. | Add full browser E2E for register → save key flow. | No (test only) |
 | Session identity | Verified | `session.server.ts` | Guests get stable cookie; auth users get `userId`. | None. | No |
 | Ownership scoping in DB | Verified | `db/index.ts` `ownerWhere`, `schema.sql`, `-account-separation.test.ts` | Data isolation is enforced at the API layer. | None. | No |
-| Private route guards | Verified | `/api/settings.ts` 401, `/api/keys/set.ts` throws for guests | Guests cannot access authenticated data. | None. | No |
+| Private route guards | Verified | `/api/settings.ts` 401, `/api/keys/set.ts` returns 401 JSON for guests | Guests cannot access authenticated data. | None. | No |
 | Cross-user thread/key/usage access | Verified (mocked) | `-account-separation.test.ts` | One user cannot read another's data in unit tests. | Add a real-cookie integration test once auth UI exists. | No (test only) |
 | Import/export boundaries | Verified | `cockpit-store.ts` `exportThread`/`importThreads`, `/api/threads.import.ts` | Import merges locally by default; sync mode requires auth. | Document import mode clearly in UI. | No |
-| Google/Apple sign-in absence | Broken (missing) | No OAuth routes, no client ID, no OAuth lib | Users cannot use social login. | Document as future work; do not claim it exists. | Yes (future feature) |
-| Provider key save for guests | Broken | `/api/keys/set.ts` does not catch `setProviderCreds` guest error | A fresh user who enters an API key in Settings sees a failed save. | Either add auth UI before key save, or temporarily allow guest key storage with explicit warnings. | Yes |
-| Auth UI exists | Broken (missing) | No `/auth` route, no login/register components | Users cannot authenticate. | Implement `/auth` route and account menu. | Yes |
+| Google/Apple sign-in absence | Broken (missing) | No OAuth routes, no client ID, no OAuth lib | Users cannot use social login. | Document as future work; implement only if scope expands. | Yes (future feature) |
+| Provider key save for guests | Verified | `ProviderCard.tsx` gates Save; `/api/keys/set.ts` returns 401 JSON | Guests see a clear sign-in prompt instead of a generic failure. | None. | No |
+| Auth UI exists | Verified | `src/routes/auth.tsx`, `AccountMenu.tsx`, `Drawer.tsx` settings integration | Users can sign in, create accounts, and log out. | Add full browser E2E login/register flow. | No (test only) |
 
 ---
 
@@ -55,9 +55,9 @@
 | Item | Status | Evidence | User impact | Suggested next action | Implementation required? |
 | --- | --- | --- | --- | --- | --- |
 | `localStorage`/offline queue | Verified | `use-chat.ts` OFFLINE_QUEUE_KEY, queue drain logic | Messages survive temporary offline. | None. | No |
-| D1 thread sync | Implemented but unreachable | `threads.is_local`/`sync_enabled`, `/api/threads.ts` | Users cannot opt in because auth UI is missing. | Add auth UI + sync toggle. | Yes |
+| D1 thread sync | Implemented but UI toggle still missing | `threads.is_local`/`sync_enabled`, `/api/threads.ts` | Reachable after sign-in, but the sync opt-in UI is not exposed. | Add sync toggle once auth UI is stable. | Yes |
 | Provider key encryption | Verified | `encryption.server.test.ts`, `session.server.test.ts` | Keys are never plaintext in DB or client. | None. | No |
-| Usage stats | Verified (local); unreachable (server) | `cockpit-store.ts` local stats, `/api/usage.ts` | Local stats work; server aggregate requires auth. | None until auth UI exists. | No |
+| Usage stats | Verified (local); reachable after auth (server) | `cockpit-store.ts` local stats, `/api/usage.ts` | Local stats work; server aggregate requires sign-in. | Add usage UI for authenticated users. | No (UI-only if desired) |
 | Migration failure modes | Partially verified | `migrations/README.md` | Remote apply is manual; failure would prevent app from starting correctly. | Document rollback plan. | No (docs only) |
 | Guest data TTL | Partially verified | `guest_sessions.expires_at` 30 days | Old guest rows may accumulate. | Add a cleanup migration or D1 cron. | Yes (cleanup) |
 
@@ -122,10 +122,10 @@
 
 | Area | Coverage | Gap | Suggested next action |
 | --- | --- | --- | --- |
-| Unit tests | 450+ across auth, sessions, DB isolation, rate limits, tools, vector store, tokens, cockpit store, API routes. | None major. | Keep credential-free. |
+| Unit tests | 587 across auth, sessions, DB isolation, rate limits, tools, vector store, tokens, cockpit store, API routes, auth UI. | None major. | Keep credential-free. |
 | Live provider tests | Opt-in via `RUN_LIVE_PROVIDER_TESTS` and real keys. | Not run in CI by default. | Run manually before releases. |
-| Browser E2E | `e2e/smoke.spec.ts` covers root, chat, settings, thread creation. | References non-existent `/auth` route. | Remove or replace the `/auth` test. |
-| Auth UI E2E | None | Cannot test login/register without UI. | Add once auth UI is implemented. |
+| Browser E2E | `e2e/smoke.spec.ts` covers root, chat, settings, thread creation, and `/auth` page load. | No full login/register flow E2E. | Add a real-cookie integration test for login → save key. |
+| Auth UI E2E | Partially verified | `e2e/smoke.spec.ts` loads `/auth` and checks tabs. | Full login/register submission requires a running backend or stub. | Add end-to-end register → save key smoke test. |
 | Native E2E | None | No device/simulator automation. | Out of V1 scope; document as accepted limitation. |
 | Production smoke tests | Manual curl only | No automated post-deploy verification. | Add a lightweight checklist or script. |
 
@@ -135,24 +135,24 @@
 
 | Doc | Risk | Correction needed |
 | --- | --- | --- |
-| `README.md` | Claims "Real user accounts (register, login, logout) with bcrypt-hashed passwords" — bcrypt is wrong; UI is missing. | Update to PBKDF2 and clarify backend-only. |
+| `README.md` | Claims "Real user accounts ... bcrypt-hashed passwords" — bcrypt is wrong; auth UI now exists. | Update to PBKDF2 and remove backend-only caveat. |
 | `README.md` | `wrangler.jsonc` snippet shows `main: "src/server.ts"`; actual is `.output/server/index.mjs`. | Fix snippet to match `wrangler.jsonc`. |
 | `docs/lovable-environmental-sync.md` | Claims auto-deploy via `.github/workflows/deploy.yml`. | Replace with current `ci.yml` reality and manual deploy instructions. |
 | `docs/lovable-environmental-sync.md` | Lists incomplete D1 tables and stale `main` field. | Update table list and `wrangler.jsonc` block. |
-| `docs/manual-qa-checklist.md` | Assumes provider API keys can be saved in Settings without mentioning the auth requirement. | Add a note that key save currently requires an authenticated account, which has no UI. |
-| `AUTH_AUDIT.md` / `MISMATCH_REPORT.md` | Correctly describe backend auth but do not mention missing frontend. | Add a section noting the UI gap. |
-| `e2e/smoke.spec.ts` | Tests `/auth` route which does not exist. | Remove or replace the test. |
+| `docs/manual-qa-checklist.md` | Should note that provider API keys require an authenticated account to save. | Add a note that key save requires signing in. |
+| `AUTH_AUDIT.md` / `MISMATCH_REPORT.md` | Backend auth is resolved; frontend auth UI is now implemented. | Update to reflect `/auth` route, Account menu, and ProviderCard gating. |
+| `e2e/smoke.spec.ts` | `/auth` page load test now passes. | None. |
 
 ---
 
 ## Top blockers to "flawless E2E perfection"
 
-1. **No authentication UI.** All server-side user-scoped features (encrypted key storage, server thread sync, settings sync, usage records) are unreachable for real users.
-2. **Provider key save fails for guests.** The Settings UI lets a user type a key, but `/api/keys/set` throws because the user is unauthenticated.
+1. **Google/Apple/OAuth not implemented.** Social login is documented as future work; only email/password auth exists today.
+2. **D1 thread sync toggle still missing.** The backend supports authenticated thread sync, but the opt-in UI toggle is not exposed.
 3. **Outdated / auto-deploy docs.** `docs/lovable-environmental-sync.md` claims CI auto-deploys to production; it does not.
-4. **Broken E2E smoke test.** `e2e/smoke.spec.ts` navigates to `/auth`, which returns 404.
-5. **External credentials not present in CI.** Signed macOS/Android/iOS release artifacts cannot be produced without Apple/Android signing secrets.
-6. **No production smoke automation.** Post-deploy verification is manual curl only.
-7. **No native device E2E.** iOS/Android behavior on real hardware is unverified.
+4. **External credentials not present in CI.** Signed macOS/Android/iOS release artifacts cannot be produced without Apple/Android signing secrets.
+5. **No production smoke automation.** Post-deploy verification is manual curl only.
+6. **No native device E2E.** iOS/Android behavior on real hardware is unverified.
+7. **Cross-user isolation not covered by browser E2E.** Unit tests prove isolation; a real-cookie integration test would harden it.
 
 All of the above are either documentation-only fixes or clearly scoped future implementation work; none should be addressed by silent adjacent code changes.
