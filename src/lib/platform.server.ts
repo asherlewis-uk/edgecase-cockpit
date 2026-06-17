@@ -28,6 +28,54 @@ type CloudflareEnv = {
   [key: string]: unknown;
 };
 
+/**
+ * Extract the Cloudflare env object from a Request whose runtime was augmented
+ * by Nitro's cloudflare-module preset (`request.runtime.cloudflare.env`).
+ */
+export function getCloudflareEnvFromRequest(request: unknown): CloudflareEnv | null {
+  if (!request || typeof request !== "object") return null;
+  const req = request as {
+    runtime?: { cloudflare?: { env?: CloudflareEnv } };
+  };
+  return req.runtime?.cloudflare?.env ?? null;
+}
+
+function isCloudflareEnv(value: unknown): value is CloudflareEnv {
+  return !!value && typeof value === "object" && "DB" in (value as Record<string, unknown>);
+}
+
+/**
+ * Resolve the Cloudflare env from a variety of runtime sources:
+ *   - the env argument itself (e.g. from server.ts)
+ *   - a context wrapper with `.env`
+ *   - the currently-stored platform env
+ *   - the active request (Nitro cloudflare-module attaches env there)
+ *   - Nitro's global `__env__`
+ *   - legacy `globalThis.env` / `process.env.DB` / `globalThis.DB`
+ */
+export function resolveCloudflareEnv(source?: unknown): CloudflareEnv | null {
+  // Direct env object.
+  if (isCloudflareEnv(source)) return source;
+
+  // Context wrapper such as event.context.cloudflare or { env }.
+  if (source && typeof source === "object") {
+    const nested = (source as { env?: unknown }).env;
+    if (isCloudflareEnv(nested)) return nested;
+  }
+
+  // Explicitly-set platform env.
+  const stored = getPlatformEnv();
+  if (stored?.DB) return stored;
+
+  // Active request runtime (populated by Nitro's cloudflare-module runtime).
+  if (typeof globalThis !== "undefined") {
+    const g = globalThis as Record<string, unknown>;
+    if (isCloudflareEnv(g.__env__)) return g.__env__ as CloudflareEnv;
+  }
+
+  return null;
+}
+
 let _currentEnv: CloudflareEnv | null = null;
 
 /**
@@ -35,7 +83,11 @@ let _currentEnv: CloudflareEnv | null = null;
  * Called from server.ts before dispatching to TanStack Start.
  */
 export function setPlatformEnv(env: unknown): void {
-  _currentEnv = (env as CloudflareEnv) ?? null;
+  if (env === null || env === undefined) {
+    _currentEnv = null;
+    return;
+  }
+  _currentEnv = resolveCloudflareEnv(env);
 }
 
 /**
@@ -51,24 +103,27 @@ export function getPlatformEnv(): CloudflareEnv | null {
  * Throws if D1 is not available.
  */
 export function getDB(): D1Database {
-  // Try platform env first (set by server.ts)
-  const env = getPlatformEnv();
+  // Prefer the env set for the current request (server.ts or TanStack Start middleware).
+  const env = resolveCloudflareEnv() ?? resolveLegacyEnv();
   if (env?.DB) return env.DB;
 
-  // Fallback: try process.env (some CF setups inject bindings here in nodejs_compat mode)
+  throw new Error(
+    "D1 database binding 'DB' not found. Ensure wrangler.jsonc has a d1_databases entry with binding 'DB'.",
+  );
+}
+
+/** Legacy fallbacks for non-request contexts (build scripts, tests, etc.). */
+function resolveLegacyEnv(): CloudflareEnv | null {
   if (
     typeof process !== "undefined" &&
     process.env &&
     (process.env as Record<string, unknown>).DB
   ) {
-    return (process.env as Record<string, unknown>).DB as D1Database;
+    return { DB: (process.env as Record<string, unknown>).DB as D1Database };
   }
 
-  // Fallback: try globalThis (some setups attach to global)
   const g = globalThis as Record<string, unknown>;
-  if (g.DB) return g.DB as D1Database;
+  if (g.DB) return { DB: g.DB as D1Database };
 
-  throw new Error(
-    "D1 database binding 'DB' not found. Ensure wrangler.jsonc has a d1_databases entry with binding 'DB'.",
-  );
+  return null;
 }
