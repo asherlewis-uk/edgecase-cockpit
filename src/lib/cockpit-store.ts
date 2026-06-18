@@ -3,6 +3,7 @@ import { apiFetch } from "@/lib/api-base";
 import { PROVIDERS, getProvider, type ProviderDef } from "@/lib/providers";
 import type { ToolCall, ToolResult } from "@/lib/tools";
 import { setCostOverrides } from "@/lib/tokens";
+import { loadVectorStoreForUser, clearVectorStoreCache } from "@/lib/vector-store";
 
 export type ProviderConfig = {
   apiKey: string;
@@ -560,6 +561,8 @@ function hydrate() {
   void refreshProviderKeyStatus();
   // Restore authenticated user from the encrypted cookie via /api/auth/me.
   void fetchMe();
+  // Start with the guest vector bucket until fetchMe confirms the account.
+  loadVectorStoreForUser(null);
 }
 
 const listeners = new Set<() => void>();
@@ -649,6 +652,8 @@ export const store = {
       stats: loadStatsForKey(statsKey),
     };
     emit();
+    // Switch RAG memory to the active account bucket.
+    loadVectorStoreForUser(user?.id ?? null);
   },
   clearUser() {
     const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
@@ -661,6 +666,9 @@ export const store = {
       activeThreadId: null,
     };
     emit();
+    // Return RAG memory to the guest bucket and clear any stale in-memory cache.
+    loadVectorStoreForUser(null);
+    clearVectorStoreCache();
   },
   async logout() {
     try {
@@ -685,6 +693,9 @@ export const store = {
     };
     emit();
     persist();
+    // Return RAG memory to the guest bucket and clear any stale in-memory cache.
+    loadVectorStoreForUser(null);
+    clearVectorStoreCache();
   },
   updateSettings(patch: Partial<Settings>) {
     state = {
@@ -1108,6 +1119,8 @@ async function authRequest(
     // Persist to the new account bucket and pull server-side settings.
     persist();
     void loadSettingsFromServer();
+    // Switch RAG memory to the authenticated account bucket.
+    loadVectorStoreForUser(user.id);
     return { ok: true, user };
   } catch {
     return { ok: false, error: "Network error" };
@@ -1128,11 +1141,15 @@ export async function fetchMe(): Promise<UserPublic | null> {
         activeThreadId: null,
       };
       emit();
+      loadVectorStoreForUser(null);
+      clearVectorStoreCache();
       return null;
     }
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const user = (json.user ?? null) as UserPublic | null;
     if (!user) {
+      loadVectorStoreForUser(null);
+      clearVectorStoreCache();
       const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
       const guestThreads = readArr<Thread>(getGuestThreadsKey());
       state = {
@@ -1156,9 +1173,12 @@ export async function fetchMe(): Promise<UserPublic | null> {
     };
     emit();
     persist();
+    loadVectorStoreForUser(user.id);
     void loadSettingsFromServer();
     return user;
   } catch {
+    loadVectorStoreForUser(null);
+    clearVectorStoreCache();
     const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
     const guestThreads = readArr<Thread>(getGuestThreadsKey());
     state = {
@@ -1211,6 +1231,9 @@ export async function logout(): Promise<void> {
   };
   emit();
   persist();
+  // Return RAG memory to the guest bucket and clear any stale in-memory cache.
+  loadVectorStoreForUser(null);
+  clearVectorStoreCache();
 }
 
 async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {

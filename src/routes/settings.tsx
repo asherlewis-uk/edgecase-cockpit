@@ -64,6 +64,7 @@ export const Route = createFileRoute("/settings")({
 
 function SettingsPage() {
   const settings = useStore((s) => s.settings);
+  const user = useStore((s) => s.user);
   const keyStatus = useStore((s) => s.providerKeyStatus);
   const active = resolveProvider(settings);
   const cloud = PROVIDERS.filter((p) => p.type === "cloud");
@@ -127,6 +128,42 @@ function SettingsPage() {
 
         <Section title="Account">
           <AccountMenu variant="settings" />
+        </Section>
+
+        <Section title="Storage & privacy">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <ul className="space-y-2 text-sm text-white/70">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-300">●</span>
+                <span>
+                  Profile, personalization, pinned providers, and cost-rate overrides are
+                  {user
+                    ? " saved to this account and synced to the server when signed in."
+                    : " stored locally on this device only."}
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-300">●</span>
+                <span>
+                  Provider API keys are stored server-side only and never sent back to the browser.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-300">●</span>
+                <span>
+                  Chats and threads are local on this device unless you explicitly export/import
+                  them.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-300">●</span>
+                <span>
+                  RAG memory and usage stats are local/account-bucketed; they are not shared between
+                  users or synced automatically.
+                </span>
+              </li>
+            </ul>
+          </div>
         </Section>
 
         <ExtractedPersonalizationSection />

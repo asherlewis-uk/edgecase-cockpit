@@ -6,12 +6,16 @@ import { Route } from "./auth";
 const mockRegister = vi.fn();
 const mockLogin = vi.fn();
 const mockNavigate = vi.fn();
+const mockSearch = vi.hoisted(() => ({
+  redirect: "/settings",
+  mode: "signin" as "signin" | "register",
+}));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    useSearch: () => ({ redirect: "/settings" }),
+    useSearch: () => mockSearch,
     useNavigate: () => mockNavigate,
   };
 });
@@ -33,6 +37,8 @@ function renderAuthRoute() {
 describe("/auth route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearch.redirect = "/settings";
+    mockSearch.mode = "signin";
   });
 
   it("exposes sign-in branding in head meta", () => {
@@ -50,6 +56,15 @@ describe("/auth route", () => {
   it("switches to create account tab", async () => {
     renderAuthRoute();
     await userEvent.click(screen.getByRole("tab", { name: /Create account/i }));
+    expect(screen.getByRole("tab", { name: /Create account/i })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+  });
+
+  it("renders create account tab when requested by search mode", () => {
+    mockSearch.mode = "register";
+    renderAuthRoute();
     expect(screen.getByRole("tab", { name: /Create account/i })).toHaveAttribute(
       "data-state",
       "active",

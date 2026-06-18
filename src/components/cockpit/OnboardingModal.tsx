@@ -61,6 +61,7 @@ export function OnboardingModal() {
             className="text-white/50 hover:text-white/80"
             onClick={handleSkipOnboarding}
             aria-label="Close"
+            data-testid="onboarding-close"
           >
             <X className="size-5" />
           </Button>

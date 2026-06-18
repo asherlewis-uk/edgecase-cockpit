@@ -328,7 +328,10 @@ export function ProviderCard({
                 : "Keys are stored server-side only."}
             </span>
             {(isGuest || showAuthPrompt) && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              <div
+                data-testid="provider-auth-prompt"
+                className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300"
+              >
                 <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
                 <span className="flex-1">
                   Sign in to save provider keys securely.{" "}
@@ -371,7 +374,10 @@ export function ProviderCard({
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <span className={`text-[11px] ${ready ? "text-emerald-300" : "text-amber-300"}`}>
+        <span
+          data-testid={`provider-status-${p.id}`}
+          className={`text-[11px] ${ready ? "text-emerald-300" : "text-amber-300"}`}
+        >
           {ready
             ? validationStatus.status === "valid"
               ? "✅ Ready to chat"

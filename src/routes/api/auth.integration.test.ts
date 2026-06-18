@@ -96,6 +96,8 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@tanstack/react-start/server", () => ({
   useSession: mocks.useSession,
+  sealSession: vi.fn(async () => "sealed"),
+  setCookie: vi.fn(),
 }));
 
 vi.mock("@/lib/platform.server", () => ({

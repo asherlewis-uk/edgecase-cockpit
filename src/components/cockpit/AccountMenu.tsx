@@ -25,14 +25,16 @@ export function AccountMenu({ variant = "drawer", onAction }: Props) {
   if (!user) {
     return (
       <div
+        data-testid="account-menu-guest"
         className={
           variant === "settings" ? "rounded-2xl border border-white/10 bg-white/[0.03] p-4" : ""
         }
       >
         <div className={variant === "settings" ? "mb-3" : "mb-1"}>
           <p className="text-sm text-white/70">
-            You&#39;re using Cockpit as a guest. Sign in or create an account to save provider keys
-            and sync your settings.
+            You&apos;re using Cockpit as a guest. Settings, chats, RAG memory, and usage stats stay
+            on this device only. Sign in or create an account to save provider keys and sync your
+            settings across devices.
           </p>
         </div>
         <Button
@@ -53,6 +55,7 @@ export function AccountMenu({ variant = "drawer", onAction }: Props) {
 
   return (
     <div
+      data-testid="account-menu-signed-in"
       className={
         variant === "settings"
           ? "flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4"
@@ -67,7 +70,9 @@ export function AccountMenu({ variant = "drawer", onAction }: Props) {
           <div className="truncate text-sm font-medium text-white/95">
             {user.display_name || user.email}
           </div>
-          <div className="truncate text-xs text-white/50">{user.email}</div>
+          <div data-testid="account-menu-email" className="truncate text-xs text-white/50">
+            {user.email}
+          </div>
         </div>
       </div>
       <Button

@@ -2,6 +2,8 @@ import { afterEach, describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("@tanstack/react-start/server", () => ({
   useSession: vi.fn(),
+  sealSession: vi.fn(async () => "sealed"),
+  setCookie: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({

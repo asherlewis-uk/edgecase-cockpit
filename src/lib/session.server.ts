@@ -2,7 +2,7 @@
 // Provider credentials are stored in user_provider_keys (DB), NOT in the session.
 // Anonymous guests use a guestSessionId stored in the cookie session.
 
-import { useSession as startSession } from "@tanstack/react-start/server";
+import { useSession as startSession, sealSession, setCookie } from "@tanstack/react-start/server";
 
 export type SessionProviderCreds = {
   apiKey: string;
@@ -35,6 +35,12 @@ function config() {
   };
 }
 
+/** Re-seal the current session data and write the cookie back to the response. */
+async function commitSessionCookie() {
+  const cfg = config();
+  const sealed = await sealSession(cfg);
+  setCookie(cfg.name, sealed, { maxAge: cfg.maxAge, ...cfg.cookie });
+}
 export async function getCockpitSession() {
   const s = await startSession<SessionData>(config());
   if (!s.data.id) {
@@ -48,12 +54,14 @@ export async function clearAuthSession() {
   const s = await getCockpitSession();
   const { userId, userEmail, ...rest } = s.data;
   await s.update(rest);
+  await commitSessionCookie();
 }
 
 /** Set the authenticated user in the session (login). */
 export async function setAuthSession(userId: string, userEmail: string) {
   const s = await getCockpitSession();
   await s.update({ ...s.data, userId, userEmail, guestSessionId: undefined });
+  await commitSessionCookie();
 }
 
 /** Get the current authenticated user ID, if any. */
@@ -72,6 +80,7 @@ export async function getGuestSessionId(): Promise<string | undefined> {
 
   if (s.data.guestSessionId !== guestId || s.data.id !== sessionId) {
     await s.update({ ...s.data, id: sessionId, guestSessionId: guestId });
+    await commitSessionCookie();
   }
 
   return guestId;
@@ -82,6 +91,7 @@ export async function clearGuestSessionId() {
   const s = await getCockpitSession();
   const { guestSessionId, ...rest } = s.data;
   await s.update(rest);
+  await commitSessionCookie();
 }
 
 // ── Provider Credentials (DB-backed, encrypted) ────────────────────────────

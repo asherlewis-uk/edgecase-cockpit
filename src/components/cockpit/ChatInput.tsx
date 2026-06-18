@@ -160,6 +160,7 @@ export function ChatInput({
             <ImageIcon className="size-5" strokeWidth={1.6} />
           </button>
           <input
+            data-testid="chat-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

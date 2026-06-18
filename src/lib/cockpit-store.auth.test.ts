@@ -14,6 +14,13 @@ import {
   resetProviderStats,
   getProviderStats,
 } from "./cockpit-store";
+import {
+  addVectorDocs,
+  addVectorDocsForUser,
+  getVectorStoreSize,
+  clearVectorStore,
+  searchVectorStoreForUser,
+} from "./vector-store";
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -596,5 +603,78 @@ describe("account-scoped provider stats", () => {
     const user = await fetchMe();
     expect(user).toEqual(mockUserA);
     expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
+  });
+});
+
+describe("RAG vector store switching", () => {
+  beforeEach(() => {
+    clearVectorStore();
+  });
+
+  it("setUser switches the in-memory RAG cache to the active account bucket", () => {
+    store.setUser(mockUserA);
+    addVectorDocs([{ id: "doc-a", text: "User A memory", embedding: [1, 0, 0] }]);
+    expect(getVectorStoreSize()).toBe(1);
+
+    store.setUser(mockUserB);
+    expect(getVectorStoreSize()).toBe(0);
+
+    store.setUser(mockUserA);
+    expect(getVectorStoreSize()).toBe(1);
+  });
+
+  it("clearUser returns the in-memory RAG cache to the guest bucket", () => {
+    store.setUser(mockUserA);
+    addVectorDocs([{ id: "doc-a", text: "User A memory", embedding: [1, 0, 0] }]);
+    expect(getVectorStoreSize()).toBe(1);
+
+    store.clearUser();
+    expect(store.getState().user).toBeNull();
+    expect(getVectorStoreSize()).toBe(0);
+  });
+
+  it("login switches RAG to the authenticated account bucket", async () => {
+    addVectorDocsForUser("user-a", [{ id: "doc-a", text: "User A memory", embedding: [1, 0, 0] }]);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ user: mockUserA }),
+    });
+    const result = await login("user-a@example.com", "password123");
+    expect(result.ok).toBe(true);
+    expect(getVectorStoreSize()).toBe(1);
+    expect(searchVectorStoreForUser("user-a", [1, 0, 0], 1)[0]?.text).toBe("User A memory");
+  });
+
+  it("logout returns RAG to the guest bucket", async () => {
+    store.setUser(mockUserA);
+    addVectorDocs([{ id: "doc-a", text: "User A memory", embedding: [1, 0, 0] }]);
+    expect(getVectorStoreSize()).toBe(1);
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
+    await logout();
+    expect(getVectorStoreSize()).toBe(0);
+  });
+
+  it("fetchMe switches RAG to the restored account bucket", async () => {
+    addVectorDocsForUser("user-a", [{ id: "doc-a", text: "User A memory", embedding: [1, 0, 0] }]);
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: mockUserA }) });
+    const user = await fetchMe();
+    expect(user).toEqual(mockUserA);
+    expect(getVectorStoreSize()).toBe(1);
+    expect(searchVectorStoreForUser("user-a", [1, 0, 0], 1)[0]?.text).toBe("User A memory");
+  });
+
+  it("fetchMe returning 401 returns RAG to the guest bucket", async () => {
+    store.setUser(mockUserA);
+    addVectorDocs([{ id: "doc-a", text: "User A memory", embedding: [1, 0, 0] }]);
+    expect(getVectorStoreSize()).toBe(1);
+
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) });
+    const user = await fetchMe();
+    expect(user).toBeNull();
+    expect(getVectorStoreSize()).toBe(0);
   });
 });

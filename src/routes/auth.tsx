@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,6 +21,7 @@ import { register, login } from "@/lib/cockpit-store";
 
 const searchSchema = z.object({
   redirect: z.string().catch("/settings"),
+  mode: z.enum(["signin", "register"]).catch("signin"),
 });
 
 const loginSchema = z.object({
@@ -49,10 +50,14 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { redirect } = useSearch({ from: "/auth" });
+  const { redirect, mode } = useSearch({ from: "/auth" });
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"signin" | "register">("signin");
+  const [activeTab, setActiveTab] = useState<"signin" | "register">(mode);
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveTab(mode);
+  }, [mode]);
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),

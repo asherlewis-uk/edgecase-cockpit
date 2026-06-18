@@ -104,4 +104,17 @@ describe("ProviderCard auth gating", () => {
     });
     expect(store.getState().user).toBeNull();
   });
+
+  it("shows not-configured state for authenticated user without a saved key", () => {
+    store.setUser({
+      id: "u2",
+      email: "user-b@example.com",
+      display_name: "User B",
+      created_at: 1,
+      updated_at: 1,
+    });
+    render(<ProviderCard p={openai} isActive={false} />);
+    expect(screen.getByTestId("provider-status-openai")).toHaveTextContent(/Needs API key/i);
+    expect(screen.queryByTestId("provider-auth-prompt")).not.toBeInTheDocument();
+  });
 });
