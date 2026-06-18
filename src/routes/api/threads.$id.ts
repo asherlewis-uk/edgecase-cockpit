@@ -110,6 +110,10 @@ export const Route = createFileRoute("/api/threads/$id")({
           }
         }
 
+        if (parsed.data.syncEnabled === true) {
+          return Response.json({ error: "Backend thread sync is not enabled" }, { status: 400 });
+        }
+
         const updates: Partial<Thread> = {};
         if (parsed.data.title !== undefined) updates.title = parsed.data.title;
         if (parsed.data.messages !== undefined) updates.messages = parsed.data.messages;
@@ -117,7 +121,8 @@ export const Route = createFileRoute("/api/threads/$id")({
         if (parsed.data.temporary !== undefined) updates.temporary = parsed.data.temporary;
         if (parsed.data.pinned !== undefined) updates.pinned = parsed.data.pinned;
         if (parsed.data.archived !== undefined) updates.archived = parsed.data.archived;
-        if (parsed.data.syncEnabled !== undefined) updates.syncEnabled = parsed.data.syncEnabled;
+        // syncEnabled updates are ignored; backend sync is not enabled yet.
+        if (parsed.data.syncEnabled !== undefined) updates.syncEnabled = false;
         if (parsed.data.isLocal !== undefined) updates.isLocal = parsed.data.isLocal;
 
         if (Object.keys(updates).length === 0) {

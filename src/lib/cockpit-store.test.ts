@@ -753,7 +753,7 @@ describe("thread persistence after reload", () => {
     });
 
     // Verify localStorage has the data
-    const rawThreads = storage.get("cockpit.threads.v1");
+    const rawThreads = storage.get("cockpit.threads.v1:guest");
     expect(rawThreads).toBeDefined();
     const parsed = JSON.parse(rawThreads!);
     expect(parsed).toHaveLength(1);
@@ -769,5 +769,97 @@ describe("thread persistence after reload", () => {
     expect(state.threads[0].messages[0].role).toBe("user");
     expect(state.threads[0].messages[1].content).toBe("Hi there");
     expect(state.threads[0].messages[1].role).toBe("assistant");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Account-scoped import/export
+// ---------------------------------------------------------------------------
+describe("account-scoped import/export", () => {
+  const mockUserA = {
+    id: "user-a",
+    email: "user-a@example.com",
+    display_name: "User A",
+    created_at: 1,
+    updated_at: 1,
+  };
+  const mockUserB = {
+    id: "user-b",
+    email: "user-b@example.com",
+    display_name: "User B",
+    created_at: 1,
+    updated_at: 1,
+  };
+
+  it("import writes only to the current account bucket", () => {
+    store.setUser(mockUserA);
+    store.importThreads([
+      {
+        id: "a-import",
+        title: "User A Import",
+        messages: [{ id: "m1", role: "user" as const, content: "A msg", ts: 1 }],
+        updatedAt: 1,
+        archived: false,
+        pinned: false,
+        temporary: false,
+      },
+    ]);
+
+    store.setUser(mockUserB);
+    expect(store.getState().threads).toHaveLength(0);
+
+    store.importThreads([
+      {
+        id: "b-import",
+        title: "User B Import",
+        messages: [{ id: "m2", role: "user" as const, content: "B msg", ts: 2 }],
+        updatedAt: 2,
+        archived: false,
+        pinned: false,
+        temporary: false,
+      },
+    ]);
+
+    store.setUser(mockUserA);
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].title).toBe("User A Import");
+
+    store.setUser(mockUserB);
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].title).toBe("User B Import");
+  });
+
+  it("export reads only from the current account bucket", () => {
+    store.setUser(mockUserA);
+    store.importThreads([
+      {
+        id: "a-export",
+        title: "User A Export",
+        messages: [{ id: "m1", role: "user" as const, content: "A msg", ts: 1 }],
+        updatedAt: 1,
+        archived: false,
+        pinned: false,
+        temporary: false,
+      },
+    ]);
+
+    store.setUser(mockUserB);
+    const exportedB = store.exportThread("a-export");
+    expect(exportedB).toBeNull();
+
+    store.importThreads([
+      {
+        id: "b-export",
+        title: "User B Export",
+        messages: [{ id: "m2", role: "user" as const, content: "B msg", ts: 2 }],
+        updatedAt: 2,
+        archived: false,
+        pinned: false,
+        temporary: false,
+      },
+    ]);
+    const exportedBFound = store.exportThread("b-export");
+    expect(exportedBFound).not.toBeNull();
+    expect(JSON.parse(exportedBFound!).thread.title).toBe("User B Export");
   });
 });

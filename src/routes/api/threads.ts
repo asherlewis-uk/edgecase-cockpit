@@ -114,13 +114,17 @@ export const Route = createFileRoute("/api/threads")({
           });
         }
 
+        if (parsed.data.syncEnabled === true) {
+          return Response.json({ error: "Backend thread sync is not enabled" }, { status: 400 });
+        }
+
         const thread: Thread = {
           id: parsed.data.id,
           title: parsed.data.title,
           messages: parsed.data.messages,
           updatedAt: parsed.data.updatedAt,
           temporary: parsed.data.temporary,
-          syncEnabled: parsed.data.syncEnabled,
+          syncEnabled: false,
           isLocal: parsed.data.isLocal,
         };
 

@@ -130,7 +130,22 @@ function getSettingsKeyForUser(userId: string): string {
 function getGuestSettingsKey(): string {
   return `${SETTINGS_KEY_BASE}:guest`;
 }
-const THREADS_KEY = "cockpit.threads.v1";
+const THREADS_KEY_BASE = "cockpit.threads.v1";
+
+/** Return the localStorage threads key for the current account scope. */
+function getThreadsKey(): string {
+  const scope = state.user?.id ?? "guest";
+  return `${THREADS_KEY_BASE}:${scope}`;
+}
+
+/** Return a threads key for a specific user id (used during account switch restore). */
+function getThreadsKeyForUser(userId: string): string {
+  return `${THREADS_KEY_BASE}:${userId}`;
+}
+
+function getGuestThreadsKey(): string {
+  return `${THREADS_KEY_BASE}:guest`;
+}
 const STATS_KEY = "cockpit.provider-stats.v1";
 
 export type ProviderStat = {
@@ -499,7 +514,7 @@ function hydrate() {
   }
   state = {
     settings: normalizeSettings(rawSettings),
-    threads: readArr<Thread>(THREADS_KEY),
+    threads: readArr<Thread>(getThreadsKey()),
     activeThreadId: null,
     user: state.user,
     providerKeyStatus: {},
@@ -543,7 +558,7 @@ function persist() {
     providers: safeProviders,
   };
   localStorage.setItem(getSettingsKey(), JSON.stringify(safeSettings));
-  localStorage.setItem(THREADS_KEY, JSON.stringify(state.threads.filter((t) => !t.temporary)));
+  localStorage.setItem(getThreadsKey(), JSON.stringify(state.threads.filter((t) => !t.temporary)));
 }
 
 function setupCrossTabSync() {
@@ -561,7 +576,8 @@ function setupCrossTabSync() {
         /* ignore */
       }
     }
-    if (e.key === THREADS_KEY && e.newValue) {
+    const currentThreadsKey = getThreadsKey();
+    if (e.key === currentThreadsKey && e.newValue) {
       try {
         state = { ...state, threads: JSON.parse(e.newValue) };
         emit();
@@ -588,7 +604,9 @@ export const store = {
   },
   setUser(user: UserPublic | null) {
     const settingsKey = user ? getSettingsKeyForUser(user.id) : getGuestSettingsKey();
+    const threadsKey = user ? getThreadsKeyForUser(user.id) : getGuestThreadsKey();
     const accountSettings = normalizeSettings(readJson(settingsKey));
+    const accountThreads = readArr<Thread>(threadsKey);
     state = {
       ...state,
       user,
@@ -596,12 +614,21 @@ export const store = {
       providerKeyStatus: {},
       providerValidationStatus: {},
       settings: accountSettings,
+      threads: accountThreads,
+      activeThreadId: null,
     };
     emit();
   },
   clearUser() {
     const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-    state = { ...state, user: null, settings: guestSettings };
+    const guestThreads = readArr<Thread>(getGuestThreadsKey());
+    state = {
+      ...state,
+      user: null,
+      settings: guestSettings,
+      threads: guestThreads,
+      activeThreadId: null,
+    };
     emit();
   },
   async logout() {
@@ -614,12 +641,15 @@ export const store = {
       /* ignore */
     }
     const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
+    const guestThreads = readArr<Thread>(getGuestThreadsKey());
     state = {
       ...state,
       user: null,
       providerKeyStatus: {},
       providerValidationStatus: {},
       settings: guestSettings,
+      threads: guestThreads,
+      activeThreadId: null,
     };
     emit();
     persist();
@@ -1027,13 +1057,18 @@ async function authRequest(
       return { ok: false, error: "Invalid response from server" };
     }
     const currentSettings = state.settings;
-    const userLocal = readJson(getSettingsKeyForUser(user.id));
+    const userLocalSettings = readJson(getSettingsKeyForUser(user.id));
+    const userLocalThreads = readArr<Thread>(getThreadsKeyForUser(user.id));
     state = {
       ...state,
       user,
       providerKeyStatus: {},
       providerValidationStatus: {},
-      settings: isRecord(userLocal) ? normalizeSettings(userLocal) : currentSettings,
+      settings: isRecord(userLocalSettings)
+        ? normalizeSettings(userLocalSettings)
+        : currentSettings,
+      threads: userLocalThreads,
+      activeThreadId: null,
     };
     emit();
     // Persist to the new account bucket and pull server-side settings.
@@ -1050,7 +1085,14 @@ export async function fetchMe(): Promise<UserPublic | null> {
     const res = await apiFetch("/api/auth/me");
     if (!res.ok) {
       const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-      state = { ...state, user: null, settings: guestSettings };
+      const guestThreads = readArr<Thread>(getGuestThreadsKey());
+      state = {
+        ...state,
+        user: null,
+        settings: guestSettings,
+        threads: guestThreads,
+        activeThreadId: null,
+      };
       emit();
       return null;
     }
@@ -1058,15 +1100,25 @@ export async function fetchMe(): Promise<UserPublic | null> {
     const user = (json.user ?? null) as UserPublic | null;
     if (!user) {
       const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-      state = { ...state, user: null, settings: guestSettings };
+      const guestThreads = readArr<Thread>(getGuestThreadsKey());
+      state = {
+        ...state,
+        user: null,
+        settings: guestSettings,
+        threads: guestThreads,
+        activeThreadId: null,
+      };
       emit();
       return null;
     }
-    const userLocal = readJson(getSettingsKeyForUser(user.id));
+    const userLocalSettings = readJson(getSettingsKeyForUser(user.id));
+    const userLocalThreads = readArr<Thread>(getThreadsKeyForUser(user.id));
     state = {
       ...state,
       user,
-      settings: isRecord(userLocal) ? normalizeSettings(userLocal) : state.settings,
+      settings: isRecord(userLocalSettings) ? normalizeSettings(userLocalSettings) : state.settings,
+      threads: userLocalThreads,
+      activeThreadId: null,
     };
     emit();
     persist();
@@ -1074,7 +1126,14 @@ export async function fetchMe(): Promise<UserPublic | null> {
     return user;
   } catch {
     const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-    state = { ...state, user: null, settings: guestSettings };
+    const guestThreads = readArr<Thread>(getGuestThreadsKey());
+    state = {
+      ...state,
+      user: null,
+      settings: guestSettings,
+      threads: guestThreads,
+      activeThreadId: null,
+    };
     emit();
     return null;
   }
@@ -1105,12 +1164,15 @@ export async function logout(): Promise<void> {
     /* ignore */
   }
   const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
+  const guestThreads = readArr<Thread>(getGuestThreadsKey());
   state = {
     ...state,
     user: null,
     providerKeyStatus: {},
     providerValidationStatus: {},
     settings: guestSettings,
+    threads: guestThreads,
+    activeThreadId: null,
   };
   emit();
   persist();

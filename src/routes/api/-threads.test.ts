@@ -31,6 +31,7 @@ const CSRF_HEADERS = {
 beforeEach(() => {
   clearRateLimitBuckets();
   vi.clearAllMocks();
+  vi.mocked(getThreadCount).mockResolvedValue(0);
   vi.mocked(getCockpitSession).mockResolvedValue({
     data: { id: "test-session" },
     update: vi.fn(),
@@ -98,5 +99,70 @@ describe("POST /api/threads", () => {
     const body = await res.json();
     expect(body.error).toBe("Limit exceeded");
     expect(body.field).toBe("threads");
+  });
+});
+
+describe("backend thread sync guard", () => {
+  it("POST /api/threads rejects syncEnabled=true", async () => {
+    const mod = await import("@/routes/api/threads");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/threads", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          id: "thread-1",
+          title: "Test thread",
+          messages: [],
+          updatedAt: Date.now(),
+          syncEnabled: true,
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Backend thread sync is not enabled");
+  });
+
+  it("POST /api/threads stores syncEnabled=false even when omitted", async () => {
+    const mod = await import("@/routes/api/threads");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/threads", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          id: "thread-1",
+          title: "Test thread",
+          messages: [],
+          updatedAt: Date.now(),
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.thread.syncEnabled).toBe(false);
+  });
+
+  it("PATCH /api/threads/$id rejects syncEnabled=true", async () => {
+    const mod = await import("@/routes/api/threads.$id");
+    const handler = (mod.Route.options as any).server.handlers.PATCH;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/threads/thread-1", {
+        method: "PATCH",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({ syncEnabled: true }),
+      }),
+      params: { id: "thread-1" },
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Backend thread sync is not enabled");
   });
 });

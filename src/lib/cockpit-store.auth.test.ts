@@ -386,3 +386,120 @@ describe("account-scoped settings", () => {
     expect(store.getState().settings.profile.displayName).toBe("Local A");
   });
 });
+
+describe("account-scoped local chats", () => {
+  it("User A and User B have separate local thread buckets", () => {
+    store.setUser(mockUserA);
+    const threadA = store.newThread();
+    store.addMessage(threadA, {
+      id: "msg-a",
+      role: "user",
+      content: "Hello from A",
+      ts: Date.now(),
+    });
+
+    store.setUser(mockUserB);
+    expect(store.getState().threads).toHaveLength(0);
+    const threadB = store.newThread();
+    store.addMessage(threadB, {
+      id: "msg-b",
+      role: "user",
+      content: "Hello from B",
+      ts: Date.now(),
+    });
+    expect(store.getState().threads).toHaveLength(1);
+
+    store.setUser(mockUserA);
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].messages[0].content).toBe("Hello from A");
+
+    store.setUser(mockUserB);
+    expect(store.getState().threads[0].messages[0].content).toBe("Hello from B");
+  });
+
+  it("guest local chats do not leak into signed-in users", async () => {
+    store.setUser(null);
+    const guestThread = store.newThread();
+    store.addMessage(guestThread, {
+      id: "msg-guest",
+      role: "user",
+      content: "Guest chat",
+      ts: Date.now(),
+    });
+
+    store.setUser(mockUserA);
+    expect(store.getState().threads).toHaveLength(0);
+
+    const threadA = store.newThread();
+    store.addMessage(threadA, {
+      id: "msg-a",
+      role: "user",
+      content: "User A chat",
+      ts: Date.now(),
+    });
+    expect(store.getState().threads).toHaveLength(1);
+
+    await store.logout();
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].messages[0].content).toBe("Guest chat");
+  });
+
+  it("login loads the correct account chat bucket", async () => {
+    store.setUser(mockUserA);
+    const threadA = store.newThread();
+    store.addMessage(threadA, {
+      id: "msg-a",
+      role: "user",
+      content: "User A thread",
+      ts: Date.now(),
+    });
+    await store.logout();
+
+    store.setUser(mockUserB);
+    const threadB = store.newThread();
+    store.addMessage(threadB, {
+      id: "msg-b",
+      role: "user",
+      content: "User B thread",
+      ts: Date.now(),
+    });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ user: mockUserA }),
+    });
+    const result = await login("user-a@example.com", "password123");
+    expect(result.ok).toBe(true);
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].messages[0].content).toBe("User A thread");
+  });
+
+  it("fetchMe restores the authenticated user and their chat bucket", async () => {
+    store.setUser(mockUserA);
+    const threadA = store.newThread();
+    store.addMessage(threadA, {
+      id: "msg-a",
+      role: "user",
+      content: "User A via fetchMe",
+      ts: Date.now(),
+    });
+    await store.logout();
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: mockUserA }) });
+    const user = await fetchMe();
+    expect(user).toEqual(mockUserA);
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].messages[0].content).toBe("User A via fetchMe");
+  });
+
+  it("creating local threads and messages does not call the server", () => {
+    vi.clearAllMocks();
+
+    store.setUser(mockUserA);
+    const threadA = store.newThread();
+    store.addMessage(threadA, { id: "msg-a", role: "user", content: "Local only", ts: Date.now() });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
