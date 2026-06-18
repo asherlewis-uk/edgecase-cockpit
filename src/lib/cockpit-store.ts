@@ -563,7 +563,13 @@ export const store = {
     return () => listeners.delete(l);
   },
   setUser(user: UserPublic | null) {
-    state = { ...state, user };
+    state = {
+      ...state,
+      user,
+      // Clear server-scoped runtime caches whenever the active account changes.
+      providerKeyStatus: {},
+      providerValidationStatus: {},
+    };
     emit();
   },
   clearUser() {
@@ -579,7 +585,12 @@ export const store = {
     } catch {
       /* ignore */
     }
-    state = { ...state, user: null };
+    state = {
+      ...state,
+      user: null,
+      providerKeyStatus: {},
+      providerValidationStatus: {},
+    };
     emit();
   },
   updateSettings(patch: Partial<Settings>) {
@@ -955,7 +966,10 @@ export const store = {
     };
     persist();
     emit();
-    void apiFetch("/api/keys/clear", { method: "POST" });
+    void apiFetch("/api/keys/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+    });
   },
 };
 
@@ -1029,7 +1043,12 @@ export async function logout(): Promise<void> {
   } catch {
     /* ignore */
   }
-  state = { ...state, user: null };
+  state = {
+    ...state,
+    user: null,
+    providerKeyStatus: {},
+    providerValidationStatus: {},
+  };
   emit();
 }
 
@@ -1039,7 +1058,7 @@ async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
     entries.map((cfg) =>
       apiFetch("/api/keys/set", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({
           providerId: cfg.providerId,
           apiKey: cfg.apiKey,
@@ -1058,10 +1077,37 @@ export async function refreshProviderKeyStatus() {
   try {
     const res = await apiFetch("/api/keys/status");
     if (!res.ok) return;
-    const json = (await res.json()) as { providers: Record<string, { hasKey: boolean }> };
+    const json = (await res.json()) as {
+      providers: Record<string, { hasKey: boolean; baseUrl?: string; model?: string }>;
+    };
     const map: Record<string, boolean> = {};
-    for (const [id, v] of Object.entries(json.providers ?? {})) map[id] = !!v.hasKey;
-    state = { ...state, providerKeyStatus: map };
+    const providersPatch: Record<string, ProviderConfig> = {};
+    for (const [id, v] of Object.entries(json.providers ?? {})) {
+      map[id] = !!v.hasKey;
+      // Merge server-stored config (baseUrl/model) into the account-scoped local cache.
+      if (state.user && v.hasKey) {
+        const cur = state.settings.providers[id] ?? { apiKey: "" };
+        providersPatch[id] = {
+          ...cur,
+          apiKey: "",
+          ...(v.baseUrl !== undefined ? { baseUrl: v.baseUrl } : {}),
+          ...(v.model !== undefined ? { model: v.model } : {}),
+        };
+      }
+    }
+    state = {
+      ...state,
+      providerKeyStatus: map,
+      settings: Object.keys(providersPatch).length
+        ? normalizeSettings({
+            ...state.settings,
+            providers: { ...state.settings.providers, ...providersPatch },
+          })
+        : state.settings,
+    };
+    if (Object.keys(providersPatch).length) {
+      persist();
+    }
     emit();
   } catch {
     /* ignore */
