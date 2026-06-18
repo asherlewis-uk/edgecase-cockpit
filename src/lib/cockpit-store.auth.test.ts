@@ -256,3 +256,133 @@ describe("provider key status isolation across accounts", () => {
     expect(store.getState().providerKeyStatus.openai).toBeUndefined();
   });
 });
+
+describe("account-scoped settings", () => {
+  it("User A and User B have separate local settings buckets", () => {
+    store.setUser(mockUserA);
+    store.updateSettings({ profile: { displayName: "User A" } });
+    expect(store.getState().settings.profile.displayName).toBe("User A");
+
+    store.setUser(mockUserB);
+    store.updateSettings({ profile: { displayName: "User B" } });
+    expect(store.getState().settings.profile.displayName).toBe("User B");
+
+    // Switch back to User A: their bucket is restored.
+    store.setUser(mockUserA);
+    expect(store.getState().settings.profile.displayName).toBe("User A");
+
+    // Switch back to User B: their bucket is restored.
+    store.setUser(mockUserB);
+    expect(store.getState().settings.profile.displayName).toBe("User B");
+  });
+
+  it("guest settings stay local and do not leak to signed-in users", async () => {
+    // Set guest settings while no user is signed in.
+    store.setUser(null);
+    store.updateSettings({ profile: { displayName: "Guest User" } });
+    expect(store.getState().settings.profile.displayName).toBe("Guest User");
+
+    // Sign in as User A: User A should not inherit the guest display name.
+    store.setUser(mockUserA);
+    expect(store.getState().settings.profile.displayName).not.toBe("Guest User");
+    expect(store.getState().user?.id).toBe("user-a");
+
+    // Change User A's settings and log out: the guest bucket should remain untouched.
+    store.updateSettings({ profile: { displayName: "User A" } });
+    await store.logout();
+    expect(store.getState().settings.profile.displayName).toBe("Guest User");
+  });
+
+  it("updateSettings POSTs to /api/settings only when authenticated", async () => {
+    // Guest update should not hit the server.
+    store.setUser(null);
+    store.updateSettings({ profile: { displayName: "Guest" } });
+    expect(mockFetch).not.toHaveBeenCalledWith("/api/settings", expect.anything());
+
+    // Authenticated update should sync to the server.
+    store.setUser(mockUserA);
+    vi.clearAllMocks();
+    store.updateSettings({ profile: { displayName: "User A" } });
+    await vi.waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/settings",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("login loads server settings for the authenticated user", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ user: mockUserA }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          profile: { displayName: "Server A" },
+          personalization: { assistantName: "Server Copilot" },
+          costOverrides: { openai: { input: 0.002 } },
+        }),
+      });
+
+    const result = await login("user-a@example.com", "password123");
+    expect(result.ok).toBe(true);
+    expect(store.getState().user).toEqual(mockUserA);
+
+    // Server settings eventually overwrite the local defaults.
+    await vi.waitFor(() => {
+      expect(store.getState().settings.profile.displayName).toBe("Server A");
+      expect(store.getState().settings.personalization.assistantName).toBe("Server Copilot");
+      expect(store.getState().settings.costOverrides).toEqual({ openai: { input: 0.002 } });
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/settings");
+  });
+
+  it("logout switches to the guest bucket and does not leak User A settings", async () => {
+    // Seed User A's bucket with distinct settings.
+    store.setUser(mockUserA);
+    store.updateSettings({ profile: { displayName: "User A" } });
+
+    // Seed the guest bucket with its own settings.
+    await store.logout();
+    store.updateSettings({ profile: { displayName: "Guest" } });
+
+    // Log in as User A and then log out: runtime should return to guest settings.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ user: mockUserA }),
+    });
+    await login("user-a@example.com", "password123");
+    expect(store.getState().settings.profile.displayName).toBe("User A");
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
+    await logout();
+    expect(store.getState().user).toBeNull();
+    expect(store.getState().settings.profile.displayName).toBe("Guest");
+
+    // Verify the guest bucket did not absorb User A's settings.
+    const guestRaw = JSON.parse(window.localStorage.getItem("cockpit.settings.v2:guest") ?? "{}");
+    expect(guestRaw.profile?.displayName).toBe("Guest");
+  });
+
+  it("fetchMe restores the authenticated user and their scoped settings", async () => {
+    // Persist User A's local settings.
+    store.setUser(mockUserA);
+    store.updateSettings({ profile: { displayName: "Local A" } });
+    await store.logout();
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ user: mockUserA }),
+    });
+
+    const user = await fetchMe();
+    expect(user).toEqual(mockUserA);
+    expect(store.getState().settings.profile.displayName).toBe("Local A");
+  });
+});

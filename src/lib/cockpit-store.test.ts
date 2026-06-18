@@ -716,7 +716,7 @@ describe("costOverrides", () => {
     store.updateSettings({
       costOverrides: { openai: { input: 0.001 } },
     });
-    const raw = storage.get("cockpit.settings.v2");
+    const raw = storage.get("cockpit.settings.v2:guest");
     expect(raw).toBeDefined();
     const parsed = JSON.parse(raw!);
     // Cost overrides should not contain API key material

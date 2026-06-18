@@ -71,6 +71,8 @@ export type Settings = {
   costOverrides?: Record<string, { input?: number; output?: number }>;
   /** Onboarding completion state. Persisted locally only. */
   onboardingCompleted?: boolean;
+  /** Whether backend thread sync is enabled for this account. */
+  syncThreadsEnabled?: boolean;
 };
 
 export type Message = {
@@ -112,7 +114,22 @@ function titleForFirstUserMessage(msg: Message) {
   return "New chat";
 }
 
-const SETTINGS_KEY = "cockpit.settings.v2";
+const SETTINGS_KEY_BASE = "cockpit.settings.v2";
+
+/** Return the localStorage settings key for the current account scope. */
+function getSettingsKey(): string {
+  const scope = state.user?.id ?? "guest";
+  return `${SETTINGS_KEY_BASE}:${scope}`;
+}
+
+/** Return a key for a specific user id (used during account switch restore). */
+function getSettingsKeyForUser(userId: string): string {
+  return `${SETTINGS_KEY_BASE}:${userId}`;
+}
+
+function getGuestSettingsKey(): string {
+  return `${SETTINGS_KEY_BASE}:guest`;
+}
 const THREADS_KEY = "cockpit.threads.v1";
 const STATS_KEY = "cockpit.provider-stats.v1";
 
@@ -472,8 +489,14 @@ export function __resetHydration(): void {
 function hydrate() {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
-  const rawSettings = readJson(SETTINGS_KEY);
-  const legacyProviderKeys = extractLegacyProviderKeys(rawSettings);
+  let rawSettings = readJson(getSettingsKey());
+  let legacyProviderKeys: LegacyProviderKey[] = [];
+  if (!isRecord(rawSettings)) {
+    // Fall back to legacy global settings blob once for migration.
+    const legacy = readJson(SETTINGS_KEY_BASE);
+    legacyProviderKeys = extractLegacyProviderKeys(legacy);
+    rawSettings = isRecord(legacy) ? legacy : undefined;
+  }
   state = {
     settings: normalizeSettings(rawSettings),
     threads: readArr<Thread>(THREADS_KEY),
@@ -519,14 +542,15 @@ function persist() {
       : defaultSettings.activeProviderId,
     providers: safeProviders,
   };
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(safeSettings));
+  localStorage.setItem(getSettingsKey(), JSON.stringify(safeSettings));
   localStorage.setItem(THREADS_KEY, JSON.stringify(state.threads.filter((t) => !t.temporary)));
 }
 
 function setupCrossTabSync() {
   if (typeof window === "undefined") return;
   window.addEventListener("storage", (e) => {
-    if (e.key === SETTINGS_KEY && e.newValue) {
+    const currentKey = getSettingsKey();
+    if (e.key === currentKey && e.newValue) {
       try {
         state = {
           ...state,
@@ -563,17 +587,21 @@ export const store = {
     return () => listeners.delete(l);
   },
   setUser(user: UserPublic | null) {
+    const settingsKey = user ? getSettingsKeyForUser(user.id) : getGuestSettingsKey();
+    const accountSettings = normalizeSettings(readJson(settingsKey));
     state = {
       ...state,
       user,
       // Clear server-scoped runtime caches whenever the active account changes.
       providerKeyStatus: {},
       providerValidationStatus: {},
+      settings: accountSettings,
     };
     emit();
   },
   clearUser() {
-    state = { ...state, user: null };
+    const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
+    state = { ...state, user: null, settings: guestSettings };
     emit();
   },
   async logout() {
@@ -585,13 +613,16 @@ export const store = {
     } catch {
       /* ignore */
     }
+    const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
     state = {
       ...state,
       user: null,
       providerKeyStatus: {},
       providerValidationStatus: {},
+      settings: guestSettings,
     };
     emit();
+    persist();
   },
   updateSettings(patch: Partial<Settings>) {
     state = {
@@ -625,6 +656,10 @@ export const store = {
     };
     persist();
     emit();
+    // Sync to cloud when authenticated. Fire-and-forget; the local cache remains authoritative.
+    if (state.user) {
+      void syncSettingsToServer(patch);
+    }
   },
   updateProfile(patch: Partial<UserProfile>) {
     this.updateSettings({
@@ -991,8 +1026,19 @@ async function authRequest(
     if (!user) {
       return { ok: false, error: "Invalid response from server" };
     }
-    state = { ...state, user };
+    const currentSettings = state.settings;
+    const userLocal = readJson(getSettingsKeyForUser(user.id));
+    state = {
+      ...state,
+      user,
+      providerKeyStatus: {},
+      providerValidationStatus: {},
+      settings: isRecord(userLocal) ? normalizeSettings(userLocal) : currentSettings,
+    };
     emit();
+    // Persist to the new account bucket and pull server-side settings.
+    persist();
+    void loadSettingsFromServer();
     return { ok: true, user };
   } catch {
     return { ok: false, error: "Network error" };
@@ -1003,17 +1049,32 @@ export async function fetchMe(): Promise<UserPublic | null> {
   try {
     const res = await apiFetch("/api/auth/me");
     if (!res.ok) {
-      state = { ...state, user: null };
+      const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
+      state = { ...state, user: null, settings: guestSettings };
       emit();
       return null;
     }
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const user = (json.user ?? null) as UserPublic | null;
-    state = { ...state, user };
+    if (!user) {
+      const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
+      state = { ...state, user: null, settings: guestSettings };
+      emit();
+      return null;
+    }
+    const userLocal = readJson(getSettingsKeyForUser(user.id));
+    state = {
+      ...state,
+      user,
+      settings: isRecord(userLocal) ? normalizeSettings(userLocal) : state.settings,
+    };
     emit();
+    persist();
+    void loadSettingsFromServer();
     return user;
   } catch {
-    state = { ...state, user: null };
+    const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
+    state = { ...state, user: null, settings: guestSettings };
     emit();
     return null;
   }
@@ -1043,13 +1104,16 @@ export async function logout(): Promise<void> {
   } catch {
     /* ignore */
   }
+  const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
   state = {
     ...state,
     user: null,
     providerKeyStatus: {},
     providerValidationStatus: {},
+    settings: guestSettings,
   };
   emit();
+  persist();
 }
 
 async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
@@ -1073,6 +1137,59 @@ async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
   await refreshProviderKeyStatus();
 }
 
+async function syncSettingsToServer(patch: Partial<Settings>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (patch.profile !== undefined) body.profile = patch.profile;
+  if (patch.personalization !== undefined) body.personalization = patch.personalization;
+  if (patch.keyboardShortcuts !== undefined) body.keyboardShortcuts = patch.keyboardShortcuts;
+  if (patch.rag !== undefined) body.rag = patch.rag;
+  if (patch.activeProviderId !== undefined) body.activeProviderId = patch.activeProviderId;
+  if (patch.pinnedProviderIds !== undefined) body.pinnedProviderIds = patch.pinnedProviderIds;
+  if (patch.costOverrides !== undefined) body.costOverrides = patch.costOverrides;
+  if (patch.onboardingCompleted !== undefined) body.onboardingCompleted = patch.onboardingCompleted;
+
+  if (Object.keys(body).length === 0) return;
+
+  try {
+    await apiFetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    /* ignore; local storage is source of truth */
+  }
+}
+
+async function loadSettingsFromServer(): Promise<void> {
+  if (!state.user) return;
+  try {
+    const res = await apiFetch("/api/settings");
+    if (!res.ok) return;
+    const json = (await res.json()) as Partial<Settings>;
+    const patch: Partial<Settings> = {};
+    if (json.profile !== undefined) patch.profile = json.profile;
+    if (json.personalization !== undefined) patch.personalization = json.personalization;
+    if (json.keyboardShortcuts !== undefined) patch.keyboardShortcuts = json.keyboardShortcuts;
+    if (json.rag !== undefined) patch.rag = json.rag;
+    if (json.activeProviderId !== undefined) patch.activeProviderId = json.activeProviderId;
+    if (json.pinnedProviderIds !== undefined) patch.pinnedProviderIds = json.pinnedProviderIds;
+    if (json.costOverrides !== undefined) patch.costOverrides = json.costOverrides;
+    if (json.onboardingCompleted !== undefined)
+      patch.onboardingCompleted = json.onboardingCompleted;
+
+    if (Object.keys(patch).length === 0) return;
+
+    state = {
+      ...state,
+      settings: normalizeSettings({ ...state.settings, ...patch }),
+    };
+    persist();
+    emit();
+  } catch {
+    /* ignore; local storage is source of truth */
+  }
+}
 export async function refreshProviderKeyStatus() {
   try {
     const res = await apiFetch("/api/keys/status");
