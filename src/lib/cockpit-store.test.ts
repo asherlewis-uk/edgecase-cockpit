@@ -625,7 +625,7 @@ describe("cross-tab stats sync", () => {
   it("provider keys are not stored in the STATS_KEY localStorage entry", () => {
     bumpProviderStat("openai", "call");
     recordTokenUsage("openai", 100, 50);
-    const raw = storage.get("cockpit.provider-stats.v1");
+    const raw = storage.get("cockpit.provider-stats.v1:guest");
     expect(raw).toBeDefined();
     const parsed = JSON.parse(raw!);
     // Stats must only contain call counts and token numbers — no API key material
@@ -663,7 +663,7 @@ describe("cross-tab stats sync", () => {
     // Simulate a STATS_KEY change event from another tab
     capturedStorageHandler!(
       new StorageEvent("storage", {
-        key: "cockpit.provider-stats.v1",
+        key: "cockpit.provider-stats.v1:guest",
         newValue: JSON.stringify({ openai: { calls: 3, errors: 0 } }),
       }),
     );

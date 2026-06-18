@@ -146,7 +146,32 @@ function getThreadsKeyForUser(userId: string): string {
 function getGuestThreadsKey(): string {
   return `${THREADS_KEY_BASE}:guest`;
 }
-const STATS_KEY = "cockpit.provider-stats.v1";
+
+/** Load stats for a specific account bucket without mutating current state. */
+function loadStatsForKey(key: string): StatsMap {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(key) || "{}") as StatsMap;
+  } catch {
+    return {};
+  }
+}
+const STATS_KEY_BASE = "cockpit.provider-stats.v1";
+
+/** Return the localStorage stats key for the current account scope. */
+function getStatsKey(): string {
+  const scope = state.user?.id ?? "guest";
+  return `${STATS_KEY_BASE}:${scope}`;
+}
+
+/** Return a stats key for a specific user id (used during account switch restore). */
+function getStatsKeyForUser(userId: string): string {
+  return `${STATS_KEY_BASE}:${userId}`;
+}
+
+function getGuestStatsKey(): string {
+  return `${STATS_KEY_BASE}:guest`;
+}
 
 export type ProviderStat = {
   calls: number;
@@ -159,14 +184,14 @@ type StatsMap = Record<string, ProviderStat>;
 function loadStats(): StatsMap {
   if (typeof window === "undefined") return {};
   try {
-    return JSON.parse(localStorage.getItem(STATS_KEY) || "{}");
+    return JSON.parse(localStorage.getItem(getStatsKey()) || "{}");
   } catch {
     return {};
   }
 }
 function saveStats(s: StatsMap) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STATS_KEY, JSON.stringify(s));
+  localStorage.setItem(getStatsKey(), JSON.stringify(s));
 }
 export function getProviderStats(): StatsMap {
   return loadStats();
@@ -475,6 +500,7 @@ type State = {
   /** Runtime-only: which provider ids have a key stored server-side. */
   providerKeyStatus: Record<string, boolean>;
   /** Runtime-only: validation status for each provider. */
+  stats: StatsMap;
   providerValidationStatus: Record<
     string,
     {
@@ -493,6 +519,7 @@ let state: State = {
   user: null,
   providerKeyStatus: {},
   providerValidationStatus: {},
+  stats: {},
 };
 let hydrated = false;
 
@@ -519,6 +546,7 @@ function hydrate() {
     user: state.user,
     providerKeyStatus: {},
     providerValidationStatus: {},
+    stats: {},
   };
   setupCrossTabSync();
   persist();
@@ -585,7 +613,8 @@ function setupCrossTabSync() {
         /* ignore */
       }
     }
-    if (e.key === STATS_KEY) {
+    const currentStatsKey = getStatsKey();
+    if (e.key === currentStatsKey) {
       // Another tab wrote new stats — notify local subscribers so their
       // UI reflects the updated counts without a page reload.
       statsListeners.forEach((l) => l());
@@ -605,6 +634,7 @@ export const store = {
   setUser(user: UserPublic | null) {
     const settingsKey = user ? getSettingsKeyForUser(user.id) : getGuestSettingsKey();
     const threadsKey = user ? getThreadsKeyForUser(user.id) : getGuestThreadsKey();
+    const statsKey = user ? getStatsKeyForUser(user.id) : getGuestStatsKey();
     const accountSettings = normalizeSettings(readJson(settingsKey));
     const accountThreads = readArr<Thread>(threadsKey);
     state = {
@@ -616,6 +646,7 @@ export const store = {
       settings: accountSettings,
       threads: accountThreads,
       activeThreadId: null,
+      stats: loadStatsForKey(statsKey),
     };
     emit();
   },
@@ -650,6 +681,7 @@ export const store = {
       settings: guestSettings,
       threads: guestThreads,
       activeThreadId: null,
+      stats: loadStatsForKey(getGuestStatsKey()),
     };
     emit();
     persist();
@@ -1028,6 +1060,7 @@ export const store = {
       user: null,
       providerKeyStatus: {},
       providerValidationStatus: {},
+      stats: {},
     };
     persist();
     emit();
@@ -1064,6 +1097,7 @@ async function authRequest(
       user,
       providerKeyStatus: {},
       providerValidationStatus: {},
+      stats: {},
       settings: isRecord(userLocalSettings)
         ? normalizeSettings(userLocalSettings)
         : currentSettings,
@@ -1173,6 +1207,7 @@ export async function logout(): Promise<void> {
     settings: guestSettings,
     threads: guestThreads,
     activeThreadId: null,
+    stats: loadStatsForKey(getGuestStatsKey()),
   };
   emit();
   persist();

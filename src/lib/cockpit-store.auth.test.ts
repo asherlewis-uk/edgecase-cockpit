@@ -9,6 +9,10 @@ import {
   refreshProviderKeyStatus,
   getProviderValidationStatus,
   setProviderValidationStatus,
+  bumpProviderStat,
+  recordTokenUsage,
+  resetProviderStats,
+  getProviderStats,
 } from "./cockpit-store";
 
 // Mock localStorage
@@ -501,5 +505,96 @@ describe("account-scoped local chats", () => {
     store.addMessage(threadA, { id: "msg-a", role: "user", content: "Local only", ts: Date.now() });
 
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("account-scoped provider stats", () => {
+  it("User A and User B have separate provider stat buckets", () => {
+    store.setUser(mockUserA);
+    bumpProviderStat("openai", "call");
+    recordTokenUsage("openai", 100, 50);
+    expect(getProviderStats().openai).toEqual({
+      calls: 1,
+      errors: 0,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    store.setUser(mockUserB);
+    expect(getProviderStats().openai).toBeUndefined();
+    bumpProviderStat("anthropic", "call");
+    expect(getProviderStats().anthropic).toEqual({ calls: 1, errors: 0 });
+
+    store.setUser(mockUserA);
+    expect(getProviderStats().openai).toEqual({
+      calls: 1,
+      errors: 0,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+    expect(getProviderStats().anthropic).toBeUndefined();
+  });
+
+  it("guest provider stats do not leak into signed-in users", () => {
+    store.setUser(null);
+    bumpProviderStat("openai", "call");
+    expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
+
+    store.setUser(mockUserA);
+    expect(getProviderStats().openai).toBeUndefined();
+
+    store.updateSettings({ profile: { displayName: "User A" } });
+    bumpProviderStat("openai", "call");
+    expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
+
+    store.logout();
+    expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
+  });
+
+  it("resetProviderStats only resets the current account bucket", () => {
+    store.setUser(mockUserA);
+    bumpProviderStat("openai", "call");
+    expect(getProviderStats().openai).toBeDefined();
+
+    store.setUser(mockUserB);
+    bumpProviderStat("openai", "error");
+    resetProviderStats();
+    expect(getProviderStats().openai).toBeUndefined();
+
+    store.setUser(mockUserA);
+    expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
+
+    resetProviderStats();
+    expect(getProviderStats().openai).toBeUndefined();
+  });
+
+  it("login loads the correct account stat bucket", async () => {
+    store.setUser(mockUserA);
+    bumpProviderStat("openai", "call");
+    await store.logout();
+
+    store.setUser(mockUserB);
+    bumpProviderStat("anthropic", "call");
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ user: mockUserA }),
+    });
+    const result = await login("user-a@example.com", "password123");
+    expect(result.ok).toBe(true);
+    expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
+    expect(getProviderStats().anthropic).toBeUndefined();
+  });
+
+  it("fetchMe restores the authenticated user and their stat bucket", async () => {
+    store.setUser(mockUserA);
+    bumpProviderStat("openai", "call");
+    await store.logout();
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ user: mockUserA }) });
+    const user = await fetchMe();
+    expect(user).toEqual(mockUserA);
+    expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
   });
 });

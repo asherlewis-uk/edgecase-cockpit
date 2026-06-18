@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api-base";
+import { store } from "@/lib/cockpit-store";
 // Lightweight local vector store using cosine similarity.
 // Persists to localStorage so indexed data survives reloads.
 // Supports sentence-level chunking and server-side sync via D1.
@@ -10,7 +11,21 @@ export type VectorDoc = {
   metadata?: Record<string, unknown>;
 };
 
-const STORE_KEY = "cockpit.vector-store.v1";
+const STORE_KEY_BASE = "cockpit.vector-store.v1";
+
+/** Return the localStorage vector-store key for the current account scope. */
+function getStoreKey(): string {
+  const scope = store.getState().user?.id ?? "guest";
+  return `${STORE_KEY_BASE}:${scope}`;
+}
+
+function getStoreKeyForUser(userId: string): string {
+  return `${STORE_KEY_BASE}:${userId}`;
+}
+
+function getGuestStoreKey(): string {
+  return `${STORE_KEY_BASE}:guest`;
+}
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
@@ -28,7 +43,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 function loadDocs(): VectorDoc[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORE_KEY);
+    const raw = localStorage.getItem(getStoreKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw) as VectorDoc[];
     return Array.isArray(parsed) ? parsed : [];
@@ -40,7 +55,7 @@ function loadDocs(): VectorDoc[] {
 function saveDocs(docs: VectorDoc[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(docs));
+    localStorage.setItem(getStoreKey(), JSON.stringify(docs));
   } catch {
     /* quota exceeded or unavailable */
   }
@@ -59,7 +74,8 @@ function ensureVectorStoreCrossTabSync() {
   if (_crossTabSyncSetup || typeof window === "undefined") return;
   _crossTabSyncSetup = true;
   window.addEventListener("storage", (e) => {
-    if (e.key === STORE_KEY) {
+    const activeKey = getStoreKey();
+    if (e.key === activeKey) {
       memoryDocs = null; // invalidate so next getDocs() re-reads localStorage
     }
   });
@@ -68,6 +84,62 @@ function ensureVectorStoreCrossTabSync() {
 /** For tests: reset cross-tab sync setup state. */
 export function __resetVectorStoreCrossTabSync(): void {
   _crossTabSyncSetup = false;
+}
+
+/** Load docs from a specific account bucket without mutating the shared cache. */
+function loadDocsForKey(key: string): VectorDoc[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as VectorDoc[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Switch the vector store cache to the account for the given user id. */
+export function loadVectorStoreForUser(userId: string | null) {
+  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  memoryDocs = loadDocsForKey(key);
+}
+
+/** Clear the in-memory cache so the next access reads from the current bucket. */
+export function clearVectorStoreCache() {
+  memoryDocs = null;
+}
+
+/** Directly search docs from a specific account bucket (for tests). */
+export function searchVectorStoreForUser(
+  userId: string | null,
+  queryEmbedding: number[],
+  topK = 3,
+): VectorDoc[] {
+  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  const docs = loadDocsForKey(key);
+  if (docs.length === 0) return [];
+  const scored = docs
+    .map((d) => ({ doc: d, score: cosineSimilarity(queryEmbedding, d.embedding) }))
+    .sort((a, b) => b.score - a.score);
+  return scored.slice(0, topK).map((s) => s.doc);
+}
+
+/** Add docs directly to a specific account bucket (for tests). */
+export function addVectorDocsForUser(userId: string | null, docs: VectorDoc[]) {
+  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  const existing = loadDocsForKey(key);
+  const existingIds = new Set(existing.map((d) => d.id));
+  const newDocs = docs.filter((d) => !existingIds.has(d.id));
+  if (newDocs.length === 0) return;
+  const next = [...existing, ...newDocs];
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function getDocs(): VectorDoc[] {
