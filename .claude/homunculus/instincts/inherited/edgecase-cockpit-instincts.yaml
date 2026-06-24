@@ -1,0 +1,736 @@
+# Instincts generated from https://github.com/asherlewis-uk/edgecase-cockpit
+# Generated: 2026-06-15T07:25:16.711Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: edgecase-cockpit-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Commit Length
+
+## Action
+
+Keep commit messages concise (~40 characters)
+
+## Evidence
+
+- Average commit message length: 40 chars
+- Based on 100 commits
+
+---
+id: edgecase-cockpit-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: edgecase-cockpit-import-alias
+trigger: "when importing modules"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Import Alias
+
+## Action
+
+Use path aliases (@/, ~/) instead of relative imports
+
+## Evidence
+
+- Import analysis shows alias pattern
+- Example: import { x } from '@/lib/x'
+
+---
+id: edgecase-cockpit-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: edgecase-cockpit-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: components, hooks, lib, live, routes
+
+---
+id: edgecase-cockpit-test-colocate
+trigger: "when writing tests"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Test Colocate
+
+## Action
+
+Place test file next to the source file (e.g., Button.test.tsx next to Button.tsx)
+
+## Evidence
+
+- Colocated test pattern detected
+- Tests live alongside source files
+
+---
+id: edgecase-cockpit-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: edgecase-cockpit-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: edgecase-cockpit-test-mocking
+trigger: "when mocking dependencies in tests"
+confidence: 0.75
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Test Mocking
+
+## Action
+
+Use vi.mock for mocking
+
+## Evidence
+
+- Mocking pattern detected: vi.mock
+- Consistent across test files
+
+---
+id: edgecase-cockpit-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Test Types
+
+## Action
+
+Write unit, integration tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, integration
+- Coverage config: no
+
+---
+id: edgecase-cockpit-workflow-database-migration
+trigger: "when modifying the database schema or adding tables"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Database Migration
+
+## Action
+
+Follow the database-migration workflow:
+1. Create migration file
+2. Update schema definitions
+3. Generate/update types
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: **/schema.*
+
+---
+id: edgecase-cockpit-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.8
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~6x per month
+- Files: src/components/cockpit/*, src/hooks/*, src/lib/*
+
+---
+id: edgecase-cockpit-workflow-refactoring
+trigger: "when refactoring code"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Refactoring
+
+## Action
+
+Follow the refactoring workflow:
+1. Ensure tests pass before refactor
+2. Refactor code structure
+3. Verify tests still pass
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: src/**/*
+
+---
+id: edgecase-cockpit-workflow-add-or-update-api-endpoint
+trigger: "when doing add or update api endpoint"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Add Or Update Api Endpoint
+
+## Action
+
+Follow the add-or-update-api-endpoint workflow:
+1. Create or update files in src/routes/api/ (e.g., threads.ts, keys/set.ts, proxy/chat.ts)
+2. Update src/routeTree.gen.ts to reflect new/changed routes
+3. Optionally add or update test files (e.g., -keys.test.ts, -threads.test.ts)
+4. Optionally update related lib files (e.g., src/lib/providers.ts, src/lib/proxy-guard.server.ts)
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: src/routes/api/*.ts, src/routes/api/**/*.ts, src/routeTree.gen.ts
+
+---
+id: edgecase-cockpit-workflow-feature-development-across-ui-lib-and-routes
+trigger: "when doing feature development across ui lib and routes"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Feature Development Across Ui Lib And Routes
+
+## Action
+
+Follow the feature-development-across-ui-lib-and-routes workflow:
+1. Update or add React component files in src/components/cockpit/ and/or subfolders
+2. Update or add React hooks in src/hooks/
+3. Update supporting logic in src/lib/
+4. Update or add route files in src/routes/
+5. Update src/routeTree.gen.ts if routes are changed
+6. Optionally update documentation (e.g., GAPS.md, product-direction.md)
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: src/components/cockpit/**/*.tsx, src/hooks/**/*.ts, src/lib/**/*.ts
+
+---
+id: edgecase-cockpit-workflow-security-or-infrastructure-hardening
+trigger: "when doing security or infrastructure hardening"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Security Or Infrastructure Hardening
+
+## Action
+
+Follow the security-or-infrastructure-hardening workflow:
+1. Implement or update security logic in src/lib/ (e.g., rate-limit.server.ts, proxy-guard.server.ts, storage-limits.server.ts, csp.server.ts)
+2. Update affected API route files in src/routes/api/
+3. Add or update test files for new security logic
+4. Update documentation (e.g., GAPS.md) to reflect completed work
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: src/lib/rate-limit.server.ts, src/lib/proxy-guard.server.ts, src/lib/storage-limits.server.ts
+
+---
+id: edgecase-cockpit-workflow-update-or-add-documentation-and-roadmap
+trigger: "when doing update or add documentation and roadmap"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Update Or Add Documentation And Roadmap
+
+## Action
+
+Follow the update-or-add-documentation-and-roadmap workflow:
+1. Create or update markdown files in docs/, GAPS.md, README.md, or .lovable/plan.md
+2. Optionally reference new or updated features in the documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: docs/**/*.md, GAPS.md, README.md
+
+---
+id: edgecase-cockpit-workflow-add-or-update-database-schema
+trigger: "when doing add or update database schema"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Workflow Add Or Update Database Schema
+
+## Action
+
+Follow the add-or-update-database-schema workflow:
+1. Update src/lib/db/schema.sql with new or changed schema
+2. Update src/lib/db/index.ts to reflect schema changes
+3. Optionally update related API endpoints or logic using the schema
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: src/lib/db/schema.sql, src/lib/db/index.ts
+
+---
+id: edgecase-cockpit-instinct-file-naming
+trigger: "When creating a new file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct File Naming
+
+## Action
+
+Name the file using camelCase
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+- Consistent usage in src/components, src/hooks, etc.
+
+---
+id: edgecase-cockpit-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+- Consistent usage in src/hooks, src/lib
+
+---
+id: edgecase-cockpit-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: edgecase-cockpit-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: edgecase-cockpit-instinct-import-alias
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Import Alias
+
+## Action
+
+Use alias import style
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: edgecase-cockpit-instinct-named-export
+trigger: "When exporting from a module"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Named Export
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: edgecase-cockpit-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Test File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern
+- Examples in src/components, src/lib
+
+---
+id: edgecase-cockpit-instinct-test-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Test Framework
+
+## Action
+
+Use the Vitest framework
+
+## Evidence
+
+- Pattern in testing.framework
+- Presence of vitest.config.ts
+
+---
+id: edgecase-cockpit-instinct-test-types
+trigger: "When designing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Test Types
+
+## Action
+
+Write both unit and integration tests as appropriate
+
+## Evidence
+
+- Pattern in testing.testTypes
+
+---
+id: edgecase-cockpit-instinct-mocking
+trigger: "When mocking modules in tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Mocking
+
+## Action
+
+Use vi.mock for mocking
+
+## Evidence
+
+- Pattern in testing.mockingStyle
+
+---
+id: edgecase-cockpit-instinct-commit-prefix
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Commit Prefix
+
+## Action
+
+Start the commit message with a conventional prefix such as feat, fix, chore, docs, or build
+
+## Evidence
+
+- Pattern in commits.prefixes
+- Examples: 'feat: enhance...', 'fix(security): harden...'
+
+---
+id: edgecase-cockpit-instinct-commit-length
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Commit Length
+
+## Action
+
+Keep the commit message concise, around 40 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength
+- Examples in commit history
+
+---
+id: edgecase-cockpit-instinct-add-api-endpoint
+trigger: "When someone wants to add or modify an API endpoint"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Add Api Endpoint
+
+## Action
+
+Create or update files in src/routes/api/, update src/routeTree.gen.ts, and optionally update related test and lib files
+
+## Evidence
+
+- Workflow: add-or-update-api-endpoint
+- Examples in workflow.commits and files
+
+---
+id: edgecase-cockpit-instinct-feature-development-ui-lib-routes
+trigger: "When building or improving a user-facing feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Feature Development Ui Lib Routes
+
+## Action
+
+Update or add React components, hooks, supporting libraries, and route files in a coordinated way; update src/routeTree.gen.ts and optionally documentation
+
+## Evidence
+
+- Workflow: feature-development-across-ui-lib-and-routes
+- Examples in workflow.commits and files
+
+---
+id: edgecase-cockpit-instinct-security-hardening
+trigger: "When hardening backend or API security/infrastructure"
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Security Hardening
+
+## Action
+
+Implement or update security logic in src/lib/, update affected API routes, add/update tests, and update documentation
+
+## Evidence
+
+- Workflow: security-or-infrastructure-hardening
+- Examples in workflow.commits and files
+
+---
+id: edgecase-cockpit-instinct-update-documentation
+trigger: "When documenting new features, product direction, or project status"
+confidence: 0.8
+domain: workflow
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Update Documentation
+
+## Action
+
+Create or update markdown files in docs/, GAPS.md, README.md, or .lovable/plan.md
+
+## Evidence
+
+- Workflow: update-or-add-documentation-and-roadmap
+- Examples in workflow.commits and files
+
+---
+id: edgecase-cockpit-instinct-update-database-schema
+trigger: "When introducing new tables, columns, or changing data persistence"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: asherlewis-uk/edgecase-cockpit
+---
+
+# Edgecase Cockpit Instinct Update Database Schema
+
+## Action
+
+Update src/lib/db/schema.sql and src/lib/db/index.ts, and optionally update related API endpoints or logic
+
+## Evidence
+
+- Workflow: add-or-update-database-schema
+- Examples in workflow.commits and files
+
