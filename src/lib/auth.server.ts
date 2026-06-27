@@ -5,7 +5,7 @@
 import { getDB } from "@/lib/platform.server";
 import { claimGuestSession as claimGuestData } from "@/lib/db";
 
-const PBKDF2_ITERATIONS = 600_000; // OWASP 2023 recommendation for PBKDF2-HMAC-SHA256
+const PBKDF2_ITERATIONS = 100_000; // Cloudflare Workers compatible value (max 100k; lower than OWASP 2023 due to Workers Web Crypto limit)
 const PBKDF2_KEYLEN_BITS = 256; // 32 bytes
 const SALT_BYTES = 16; // 128-bit salt
 

@@ -24,7 +24,7 @@ describe("auth.server", () => {
   describe("hashPassword", () => {
     it("produces a valid pbkdf2 hash string", async () => {
       const hash = await hashPassword("my-secret-password");
-      expect(hash).toMatch(/^pbkdf2:sha256:600000:[a-f0-9]{32}:[a-f0-9]{64}$/);
+      expect(hash).toMatch(/^pbkdf2:sha256:100000:[a-f0-9]{32}:[a-f0-9]{64}$/);
     });
 
     it("produces different hashes for the same password (salt randomness)", async () => {
