@@ -204,6 +204,19 @@ describe("logout", () => {
     await logout();
     expect(store.getState().user).toBeNull();
   });
+
+  it("fetchMe returns null after logout (session cookie is invalidated)", async () => {
+    store.setUser(mockUserA);
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) });
+    await logout();
+    expect(store.getState().user).toBeNull();
+
+    // Simulate a page reload where the server no longer recognizes the session.
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) });
+    const user = await fetchMe();
+    expect(user).toBeNull();
+    expect(store.getState().user).toBeNull();
+  });
 });
 
 describe("provider key status isolation across accounts", () => {

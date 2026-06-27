@@ -52,8 +52,7 @@ export async function getCockpitSession() {
 /** Clear the authenticated user from the session (logout). */
 export async function clearAuthSession() {
   const s = await getCockpitSession();
-  const { userId, userEmail, ...rest } = s.data;
-  await s.update(rest);
+  await s.update({ ...s.data, userId: undefined, userEmail: undefined });
   await commitSessionCookie();
 }
 
@@ -89,8 +88,7 @@ export async function getGuestSessionId(): Promise<string | undefined> {
 /** Clear the guest session ID (e.g., after claiming). */
 export async function clearGuestSessionId() {
   const s = await getCockpitSession();
-  const { guestSessionId, ...rest } = s.data;
-  await s.update(rest);
+  await s.update({ ...s.data, guestSessionId: undefined });
   await commitSessionCookie();
 }
 
