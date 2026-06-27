@@ -13,7 +13,8 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "preview": "npx wrangler dev --local-protocol=http",
+    "preview:web": "vite build && npx wrangler dev --local-protocol=http",
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
@@ -35,7 +36,12 @@
     "native:android:assembleRelease": "cd android && ./gradlew assembleRelease",
     "native:ios:build": "xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'generic/platform=iOS' -derivedDataPath /tmp/edgecase-ios-derived CODE_SIGNING_ALLOWED=NO build",
     "native:ios:archive": "xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'generic/platform=iOS' archive -archivePath /tmp/edgecase-ios.xcarchive",
-    "test:e2e": "playwright test",
+    "test:e2e": "E2E_RUNTIME=dev playwright test",
+    "test:e2e:dev": "E2E_RUNTIME=dev playwright test",
+    "test:e2e:preview": "vite build && E2E_RUNTIME=preview playwright test",
+    "test:e2e:deployed": "E2E_RUNTIME=deployed playwright test",
+    "test:e2e:audit:dev": "E2E_RUNTIME=dev playwright test e2e/runtime-audit.spec.ts",
+    "test:e2e:audit:preview": "vite build && E2E_RUNTIME=preview playwright test e2e/runtime-audit.spec.ts",
     "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {

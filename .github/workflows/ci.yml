@@ -32,6 +32,9 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Unit tests
+        run: bun run test
+
   build:
     needs: validate
     runs-on: ubuntu-latest
@@ -51,8 +54,41 @@ jobs:
       - name: Build Vite/Nitro
         run: bun run build
 
-  package:
+  web-e2e:
     needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: bun run test:e2e:install
+
+      - name: Run production-preview runtime audit
+        run: bun run test:e2e:audit:preview
+
+      - name: Upload web E2E artifacts
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: web-e2e-runtime-audit
+          path: |
+            test-results/runtime-audit/
+            test-results/e2e-preview.json
+            playwright-report/preview/
+          if-no-files-found: warn
+
+  package:
+    needs: web-e2e
     if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     strategy:
