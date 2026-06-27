@@ -29,6 +29,7 @@ describe("OnboardingModal", () => {
     render(<OnboardingModal />);
 
     expect(screen.getByText("Welcome to Edgecase Cockpit")).toBeInTheDocument();
+    expect(screen.getByText(/generic local OpenAI-compatible endpoint/i)).toBeInTheDocument();
     expect(screen.getByText("Get Started")).toBeInTheDocument();
     expect(screen.getByText("Skip for Now")).toBeInTheDocument();
   });
@@ -67,7 +68,8 @@ describe("OnboardingModal", () => {
     const getStartedButton = screen.getByText("Get Started");
     fireEvent.click(getStartedButton);
 
-    expect(screen.getByText("Choose Your AI Provider")).toBeInTheDocument();
-    expect(screen.getByText("Cloud Providers")).toBeInTheDocument();
+    expect(screen.getByText("Start With Local Endpoint")).toBeInTheDocument();
+    expect(screen.getByText("Local endpoint and presets")).toBeInTheDocument();
+    expect(screen.getByText("V1 target")).toBeInTheDocument();
   });
 });

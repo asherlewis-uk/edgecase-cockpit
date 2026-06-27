@@ -1,27 +1,48 @@
 # edgecase-cockpit
 
-> A provider-native AI chat console — hybrid cloud/local, self-hosted, multi-provider.
+> A local-first/BYOC AI control surface for proving one concrete local runtime control loop.
 
-## Release targets
+## V1 product contract
 
-> [!IMPORTANT]
-> V1 targets **macOS native, iOS native, and Android native**. Scaffolding exists for all three. The hybrid architecture (local providers direct-fetch, cloud providers via proxy) is now implemented and verified.
+V1 is not an all-provider AI chat console. V1 proves one concrete local/BYOC runtime path for edgecase-cockpit: a user-configured generic local OpenAI-compatible endpoint.
 
-| Target                     | V1 required        | Status                    | Notes                                                              |
-| -------------------------- | ------------------ | ------------------------- | ------------------------------------------------------------------ |
-| macOS native (Electron)    | **Yes**            | ✅ Unsigned .app package verified | `bun run native:desktop:package:unsigned` produces an unsigned .app; signed `.dmg`/notarization requires Apple certs |
-| iOS native (Capacitor)     | **Yes**            | ✅ Build verified         | `bun run native:ios:sync` + `xcodebuild` (arm64) succeed with `CODE_SIGNING_ALLOWED=NO` |
-| Android native (Capacitor) | **Yes**            | ✅ Build verified         | `bun run native:android:sync` + `./gradlew assembleDebug` succeed                       |
-| Web build (Vite)           | Supporting surface | ✅ Builds                 | `bun run build` passes — client + SSR artifacts in `dist/`         |
-| Cloudflare Workers backend | Supporting surface | ✅ Configured             | `wrangler.jsonc` + D1 configured; deployment is a separate step    |
+The V1 loop is: **detect local capability → explain available/unavailable state → show required configuration/permission → perform one safe controlled model-list action → show result/system state → recover cleanly from failure.**
 
-**V1 local build paths are complete.** macOS, iOS, and Android all produce installable unsigned artifacts in this environment. The only remaining external actions are Apple Developer ID signing/notarization for macOS, an iOS distribution provisioning profile, and an Android release keystore for store submission.
+Product decision: the canonical V1 proof target is a **generic local OpenAI-compatible endpoint** configured by the user. This is a declared product decision made now, not recovered from prior named-provider evidence.
 
-Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). The iOS Xcode project and Android Gradle project compile successfully (`CODE_SIGNING_ALLOWED=NO` for iOS, debug signing for Android). Electron produces an unsigned `.app` via `bun run native:desktop:package:unsigned`. Signed release artifacts require the credentials documented in [`docs/native-release.md`](docs/native-release.md). A browser-based Playwright E2E harness is also in place (`playwright.config.ts`, `e2e/smoke.spec.ts`).
+Hermes Agent, OpenClaw, Ollama, LM Studio, vLLM, llama.cpp, and other named providers are not the V1 proof set. Existing provider entries are implementation candidates, compatibility surfaces, or future named presets; they are not V1 commitments.
+
+V1 must prove:
+
+1. Local runtime discovery or explicit endpoint configuration.
+2. Reachable, unreachable, and misconfigured state classification.
+3. Required configuration explanation.
+4. One safe bounded capability check, preferably a model-list probe.
+5. Visible result/system state.
+6. Clean recovery from failure.
+7. No dependency on OpenAI, cloud API keys, OAuth/social login, marketplace scope, signed native builds, live provider accounts, or unrelated agent infrastructure.
+
+The canonical endpoint contract is: configurable base URL, model-list endpoint, chat-completions-compatible endpoint, no required cloud API key, browser-detectable reachable/unreachable state, deterministic mocked E2E support, safe bounded model-list action, and visible recovery from bad URL, timeout, empty models, malformed response, and hosted HTTPS/local HTTP blocking.
+
+Cloud providers, cloud provider keys, OAuth/social login, marketplace-style discovery, live provider accounts, and signed native release artifacts are not part of the V1 promise. They may exist as supported infrastructure or future/post-V1 paths, but V1 must pass without requiring them.
+
+## Platform and release status
+
+Platform packaging is useful infrastructure, not the V1 product proof. V1 is proven by browser E2E coverage for the generic local OpenAI-compatible endpoint path.
+
+| Target                     | V1 product proof required | Status                    | Notes                                                              |
+| -------------------------- | ------------------------- | ------------------------- | ------------------------------------------------------------------ |
+| Browser/web runtime        | **Yes**                   | ✅ Builds                 | Used for V1 E2E proof; no cloud keys or live provider accounts required |
+| Cloudflare Workers backend | Supporting infrastructure | ✅ Configured             | `wrangler.jsonc` + D1 configured; deployment is separate from V1 proof |
+| macOS native (Electron)    | No                        | ✅ Unsigned .app package verified | Useful for local provider transport; signed `.dmg`/notarization is post-V1 distribution work |
+| iOS native (Capacitor)     | No                        | ✅ Build verified         | Build scaffolding exists; distribution profile/device E2E are post-V1 |
+| Android native (Capacitor) | No                        | ✅ Build verified         | Debug build exists; release keystore/store submission are post-V1 |
+
+Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). Those paths are documented for distribution readiness, but V1 acceptance does not depend on signed native artifacts.
 
 ## 1. What is edgecase-cockpit?
 
-`edgecase-cockpit` is a unified chat interface for both cloud LLM APIs and local/self-hosted inference endpoints. It is a **TanStack Start + React + Cloudflare Workers** application with SSR.
+`edgecase-cockpit` is a local-first/BYOC AI control surface. Its first release proves that a user can inspect a user-configured generic local OpenAI-compatible endpoint, understand what is available or missing, perform one safe local model-list action, see the result/system state, and recover from failure. It is a **TanStack Start + React + Cloudflare Workers** application with SSR.
 
 **Offline-first privacy model:** Chats, threads, and messages are stored in `localStorage` by default (device-local). When a user is authenticated and opts in to sync (globally via settings or per-thread), threads are stored in D1 with encrypted provider keys. RAG vector/text data remains device-local. D1 stores: user accounts, encrypted provider keys, user settings, usage statistics, and synced threads when explicitly enabled. Guest users work entirely locally and cannot sync to D1.
 
@@ -39,7 +60,7 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 **Implemented and source-backed:**
 
 - Full chat cockpit: streaming responses, message editing/deletion, regeneration from any point
-- 15 provider definitions (8 cloud + 7 local) with proxy-based routing
+- Provider infrastructure definitions (8 cloud + 7 local) with proxy/direct routing; these are implementation candidates and compatibility surfaces, while the V1 commitment is the generic local OpenAI-compatible endpoint path
 - **Real user accounts** (register, login, logout, `/api/auth/me`) with PBKDF2-HMAC-SHA256 password hashing and a `/auth` route UI for email/password signup and sign-in
 - **Guest mode** (no account required) with data claim into a new account on registration or login
 - **AES-256-GCM encrypted provider keys** stored in D1 per user (`user_provider_keys`)
@@ -75,6 +96,23 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 - **540+ tests across 35+ test files** (as of this writing; verified by `bun run test`)
 
 Sources: all files in `src/`, `src/live/providers.live.test.ts`, `src/lib/*.test.ts`, `src/routes/api/*.test.ts`.
+
+---
+
+## 2a. V1 E2E promise map
+
+The focused V1 browser E2E now proves the loop below for a user-configured generic local OpenAI-compatible endpoint through deterministic Playwright mocks, without OpenAI, cloud provider keys, OAuth, marketplace scope, signed native builds, live provider accounts, unrelated agent infrastructure, or a real local daemon in CI:
+
+1. A fresh guest can start the local-first path without signing in.
+2. The UI foregrounds a configurable local OpenAI-compatible endpoint rather than a named provider preset.
+3. The endpoint contract includes a configurable base URL, model-list endpoint, and chat-completions-compatible endpoint.
+4. The target shows a local capability state: checking, reachable, unreachable, misconfigured, no-models, hosted-HTTPS-blocked, mobile-localhost-mismatch, ready, or failed.
+5. The state explains what was detected, what is missing, and the next required configuration or recovery action.
+6. The safe model-list action can run against deterministic mocked/local test responses.
+7. Success shows model-list result and system state.
+8. Empty models, malformed responses, unreachable endpoints, bad base URLs, timeout/abort, and hosted HTTPS local HTTP blocking show recoverable failure states.
+9. Fixing configuration and retrying can move the target from failure to ready.
+10. The V1 path never requires a cloud API key, OAuth/social login, marketplace install, signed native build, live provider account, unrelated agent infrastructure, or real local daemon in CI.
 
 ---
 
@@ -268,25 +306,27 @@ Sources: `src/hooks/use-chat.ts`, `src/lib/cockpit-store.ts`, `src/lib/providers
 
 ---
 
-## 6. Provider support and capability matrix
+## 6. Provider infrastructure and V1 proof target
 
-| Provider                   | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Type  | Body style |
-| -------------------------- | ---- | ------ | ----- | --------------- | ---------- | ------ | ------------- | ----- | ---------- |
-| OpenAI                     | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Cloud | openai     |
-| Anthropic                  | ✅   | ✅     | ✅    | ✅              | ❌         | ✅     | ❌            | Cloud | anthropic  |
-| Google Gemini              | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Cloud | openai     |
-| Moonshot / KimiCoding      | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Cloud | openai     |
-| OpenRouter                 | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Cloud | openai     |
-| Ollama Cloud               | ✅   | ✅     | ❌    | ❌              | ✅         | ❌     | ❌            | Cloud | openai     |
-| NVIDIA NIM                 | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
-| Vercel AI Gateway          | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
-| Ollama (local)             | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
-| LM Studio                  | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
-| Hermes                     | ✅   | ✅     | ✅    | ❌              | ✅         | ❌     | ❌            | Local | openai     |
-| OpenClaw                   | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Local | openai     |
-| vLLM                       | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
-| llama.cpp server           | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
-| Custom (OpenAI-compatible) | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ✅            | Local | openai     |
+The V1 proof target is a user-configured generic local OpenAI-compatible endpoint. This is a declared product decision made now, not recovered from prior named-provider evidence. Existing providers are implementation candidates, compatibility surfaces, or future named presets; they are not V1 commitments. Hermes Agent, OpenClaw, Ollama, LM Studio, vLLM, llama.cpp, and other named providers are not the V1 proof set.
+
+| Provider                   | V1 role | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Type  | Body style |
+| -------------------------- | ------- | ---- | ------ | ----- | --------------- | ---------- | ------ | ------------- | ----- | ---------- |
+| Hermes Agent (`hermes`)    | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ✅         | ❌     | ❌            | Local | openai     |
+| OpenClaw                   | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Local | openai     |
+| Ollama (local)             | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| OpenAI                     | Supported infrastructure | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Cloud | openai     |
+| Anthropic                  | Supported infrastructure | ✅   | ✅     | ✅    | ✅              | ❌         | ✅     | ❌            | Cloud | anthropic  |
+| Google Gemini              | Supported infrastructure | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Cloud | openai     |
+| Moonshot / KimiCoding      | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Cloud | openai     |
+| OpenRouter                 | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Cloud | openai     |
+| Ollama Cloud               | Supported infrastructure | ✅   | ✅     | ❌    | ❌              | ✅         | ❌     | ❌            | Cloud | openai     |
+| NVIDIA NIM                 | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
+| Vercel AI Gateway          | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
+| LM Studio                  | Catalog candidate/future preset; not V1 | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| vLLM                       | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| llama.cpp server           | Catalog candidate/future preset; not V1 | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| Custom (OpenAI-compatible) | Implementation surface for the generic local endpoint; not a named-provider V1 preset | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ✅            | Local | openai     |
 
 **Streaming tools** is implemented client-side via `StreamToolCallAccumulator` (OpenAI body style) and `AnthropicStreamToolCallAccumulator` + `extractAnthropicToolCallDelta` (Anthropic body style). Gemini uses the OpenAI-compatible path. Providers without `streamingTools: true` in their capability flags fall back to non-streaming when tools are present.
 
@@ -599,6 +639,7 @@ bun run build         # vite build
 - **Setup:** `src/test/setup.ts` — imports `@testing-library/jest-dom`
 - **Current count:** 540+ tests, 35+ test files (including unit, API route, and Playwright E2E smoke tests)
 - **Credential-free:** All normal tests run without any provider API keys; E2E smoke tests run against a local dev server without external credentials
+- **V1 E2E requirement:** focused browser E2E must prove the generic local OpenAI-compatible endpoint model-list loop with deterministic mocked/local test responses and must fail if the first loop requires OpenAI, any cloud key, OAuth, marketplace install, signed native builds, live provider accounts, unrelated agent infrastructure, or a real local daemon in CI
 - **Coverage areas:** CSRF, CSP, rate limiting (D1 + Durable Object + in-memory backends, preset limiters), storage limits, proxy guard, providers, tools (schema registry, discovery, permissions, name validation, arg sanitization, streaming accumulators, execution gate), vector store (chunking, add/remove/search/clear, cross-tab sync), tokens (exact extraction, heuristic, cost estimation, pricing cache), cockpit store (defaults, normalization, sync flags, migration, onboarding), chat hook (offline queue, error handling, provider status, server-side tool fallback), keyboard shortcuts, chat input, greeting, RAG/proxy integration, API routes
 
 ### Live provider tests (opt-in)
@@ -749,9 +790,9 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 
 ---
 
-## 17. V1 native release status
+## 17. Native release status (non-V1 hardening)
 
-**Native build scaffolding is verified for iOS and Android; Electron compile and native-shell are verified; full packaging/signing requires external certificates and a GUI/CI environment.**
+**Native build scaffolding is verified for iOS and Android; Electron compile and native-shell are verified; full packaging/signing requires external certificates and a GUI/CI environment. Native signing, store submission, and device E2E are not V1 product promises.**
 
 The following native packaging tooling is present in this repository:
 
@@ -839,11 +880,11 @@ The hybrid architecture requires each native platform to allow direct HTTP reque
 
 ### Onboarding Flow
 
-Edgecase Cockpit includes a guided onboarding experience for new users:
+Edgecase Cockpit includes a guided onboarding experience for new users. For V1, onboarding should foreground the user-configured generic local OpenAI-compatible endpoint path; cloud provider setup is secondary infrastructure.
 
 1. **Welcome Screen**: Explains what Edgecase Cockpit is and its purpose
-2. **Provider Selection**: Choose from cloud providers (OpenAI, Anthropic, etc.) or local providers (Ollama, LM Studio, etc.)
-3. **Provider Setup**: Get clear instructions on how to configure your chosen provider
+2. **Local endpoint configuration**: Start with the generic local OpenAI-compatible endpoint path
+3. **Local capability setup**: Get clear instructions for base URL/model configuration and the safe model-list action
 
 Onboarding can be completed or skipped at any time (via the **Skip for Now** button or the close control).
 
@@ -864,12 +905,12 @@ store.resetOnboarding();
 
 ### Provider Configuration
 
-The onboarding flow guides users to:
+The V1 onboarding path guides users to:
 
-1. **Set up API keys** for cloud providers in Settings
-2. **Configure base URLs** for local providers if needed
-3. **Select models** and other provider-specific options
-4. **Test connections** where supported
+1. **Detect or configure local capability** for the generic local OpenAI-compatible endpoint
+2. **Configure the base URL** for the local endpoint
+3. **List models** through the safe bounded model-list action
+4. **Recover from unavailable/misconfigured states** without needing cloud keys, OAuth, live provider accounts, signed native builds, marketplace scope, unrelated agent infrastructure, or an account
 
 All provider configuration is done through the standard Settings interface.
 

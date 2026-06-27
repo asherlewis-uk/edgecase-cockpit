@@ -1,6 +1,17 @@
 import { useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api-base";
-import { PROVIDERS, getProvider, type ProviderDef } from "@/lib/providers";
+import {
+  PROVIDERS,
+  getProvider,
+  deriveLocalCapabilityState,
+  V1_LOCAL_OPENAI_COMPAT_ENDPOINT_ID,
+  V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID,
+  type DetectResult,
+  type LocalCapabilityEnvironment,
+  type LocalCapabilityState,
+  type ModelListProbeResult,
+  type ProviderDef,
+} from "@/lib/providers";
 import type { ToolCall, ToolResult } from "@/lib/tools";
 import { setCostOverrides } from "@/lib/tokens";
 import { loadVectorStoreForUser, clearVectorStoreCache } from "@/lib/vector-store";
@@ -1384,6 +1395,34 @@ export function isProviderReady(settings: Settings, id?: string): boolean {
   const onServer = state.providerKeyStatus[r.provider.id];
   if (r.provider.needsApiKey && !r.apiKey && !onServer) return false;
   return !!r.baseUrl;
+}
+
+export function deriveV1LocalEndpointCapabilityState(
+  settings: Settings,
+  input: {
+    detect?: DetectResult;
+    modelList?: ModelListProbeResult;
+    checking?: boolean;
+    environment?: LocalCapabilityEnvironment;
+  } = {},
+): LocalCapabilityState {
+  const provider = getProvider(V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID);
+  const cfg = settings.providers[provider.id] ?? { apiKey: "" };
+  const baseUrl = (cfg.baseUrl?.trim() || provider.defaultBaseUrl).replace(/\/+$/, "");
+  const model = cfg.model?.trim();
+
+  return deriveLocalCapabilityState({
+    endpointId: V1_LOCAL_OPENAI_COMPAT_ENDPOINT_ID,
+    providerId: provider.id,
+    baseUrl,
+    model,
+    chatPath: provider.chatPath,
+    modelsPath: provider.modelsPath,
+    detect: input.detect,
+    modelList: input.modelList,
+    checking: input.checking,
+    environment: input.environment,
+  });
 }
 
 export function providerHasKey(id: string): boolean {

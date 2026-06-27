@@ -10,6 +10,7 @@ import {
   recordTokenUsage,
   getProviderStats,
   subscribeProviderStats,
+  deriveV1LocalEndpointCapabilityState,
   store,
   __resetHydration,
 } from "@/lib/cockpit-store";
@@ -479,6 +480,34 @@ describe("resolveProvider", () => {
     };
     const result = resolveProvider(settings, "openai");
     expect(result.model).toBe(PROVIDERS.find((p) => p.id === "openai")?.defaultModel);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveV1LocalEndpointCapabilityState
+// ---------------------------------------------------------------------------
+describe("deriveV1LocalEndpointCapabilityState", () => {
+  it("derives generic local OpenAI-compatible endpoint state without cloud keys or auth", () => {
+    const settings = normalizeSettings({
+      providers: {
+        custom: {
+          baseUrl: "http://localhost:8000/",
+          model: "local-model",
+        },
+      },
+    });
+
+    const state = deriveV1LocalEndpointCapabilityState(settings, {
+      detect: { ok: true, status: 200 },
+      environment: { pageProtocol: "http:", isMobile: false },
+    });
+
+    expect(state.endpointId).toBe("local-openai-compatible");
+    expect(state.providerId).toBe("custom");
+    expect(state.status).toBe("ready");
+    expect(state.modelCount).toBe(1);
+    expect(state.models).toEqual([{ id: "local-model" }]);
+    expect(state.raw?.baseUrl).toBe("http://localhost:8000");
   });
 });
 

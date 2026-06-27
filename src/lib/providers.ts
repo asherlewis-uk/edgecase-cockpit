@@ -348,6 +348,309 @@ export function getProvider(id: string | undefined | null): ProviderDef {
 
 export type Model = { id: string; label?: string };
 
+export const V1_LOCAL_OPENAI_COMPAT_ENDPOINT_ID = "local-openai-compatible";
+export const V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID = "custom";
+
+export type LocalCapabilityStatus =
+  | "checking"
+  | "reachable"
+  | "unreachable"
+  | "misconfigured"
+  | "no-models"
+  | "hosted-HTTPS-blocked"
+  | "mobile-localhost-mismatch"
+  | "ready"
+  | "failed";
+
+export type ModelListProbeResult = {
+  status: "checking" | "success" | "empty" | "malformed" | "unreachable" | "failed";
+  models?: Model[];
+  statusCode?: number;
+  error?: string;
+  raw?: unknown;
+};
+
+export type LocalCapabilityEnvironment = {
+  pageProtocol?: string;
+  isMobile?: boolean;
+  isNative?: boolean;
+};
+
+export type LocalCapabilityState = {
+  endpointId: string;
+  providerId?: string;
+  status: LocalCapabilityStatus;
+  label: string;
+  reason: string;
+  nextAction: string;
+  actionable: boolean;
+  modelCount?: number;
+  models?: Model[];
+  raw?: {
+    baseUrl?: string;
+    status?: number;
+    error?: string;
+    detect?: DetectResult;
+    modelList?: ModelListProbeResult;
+    modelSource?: "model-list" | "configured";
+  };
+};
+
+export type LocalCapabilityStateInput = {
+  endpointId?: string;
+  providerId?: string;
+  baseUrl?: string;
+  model?: string;
+  chatPath?: string;
+  modelsPath?: string;
+  detect?: DetectResult;
+  modelList?: ModelListProbeResult;
+  checking?: boolean;
+  environment?: LocalCapabilityEnvironment;
+};
+
+function browserCapabilityEnvironment(): LocalCapabilityEnvironment {
+  if (typeof window === "undefined") return {};
+  return {
+    pageProtocol: window.location?.protocol,
+    isMobile:
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent),
+  };
+}
+
+function localCapabilityRaw(input: LocalCapabilityStateInput, baseUrl?: string) {
+  return {
+    baseUrl,
+    status: input.modelList?.statusCode ?? input.detect?.status,
+    error: input.modelList?.error ?? input.detect?.error,
+    detect: input.detect,
+    modelList: input.modelList,
+  };
+}
+
+function localEndpointHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+function usableModels(models: Model[] | undefined): Model[] {
+  return (models ?? []).filter((model) => model.id.trim().length > 0);
+}
+
+export function deriveLocalCapabilityState(input: LocalCapabilityStateInput): LocalCapabilityState {
+  const endpointId = input.endpointId ?? V1_LOCAL_OPENAI_COMPAT_ENDPOINT_ID;
+  const baseUrl = input.baseUrl?.trim().replace(/\/+$/, "");
+  const raw = localCapabilityRaw(input, baseUrl);
+  const state = (
+    status: LocalCapabilityStatus,
+    label: string,
+    reason: string,
+    nextAction: string,
+    actionable: boolean,
+    extra: Partial<LocalCapabilityState> = {},
+  ): LocalCapabilityState => ({
+    endpointId,
+    providerId: input.providerId,
+    status,
+    label,
+    reason,
+    nextAction,
+    actionable,
+    raw,
+    ...extra,
+  });
+
+  if (input.checking || input.modelList?.status === "checking") {
+    return state(
+      "checking",
+      "Checking local endpoint",
+      "The endpoint capability check is still running.",
+      "Wait for the check to finish.",
+      false,
+    );
+  }
+
+  if (!baseUrl) {
+    return state(
+      "misconfigured",
+      "Endpoint needs a base URL",
+      "No local OpenAI-compatible base URL is configured.",
+      "Enter the local endpoint base URL.",
+      true,
+    );
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(baseUrl);
+  } catch {
+    return state(
+      "misconfigured",
+      "Endpoint URL is invalid",
+      "The configured base URL is not a valid URL.",
+      "Use an absolute http:// or https:// URL.",
+      true,
+    );
+  }
+
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    return state(
+      "misconfigured",
+      "Endpoint protocol is unsupported",
+      "The local OpenAI-compatible endpoint must use http:// or https://.",
+      "Update the base URL protocol.",
+      true,
+    );
+  }
+
+  if (!input.modelsPath) {
+    return state(
+      "misconfigured",
+      "Model-list path is missing",
+      "The endpoint contract needs a model-list endpoint.",
+      "Configure a /v1/models-compatible model-list path.",
+      true,
+    );
+  }
+
+  if (!input.chatPath) {
+    return state(
+      "misconfigured",
+      "Chat completions path is missing",
+      "The endpoint contract needs a chat-completions-compatible path.",
+      "Configure a /v1/chat/completions-compatible path.",
+      true,
+    );
+  }
+
+  const environment = { ...browserCapabilityEnvironment(), ...input.environment };
+  const isLocalEndpoint = localEndpointHost(parsedUrl.hostname);
+
+  if (
+    !environment.isNative &&
+    environment.pageProtocol === "https:" &&
+    parsedUrl.protocol === "http:" &&
+    isLocalEndpoint
+  ) {
+    return state(
+      "hosted-HTTPS-blocked",
+      "Hosted HTTPS blocks local HTTP",
+      "A hosted HTTPS page cannot directly fetch an insecure localhost HTTP endpoint.",
+      "Use a native app, a localhost-safe context, or a supported LAN URL/bridge. Direct loopback is allowed for http://localhost, http://127.0.0.1, or http://[::1] only when CSP and browser context permit it.",
+      true,
+    );
+  }
+
+  if (environment.isMobile && isLocalEndpoint) {
+    return state(
+      "mobile-localhost-mismatch",
+      "Localhost points at this device",
+      "On mobile, localhost refers to the phone or tablet, not the computer running the model server.",
+      "Use the model host computer's local network IP address.",
+      true,
+    );
+  }
+
+  if (input.modelList) {
+    const models = usableModels(input.modelList.models);
+    if (input.modelList.status === "success" && models.length > 0) {
+      return state(
+        "ready",
+        "Endpoint ready",
+        `The model-list endpoint returned ${models.length} usable model(s).`,
+        "Use one of the reported models or rerun the model-list check after changes.",
+        true,
+        { modelCount: models.length, models, raw: { ...raw, modelSource: "model-list" } },
+      );
+    }
+
+    if (input.modelList.status === "success" || input.modelList.status === "empty") {
+      return state(
+        "no-models",
+        "No models reported",
+        "The endpoint was reachable, but the model-list endpoint returned no usable models.",
+        "Load or configure a model in the local runtime, then retry the model-list check.",
+        true,
+        { modelCount: 0, models: [] },
+      );
+    }
+
+    if (input.modelList.status === "malformed") {
+      return state(
+        "failed",
+        "Model-list response is malformed",
+        "The endpoint responded, but the response did not match an OpenAI-compatible model-list shape.",
+        "Check that the base URL points to an OpenAI-compatible runtime.",
+        true,
+      );
+    }
+
+    if (input.modelList.status === "unreachable") {
+      return state(
+        "unreachable",
+        "Model-list endpoint unreachable",
+        input.modelList.error ?? "The browser could not reach the model-list endpoint.",
+        "Check the base URL, make sure the local runtime is running, then retry the model-list check.",
+        true,
+      );
+    }
+
+    return state(
+      "failed",
+      "Model-list check failed",
+      input.modelList.error ??
+        "The model-list check failed before usable model state was returned.",
+      "Fix the endpoint configuration or runtime, then retry the model-list check.",
+      true,
+    );
+  }
+
+  if (input.detect) {
+    if (!input.detect.ok) {
+      return state(
+        "unreachable",
+        "Endpoint unreachable",
+        input.detect.error ?? `The endpoint returned status ${input.detect.status ?? "unknown"}.`,
+        "Check the base URL and make sure the local runtime is running.",
+        true,
+      );
+    }
+
+    const configuredModel = input.model?.trim();
+    if (configuredModel) {
+      return state(
+        "ready",
+        "Endpoint reachable with configured model",
+        `The endpoint is reachable and model "${configuredModel}" is configured locally.`,
+        "Run the model-list check to confirm the runtime can report usable model state.",
+        true,
+        {
+          modelCount: 1,
+          models: [{ id: configuredModel }],
+          raw: { ...raw, modelSource: "configured" },
+        },
+      );
+    }
+
+    return state(
+      "reachable",
+      "Endpoint reachable",
+      "The endpoint can be reached, but usable model state has not been confirmed.",
+      "Run the model-list check or configure a model.",
+      true,
+    );
+  }
+
+  return state(
+    "checking",
+    "Checking local endpoint",
+    "No endpoint reachability or model-list result is available yet.",
+    "Run the endpoint reachability check.",
+    false,
+  );
+}
+
 export type ProviderCallOpts = {
   provider: ProviderDef;
   apiKey: string;
@@ -540,6 +843,153 @@ export type DetectResult = { ok: boolean; status?: number; error?: string };
 
 import { csrfHeaders } from "@/lib/cockpit-store";
 import { apiFetch, directFetch } from "@/lib/api-base";
+
+export type ModelListProbeOptions = {
+  provider: ProviderDef;
+  baseUrl: string;
+  modelsPath?: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>;
+};
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeModelsPath(path: string): string {
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+function extractOpenAIModels(raw: unknown): ModelListProbeResult {
+  if (!isObjectRecord(raw) || !Array.isArray(raw.data)) {
+    return {
+      status: "malformed",
+      error: "Response did not include an OpenAI-compatible data[] model list.",
+      raw,
+    };
+  }
+
+  const models = raw.data.flatMap((item): Model[] => {
+    if (!isObjectRecord(item) || typeof item.id !== "string" || !item.id.trim()) {
+      return [];
+    }
+    const label =
+      typeof item.label === "string"
+        ? item.label
+        : typeof item.name === "string"
+          ? item.name
+          : undefined;
+    return [{ id: item.id.trim(), ...(label ? { label } : {}) }];
+  });
+
+  return models.length > 0
+    ? { status: "success", models, raw }
+    : { status: "empty", models: [], raw };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || "Request failed");
+}
+
+export async function probeLocalOpenAICompatibleModels({
+  provider,
+  baseUrl,
+  modelsPath = provider.modelsPath,
+  timeoutMs = 5_000,
+  signal,
+  fetchImpl = directFetch,
+}: ModelListProbeOptions): Promise<ModelListProbeResult> {
+  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  if (!normalizedBaseUrl) {
+    return {
+      status: "failed",
+      error: "Base URL is required before checking models.",
+    };
+  }
+
+  let parsedBaseUrl: URL;
+  try {
+    parsedBaseUrl = new URL(normalizedBaseUrl);
+  } catch {
+    return {
+      status: "failed",
+      error: "Base URL must be an absolute http:// or https:// URL.",
+    };
+  }
+
+  if (parsedBaseUrl.protocol !== "http:" && parsedBaseUrl.protocol !== "https:") {
+    return {
+      status: "failed",
+      error: "Base URL must use http:// or https:// before checking models.",
+    };
+  }
+
+  if (!modelsPath?.trim()) {
+    return {
+      status: "failed",
+      error: "Model-list path is required before checking models.",
+    };
+  }
+
+  if (signal?.aborted) {
+    return { status: "failed", error: "Model-list check was aborted." };
+  }
+
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, timeoutMs);
+  const abort = () => ctrl.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+
+  try {
+    const response = await fetchImpl(`${normalizedBaseUrl}${normalizeModelsPath(modelsPath)}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: ctrl.signal,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return {
+        status: "failed",
+        statusCode: response.status,
+        error: text ? `HTTP ${response.status}: ${text.slice(0, 200)}` : `HTTP ${response.status}`,
+      };
+    }
+
+    const raw = await response.json().catch(() => undefined);
+    if (raw === undefined) {
+      return {
+        status: "malformed",
+        statusCode: response.status,
+        error: "Response body was not valid JSON.",
+      };
+    }
+
+    return { ...extractOpenAIModels(raw), statusCode: response.status };
+  } catch (error) {
+    if (timedOut) {
+      return {
+        status: "failed",
+        error: `Model-list check timed out after ${timeoutMs}ms.`,
+      };
+    }
+    if (signal?.aborted) {
+      return { status: "failed", error: "Model-list check was aborted." };
+    }
+    return {
+      status: "unreachable",
+      error: errorMessage(error),
+    };
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
+}
 
 /** Reachability probe. Local providers are checked directly (zero proxy calls);
  *  cloud providers go through the server proxy. */

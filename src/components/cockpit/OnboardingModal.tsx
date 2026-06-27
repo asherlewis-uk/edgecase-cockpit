@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { X, ArrowRight, Settings as SettingsIcon, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, store, PROVIDERS } from "@/lib/cockpit-store";
+import { V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID } from "@/lib/providers";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,8 @@ export function OnboardingModal() {
 
   const cloudProviders = PROVIDERS.filter((p) => p.type === "cloud");
   const localProviders = PROVIDERS.filter((p) => p.type === "local");
+  const selectedProvider = PROVIDERS.find((p) => p.id === selectedProviderId);
+  const selectedIsV1Endpoint = selectedProvider?.id === V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID;
 
   const handleCompleteOnboarding = () => {
     store.completeOnboarding();
@@ -44,16 +47,20 @@ export function OnboardingModal() {
           <DialogHeader>
             <DialogTitle className="text-2xl font-light tracking-tight">
               {step === "welcome" && "Welcome to Edgecase Cockpit"}
-              {step === "providers" && "Choose Your AI Provider"}
-              {step === "setup" && "Set Up Your Provider"}
+              {step === "providers" && "Start With Local Endpoint"}
+              {step === "setup" &&
+                (selectedIsV1Endpoint ? "Set Up Local Endpoint" : "Set Up Provider")}
             </DialogTitle>
           </DialogHeader>
           <DialogDescription className="sr-only">
             {step === "welcome" &&
-              "Welcome to Edgecase Cockpit. Get started by selecting an AI provider or skip for now."}
+              "Welcome to Edgecase Cockpit. Get started with a local OpenAI-compatible endpoint or skip for now."}
             {step === "providers" &&
-              "Choose a cloud or local AI provider to connect to your cockpit."}
-            {step === "setup" && "Configure your selected provider with an API key or base URL."}
+              "Configure the V1 local endpoint path first; named providers remain optional presets."}
+            {step === "setup" &&
+              (selectedIsV1Endpoint
+                ? "Configure your local endpoint with a base URL and model."
+                : "Configure your selected provider with an API key or base URL.")}
           </DialogDescription>
           <Button
             variant="ghost"
@@ -71,18 +78,19 @@ export function OnboardingModal() {
           <div className="space-y-6">
             <div className="space-y-4">
               <p className="text-white/80 leading-relaxed">
-                Edgecase Cockpit is your personal AI control surface. Connect to cloud and local AI
-                providers, chat seamlessly, and manage your conversations in one place.
+                Edgecase Cockpit is your local-first AI control surface. V1 starts with a
+                user-configured generic local OpenAI-compatible endpoint, then explains what is
+                available, missing, and recoverable.
               </p>
               <p className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/70 leading-relaxed">
                 <Lock className="mr-1.5 inline size-3.5 text-amber-300" />
-                Provider API keys are encrypted and stored per-account. Create a free account (or
-                sign in) when you&#39;re ready to save keys and sync settings. You can also skip and
-                explore locally first.
+                The V1 local endpoint path does not require signing in, OpenAI, cloud API keys,
+                OAuth, marketplace installs, signed native builds, or live provider accounts.
+                Accounts are only for optional encrypted key storage and sync.
               </p>
               <p className="text-white/80 leading-relaxed">
-                Whether you're using OpenAI, Anthropic, or running local models with Ollama or LM
-                Studio, Cockpit provides a unified interface for all your AI interactions.
+                Named providers can remain available as catalog presets, but they are secondary to
+                the V1 generic local endpoint loop.
               </p>
             </div>
 
@@ -108,13 +116,16 @@ export function OnboardingModal() {
         {step === "providers" && (
           <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
             <p className="text-white/80">
-              Select a provider to get started. You can add more later in Settings.
+              Start with the V1 generic local endpoint. You can still use named provider presets
+              later from Settings.
             </p>
 
             <div className="space-y-4">
-              <h3 className="text-sm uppercase tracking-wider text-white/50">Cloud Providers</h3>
+              <h3 className="text-sm uppercase tracking-wider text-white/50">
+                Local endpoint and presets
+              </h3>
               <div className="grid gap-3 sm:grid-cols-2">
-                {cloudProviders.map((provider) => (
+                {localProviders.map((provider) => (
                   <button
                     key={provider.id}
                     onClick={() => {
@@ -134,9 +145,9 @@ export function OnboardingModal() {
                         {provider.badge}
                       </div>
                       <span className="font-medium text-white">{provider.name}</span>
-                      {provider.id === "openai" && (
+                      {provider.id === V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID && (
                         <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-white/70">
-                          Recommended
+                          V1 target
                         </span>
                       )}
                     </div>
@@ -147,11 +158,12 @@ export function OnboardingModal() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm uppercase tracking-wider text-white/50">
-                Local / Self-hosted
-              </h3>
+              <h3 className="text-sm uppercase tracking-wider text-white/50">Cloud providers</h3>
+              <p className="text-xs text-white/50">
+                Cloud providers are supported infrastructure, not required for the V1 local loop.
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                {localProviders.map((provider) => (
+                {cloudProviders.map((provider) => (
                   <button
                     key={provider.id}
                     onClick={() => {
@@ -208,28 +220,35 @@ export function OnboardingModal() {
                   {PROVIDERS.find((p) => p.id === selectedProviderId)?.badge}
                 </div>
                 <div>
-                  <h3 className="text-xl font-medium text-white">
-                    {PROVIDERS.find((p) => p.id === selectedProviderId)?.name}
-                  </h3>
-                  <p className="text-sm text-white/60">
-                    {PROVIDERS.find((p) => p.id === selectedProviderId)?.description}
-                  </p>
+                  <h3 className="text-xl font-medium text-white">{selectedProvider?.name}</h3>
+                  <p className="text-sm text-white/60">{selectedProvider?.description}</p>
                 </div>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
                 <p className="text-white/80 mb-3">
-                  To use {PROVIDERS.find((p) => p.id === selectedProviderId)?.name}, you'll need to:
+                  To use {selectedProvider?.name}, you&#39;ll need to:
                 </p>
                 <ol className="space-y-2 text-sm text-white/80">
-                  <li>1. Create a free account or sign in</li>
-                  <li>2. Set up an API key in Settings</li>
-                  <li>3. Configure any required base URLs or model preferences</li>
-                  <li>4. Save your configuration</li>
+                  {selectedIsV1Endpoint ? (
+                    <>
+                      <li>1. Configure the local endpoint base URL in Settings</li>
+                      <li>2. Configure or confirm the local model name</li>
+                      <li>3. Review the capability state, reason, and next required action</li>
+                      <li>4. Run the safe model-list check when that action is available</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>1. Create a free account or sign in if you want to save keys</li>
+                      <li>2. Set up any required API key in Settings</li>
+                      <li>3. Configure any required base URLs or model preferences</li>
+                      <li>4. Save your configuration</li>
+                    </>
+                  )}
                 </ol>
               </div>
 
-              {PROVIDERS.find((p) => p.id === selectedProviderId)?.needsApiKey && (
+              {selectedProvider?.needsApiKey && (
                 <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
                   <p className="text-sm text-amber-200">
                     <span className="font-medium">API Key Required:</span> This provider needs an

@@ -25,13 +25,18 @@ import {
   resetProviderStats,
   deriveInitials,
   getProviderValidationStatus,
+  deriveV1LocalEndpointCapabilityState,
 } from "@/lib/cockpit-store";
 import { apiFetch } from "@/lib/api-base";
 import {
   detectProvider,
+  probeLocalOpenAICompatibleModels,
+  V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID,
   type ProviderDef,
   type Capability,
   type DetectResult,
+  type LocalCapabilityStatus,
+  type ModelListProbeResult,
 } from "@/lib/providers";
 import { toast } from "sonner";
 import { csrfHeaders } from "@/lib/cockpit-store";
@@ -48,7 +53,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { PersonalizationSection as ExtractedPersonalizationSection } from "@/components/cockpit/settings/PersonalizationSection";
 import { ProfileSection as ExtractedProfileSection } from "@/components/cockpit/settings/ProfileSection";
-import { ProviderCard as ExtractedProviderCard } from "@/components/cockpit/settings/ProviderCard";
+import {
+  LocalCapabilitySummary,
+  ProviderCard as ExtractedProviderCard,
+} from "@/components/cockpit/settings/ProviderCard";
 import { UsageSection as ExtractedUsageSection } from "@/components/cockpit/settings/UsageSection";
 import { AccountMenu } from "@/components/cockpit/AccountMenu";
 
@@ -62,6 +70,12 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+const PREFLIGHT_ONLY_STATUSES: LocalCapabilityStatus[] = [
+  "misconfigured",
+  "hosted-HTTPS-blocked",
+  "mobile-localhost-mismatch",
+];
+
 function SettingsPage() {
   const settings = useStore((s) => s.settings);
   const user = useStore((s) => s.user);
@@ -70,7 +84,50 @@ function SettingsPage() {
   const cloud = PROVIDERS.filter((p) => p.type === "cloud");
   const local = PROVIDERS.filter((p) => p.type === "local");
   const [detected, setDetected] = useState<Record<string, DetectResult>>({});
+  const [checkingV1Endpoint, setCheckingV1Endpoint] = useState(false);
+  const [v1ModelListResult, setV1ModelListResult] = useState<ModelListProbeResult | undefined>();
+  const v1ModelProbeAbortRef = useRef<AbortController | null>(null);
   const validationStatuses = useStore((s) => s.providerValidationStatus);
+  const v1Provider = PROVIDERS.find((p) => p.id === V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID) ?? local[0];
+  const v1Config = settings.providers[v1Provider.id] ?? { apiKey: "" };
+  const v1BaseUrl = (v1Config.baseUrl?.trim() || v1Provider.defaultBaseUrl).replace(/\/+$/, "");
+  const v1Model = v1Config.model?.trim() || v1Provider.defaultModel;
+  const v1DetectUrl = v1Provider.modelsPath ? `${v1BaseUrl}${v1Provider.modelsPath}` : undefined;
+  const v1PreflightState = deriveV1LocalEndpointCapabilityState(settings);
+  const shouldDetectV1Endpoint = !PREFLIGHT_ONLY_STATUSES.includes(v1PreflightState.status);
+  const v1CapabilityState = deriveV1LocalEndpointCapabilityState(settings, {
+    detect: detected[v1Provider.id],
+    modelList: v1ModelListResult,
+    checking: checkingV1Endpoint && shouldDetectV1Endpoint,
+  });
+  const modelListChecking = v1ModelListResult?.status === "checking";
+  const canProbeV1Models =
+    shouldDetectV1Endpoint && !!v1Provider.modelsPath && v1CapabilityState.status !== "checking";
+
+  const checkV1Models = async () => {
+    if (!canProbeV1Models) return;
+
+    v1ModelProbeAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    v1ModelProbeAbortRef.current = ctrl;
+    setV1ModelListResult({ status: "checking" });
+
+    const result = await probeLocalOpenAICompatibleModels({
+      provider: v1Provider,
+      baseUrl: v1BaseUrl,
+      modelsPath: v1Provider.modelsPath,
+      signal: ctrl.signal,
+    });
+
+    if (v1ModelProbeAbortRef.current === ctrl) {
+      setV1ModelListResult(result);
+      v1ModelProbeAbortRef.current = null;
+    }
+  };
+
+  const abortV1ModelCheck = () => {
+    v1ModelProbeAbortRef.current?.abort();
+  };
 
   // Show toast notifications for validation status changes
   useEffect(() => {
@@ -96,19 +153,41 @@ function SettingsPage() {
     let cancelled = false;
     (async () => {
       const out: Record<string, DetectResult> = {};
+      setCheckingV1Endpoint(shouldDetectV1Endpoint);
+      setDetected((prev) => {
+        const next = { ...prev };
+        delete next[v1Provider.id];
+        return next;
+      });
       await Promise.all(
-        local
+        PROVIDERS.filter((p) => p.type === "local")
           .filter((p) => p.detectUrl)
           .map(async (p) => {
             out[p.id] = await detectProvider(p);
           }),
       );
-      if (!cancelled) setDetected(out);
+      if (shouldDetectV1Endpoint && v1DetectUrl) {
+        out[v1Provider.id] = await detectProvider({
+          ...v1Provider,
+          detectUrl: v1DetectUrl,
+        });
+      }
+      if (!cancelled) {
+        setDetected(out);
+        setCheckingV1Endpoint(false);
+      }
     })();
     return () => {
       cancelled = true;
+      setCheckingV1Endpoint(false);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shouldDetectV1Endpoint, v1DetectUrl, v1Provider]);
+
+  useEffect(() => {
+    v1ModelProbeAbortRef.current?.abort();
+    v1ModelProbeAbortRef.current = null;
+    setV1ModelListResult(undefined);
+  }, [v1BaseUrl, v1Model, v1Provider.modelsPath]);
 
   return (
     <div className="min-h-[100dvh] bg-black text-white">
@@ -170,7 +249,91 @@ function SettingsPage() {
 
         <KeyboardShortcutsSection />
 
+        <Section title="V1 local endpoint">
+          <div className="space-y-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-cyan-400/15 px-2 py-1 text-[10px] uppercase tracking-wider text-cyan-200">
+                  V1 target
+                </span>
+                <span className="text-sm font-medium text-white">
+                  Generic local OpenAI-compatible endpoint
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-white/70">
+                This first loop uses a user-configured local endpoint. It does not require signing
+                in, OpenAI, cloud API keys, OAuth, marketplace installs, signed native builds, live
+                provider accounts, or a real local daemon in CI.
+              </p>
+              <p className="text-xs text-white/50">
+                Named local providers below remain catalog candidates and future presets. They are
+                not the V1 proof target.
+              </p>
+            </div>
+
+            <LocalCapabilitySummary state={v1CapabilityState} baseUrl={v1BaseUrl} model={v1Model} />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                onClick={() => void checkV1Models()}
+                disabled={!canProbeV1Models || modelListChecking}
+                data-testid="v1-check-models"
+                className="bg-cyan-300 text-black hover:bg-cyan-200 disabled:opacity-50"
+              >
+                {modelListChecking ? "Checking models..." : "Check models"}
+              </Button>
+              {modelListChecking && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={abortV1ModelCheck}
+                  data-testid="v1-abort-model-check"
+                  className="border-white/10 bg-transparent text-white/70 hover:bg-white/10"
+                >
+                  Abort
+                </Button>
+              )}
+              <span className="text-xs text-white/55">
+                Safe model-list probe only. No chat prompt, cloud key, OAuth, marketplace, or
+                account setup is used.
+              </span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-xs text-white/60">
+                Base URL
+                <Input
+                  data-testid="v1-base-url-input"
+                  value={v1Config.baseUrl ?? ""}
+                  onChange={(e) =>
+                    store.updateProviderConfig(v1Provider.id, { baseUrl: e.target.value })
+                  }
+                  placeholder={v1Provider.defaultBaseUrl}
+                  className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+                />
+              </label>
+              <label className="grid gap-1.5 text-xs text-white/60">
+                Model
+                <Input
+                  data-testid="v1-model-input"
+                  value={v1Config.model ?? ""}
+                  onChange={(e) =>
+                    store.updateProviderConfig(v1Provider.id, { model: e.target.value })
+                  }
+                  placeholder={`Model · default ${v1Provider.defaultModel}`}
+                  className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+                />
+              </label>
+            </div>
+          </div>
+        </Section>
+
         <Section title="Cloud providers">
+          <p className="mb-3 text-sm text-white/55">
+            Cloud providers are supported infrastructure. They are not required for the V1 local
+            endpoint loop.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {cloud.map((p) => (
               <ExtractedProviderCard
@@ -183,7 +346,11 @@ function SettingsPage() {
           </div>
         </Section>
 
-        <Section title="Local / Self-hosted">
+        <Section title="Local / self-hosted catalog">
+          <p className="mb-3 text-sm text-white/55">
+            These named entries can stay available as provider presets, but the V1 proof target is
+            the generic local OpenAI-compatible endpoint above.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {local.map((p) => (
               <ExtractedProviderCard

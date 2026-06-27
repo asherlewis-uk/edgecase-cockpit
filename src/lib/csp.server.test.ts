@@ -12,6 +12,9 @@ describe("csp.server", () => {
     expect(csp).toContain("style-src");
     expect(csp).toContain("img-src");
     expect(csp).toContain("connect-src 'self'");
+    expect(csp).toContain("http://localhost:*");
+    expect(csp).toContain("http://127.0.0.1:*");
+    expect(csp).toContain("http://[::1]:*");
   });
 
   it("allows unsafe-inline for scripts in development", () => {

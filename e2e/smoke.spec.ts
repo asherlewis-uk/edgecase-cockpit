@@ -11,7 +11,7 @@ import { test, expect } from "@playwright/test";
 test.describe("smoke", () => {
   test("root page loads with Edgecase Cockpit branding", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Edgecase Cockpit/);
+    await expect(page).toHaveTitle(/Cockpit/);
   });
 
   test("chat page shows greeting and provider status", async ({ page }) => {
@@ -21,8 +21,9 @@ test.describe("smoke", () => {
 
   test("settings page loads provider cards", async ({ page }) => {
     await page.goto("/settings");
-    await expect(page.locator("text=Providers")).toBeVisible();
-    await expect(page.locator("text=OpenAI")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "V1 local endpoint" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cloud providers" })).toBeVisible();
+    await expect(page.getByText("OpenAI").first()).toBeVisible();
   });
 
   test("auth page loads with sign-in and create-account tabs", async ({ page }) => {

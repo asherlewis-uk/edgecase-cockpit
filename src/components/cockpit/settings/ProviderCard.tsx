@@ -25,7 +25,12 @@ import {
   getProviderValidationStatus,
   setProviderValidationStatus,
 } from "@/lib/cockpit-store";
-import { type ProviderDef, type Capability, type DetectResult } from "@/lib/providers";
+import {
+  type ProviderDef,
+  type Capability,
+  type DetectResult,
+  type LocalCapabilityState,
+} from "@/lib/providers";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -36,6 +41,157 @@ const CAP_LABELS: Record<Capability, string> = {
   tools: "Tools",
   streamingTools: "Streaming Tools",
 };
+
+function capabilityTone(status: LocalCapabilityState["status"], modelSource?: string) {
+  if (status === "ready" && modelSource === "model-list") {
+    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200";
+  }
+  if (status === "ready" || status === "reachable") {
+    return "border-cyan-400/30 bg-cyan-400/10 text-cyan-200";
+  }
+  if (status === "checking") {
+    return "border-white/10 bg-white/[0.04] text-white/70";
+  }
+  if (status === "misconfigured" || status === "no-models") {
+    return "border-amber-400/30 bg-amber-400/10 text-amber-200";
+  }
+  return "border-red-400/30 bg-red-400/10 text-red-200";
+}
+
+function capabilityDisplayLabel(state: LocalCapabilityState) {
+  if (state.status === "ready" && state.raw?.modelSource === "model-list") {
+    return "Verified ready";
+  }
+  if (state.status === "ready" && state.raw?.modelSource === "configured") {
+    return "Configured/reachable";
+  }
+  if (state.status === "reachable") {
+    return "Reachable, not verified";
+  }
+  return state.label;
+}
+
+function capabilityBoundaryText(state: LocalCapabilityState) {
+  if (state.status === "ready" && state.raw?.modelSource === "configured") {
+    return "Model availability is not verified until the model-list probe returns usable models.";
+  }
+  if (state.status === "reachable") {
+    return "Basic detection only proves the endpoint can be reached. It does not prove usable model state.";
+  }
+  if (state.status === "hosted-HTTPS-blocked") {
+    return "A hosted web page cannot reach local HTTP localhost directly. Use a native app, a localhost-safe development context, a LAN URL that the browser can reach, or a compatible bridge.";
+  }
+  if (state.status === "mobile-localhost-mismatch") {
+    return "On mobile, localhost points at the mobile device. Use the desktop or server machine's LAN address instead.";
+  }
+  return undefined;
+}
+
+export function LocalCapabilitySummary({
+  state,
+  baseUrl,
+  model,
+}: {
+  state: LocalCapabilityState;
+  baseUrl?: string;
+  model?: string;
+}) {
+  const boundary = capabilityBoundaryText(state);
+  const tone = capabilityTone(state.status, state.raw?.modelSource);
+
+  return (
+    <div data-testid="v1-local-capability" className={`rounded-2xl border p-4 ${tone}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider opacity-70">Capability state</p>
+          <p data-testid="v1-local-capability-label" className="mt-1 text-sm font-medium">
+            {capabilityDisplayLabel(state)}
+          </p>
+        </div>
+        <span className="rounded-full bg-black/20 px-2 py-1 text-[10px] uppercase tracking-wider">
+          {state.status}
+        </span>
+      </div>
+
+      <dl className="mt-3 grid gap-2 text-xs">
+        <div>
+          <dt className="text-white/45">Reason</dt>
+          <dd data-testid="v1-local-capability-reason" className="mt-0.5 text-current">
+            {state.reason}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-white/45">Next required action</dt>
+          <dd data-testid="v1-local-capability-next-action" className="mt-0.5 text-current">
+            {state.nextAction}
+          </dd>
+        </div>
+        {boundary && (
+          <div>
+            <dt className="text-white/45">Boundary</dt>
+            <dd data-testid="v1-local-capability-boundary" className="mt-0.5 text-current">
+              {boundary}
+            </dd>
+          </div>
+        )}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div>
+            <dt className="text-white/45">Configured base URL</dt>
+            <dd className="mt-0.5 break-all font-mono text-[11px] text-white/80">
+              {baseUrl || "Not configured"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-white/45">Configured model</dt>
+            <dd className="mt-0.5 break-all font-mono text-[11px] text-white/80">
+              {model || "Not configured"}
+            </dd>
+          </div>
+        </div>
+        {state.modelCount !== undefined && (
+          <div>
+            <dt className="text-white/45">Model state</dt>
+            <dd className="mt-0.5 text-current">
+              {state.modelCount === 1
+                ? "1 model represented"
+                : `${state.modelCount} models represented`}
+            </dd>
+          </div>
+        )}
+        {state.models && state.models.length > 0 && (
+          <div>
+            <dt className="text-white/45">Reported models</dt>
+            <dd data-testid="v1-local-capability-models" className="mt-1 flex flex-wrap gap-1.5">
+              {state.models.slice(0, 8).map((reportedModel) => (
+                <span
+                  key={reportedModel.id}
+                  className="rounded-full bg-black/20 px-2 py-0.5 font-mono text-[11px] text-white/85"
+                >
+                  {reportedModel.id}
+                </span>
+              ))}
+              {state.models.length > 8 && (
+                <span className="rounded-full bg-black/20 px-2 py-0.5 text-[11px] text-white/70">
+                  +{state.models.length - 8} more
+                </span>
+              )}
+            </dd>
+          </div>
+        )}
+        {(state.raw?.status || state.raw?.error) && (
+          <div>
+            <dt className="text-white/45">Debug detail</dt>
+            <dd data-testid="v1-local-capability-debug" className="mt-0.5 break-all text-current">
+              {[state.raw.status ? `HTTP ${state.raw.status}` : undefined, state.raw.error]
+                .filter(Boolean)
+                .join(" · ")}
+            </dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  );
+}
 
 export function ProviderCard({
   p,

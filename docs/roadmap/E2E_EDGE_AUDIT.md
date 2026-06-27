@@ -1,6 +1,28 @@
-# E2E Edge & Broken-State Audit
+# V1 Local Loop E2E Edge & Broken-State Audit
 
-> **Scope:** Remaining edges, broken states, risky assumptions, and overlooked implementation/config areas that could block "flawless E2E perfection." This audit reflects the current code, tests, CI, and production state; it does not invent future features.
+> **Scope:** Remaining edges, broken states, risky assumptions, and overlooked implementation/config areas that could block the frozen V1 contract. V1 is a local-first/BYOC control loop for one concrete edgecase-cockpit runtime path.
+
+Non-V1 surfaces such as cloud provider live accounts, OpenAI keys, OAuth/social login, marketplace scope, signed native releases, native device E2E, and unrelated agent infrastructure may remain documented as supported infrastructure or future work, but they must not be required for V1 acceptance.
+
+Product decision: the V1 runtime target is a user-configured generic local OpenAI-compatible endpoint. This is a declared decision made now, not recovered from prior named-provider evidence. Hermes Agent, OpenClaw, Ollama, LM Studio, vLLM, llama.cpp, and other named providers remain catalog candidates or future named presets only; they are not V1 commitments.
+
+---
+
+## 0. Exact V1 E2E promise map
+
+Focused browser E2E must prove the following for the user-configured generic local OpenAI-compatible endpoint without OpenAI, cloud API keys, OAuth, marketplace scope, signed native builds, live provider accounts, unrelated agent infrastructure, or a real local daemon in CI:
+
+| Step | V1 promise | Proof requirement |
+| --- | --- | --- |
+| 1 | Fresh guest can start local-first | No account prompt, cloud key, or OAuth gate blocks the first loop |
+| 2 | V1 proof target is explicit | UI names a configurable local OpenAI-compatible endpoint rather than a named provider preset |
+| 3 | Endpoint contract is explicit | Base URL, model-list endpoint, and chat-completions-compatible endpoint are represented without a required cloud API key |
+| 4 | Local capability is detected | The target enters a visible state: checking, reachable, unreachable, misconfigured, no-models, hosted-HTTPS-blocked, mobile-localhost-mismatch, ready, or failed |
+| 5 | State is explained | The UI says what was detected, what is unavailable, and what config/recovery action is required |
+| 6 | Safe action is controlled | User can run a model-list probe with timeout/abort behavior |
+| 7 | Result/system state is visible | Success shows returned models and ready/system state |
+| 8 | Failure recovers cleanly | Empty models, malformed response, unreachable endpoint, bad base URL, timeout/abort, and hosted HTTPS local HTTP block produce visible recoverable states |
+| 9 | Config retry works | Updating base URL/config and retrying can move a target from failure to ready |
 
 ---
 
@@ -9,9 +31,10 @@
 | Item | Status | Evidence | User impact | Suggested next action | Implementation required? |
 | --- | --- | --- | --- | --- | --- |
 | Onboarding modal appears on first load | Verified | `OnboardingModal.test.tsx`, `src/components/cockpit/OnboardingModal.tsx` | Good first-run experience. | None. | No |
-| Missing provider keys surface a clear warning | Verified | `Greeting.tsx`, `ProviderStatus.tsx` | User knows setup is needed. | None. | No |
+| V1 proof target named | Decided | Canonical V1 target is a user-configured generic local OpenAI-compatible endpoint; this is a declared product decision, not recovered historical intent | User sees one concrete local/BYOC path instead of generic all-provider chat or unrelated agent infrastructure | Keep named providers as catalog candidates/future presets only. | No |
+| Missing provider keys surface a clear warning | Verified, non-V1 for local loop | `Greeting.tsx`, `ProviderStatus.tsx` | Useful for cloud/provider infrastructure. | Keep secondary; do not make cloud keys part of V1. | No |
 | Invalid provider keys validated | Verified (API) | `/api/keys/validate.ts`, `validate-key.server.ts` | Red shield/invalid state shown. | None. | No |
-| Provider unavailable (timeout/network) | Partially verified | Unit tests in `use-chat.test.ts`, `validate-key.server.test.ts` | Toast/status bar error. | Add a live-provider E2E test with a deliberately bad base URL. | No (docs/test only) |
+| Local capability unavailable (timeout/network/bad base URL) | Partially verified | Unit tests in `use-chat.test.ts`, `validate-key.server.test.ts` | Toast/status bar error exists, but V1 needs model-list state. | Add deterministic V1 E2E with mocked/local gateway responses. | Yes |
 | Switching providers mid-thread | Partially verified | `cockpit-store.ts` `setActiveProvider` | Model selector works; existing thread messages keep original provider metadata. | Document expected behavior. | No |
 | Empty state behavior | Verified | `Greeting.tsx`, `Drawer.tsx` | Shows "No chats yet." | None. | No |
 
@@ -27,7 +50,7 @@
 | Private route guards | Verified | `/api/settings.ts` 401, `/api/keys/set.ts` returns 401 JSON for guests | Guests cannot access authenticated data. | None. | No |
 | Cross-user thread/key/usage access | Verified (mocked) | `-account-separation.test.ts` | One user cannot read another's data in unit tests. | Add a real-cookie integration test once auth UI exists. | No (test only) |
 | Import/export boundaries | Verified | `cockpit-store.ts` `exportThread`/`importThreads`, `/api/threads.import.ts` | Import merges locally by default; sync mode requires auth. | Document import mode clearly in UI. | No |
-| Google/Apple sign-in absence | Broken (missing) | No OAuth routes, no client ID, no OAuth lib | Users cannot use social login. | Document as future work; implement only if scope expands. | Yes (future feature) |
+| Google/Apple sign-in absence | Non-V1 | No OAuth routes, no client ID, no OAuth lib | Users cannot use social login, but V1 must not require this. | Keep as future work only. | No for V1 |
 | Provider key save for guests | Verified | `ProviderCard.tsx` gates Save; `/api/keys/set.ts` returns 401 JSON | Guests see a clear sign-in prompt instead of a generic failure. | None. | No |
 | Auth UI exists | Verified | `src/routes/auth.tsx`, `AccountMenu.tsx`, `Drawer.tsx` settings integration | Users can sign in, create accounts, and log out. | Add full browser E2E login/register flow. | No (test only) |
 
@@ -75,7 +98,9 @@
 
 ---
 
-## 6. Native packaging
+## 6. Native packaging (non-V1 hardening)
+
+Native packaging status is useful for distribution and local transport, but signed artifacts, store submission, and device E2E are not V1 acceptance gates.
 
 | Item | Status | Evidence | User impact | Suggested next action | Implementation required? |
 | --- | --- | --- | --- | --- | --- |
@@ -84,7 +109,7 @@
 | Android APK debug | Verified | `./gradlew assembleDebug` | Local install possible. | Create release keystore. | Yes (external) |
 | Android release AAB | Risk | `native:android:assembleRelease` needs keystore | Play Store submission blocked. | Create keystore + Play Console app. | Yes (external) |
 | iOS build | Verified | `native:ios:build` with `CODE_SIGNING_ALLOWED=NO` | Local build possible. | Create distribution profile + App Store Connect record. | Yes (external) |
-| iOS device E2E | Unverified | No device/simulator E2E harness | Behavior on real hardware unknown. | Add simulator/device E2E if scope allows. | Yes |
+| iOS device E2E | Unverified, non-V1 | No device/simulator E2E harness | Behavior on real hardware unknown. | Add simulator/device E2E after V1 browser proof if scope allows. | No for V1 |
 | API base URL behavior | Verified | `api-base.ts` | Native apps reach the configured Worker URL. | Verify `VITE_NATIVE_API_URL` is set in release builds. | No |
 
 ---
@@ -124,8 +149,8 @@
 | --- | --- | --- | --- |
 | Unit tests | 587 across auth, sessions, DB isolation, rate limits, tools, vector store, tokens, cockpit store, API routes, auth UI. | None major. | Keep credential-free. |
 | Live provider tests | Opt-in via `RUN_LIVE_PROVIDER_TESTS` and real keys. | Not run in CI by default. | Run manually before releases. |
-| Browser E2E | `e2e/smoke.spec.ts` covers root, chat, settings, thread creation, and `/auth` page load. | No full login/register flow E2E. | Add a real-cookie integration test for login → save key. |
-| Auth UI E2E | Partially verified | `e2e/smoke.spec.ts` loads `/auth` and checks tabs. | Full login/register submission requires a running backend or stub. | Add end-to-end register → save key smoke test. |
+| Browser E2E | `e2e/smoke.spec.ts` covers root, chat, settings, thread creation, and `/auth` page load. `e2e/v1-local-loop.spec.ts` provides the focused V1 local loop proof with deterministic mocked responses for the generic local OpenAI-compatible endpoint. | None for V1 local loop. | Keep deterministic and credential-free. |
+| Auth UI E2E | Partially verified, non-V1 | `e2e/smoke.spec.ts` loads `/auth` and checks tabs. | Full login/register submission requires a running backend or stub. | Keep separate from V1 local loop proof. |
 | Native E2E | None | No device/simulator automation. | Out of V1 scope; document as accepted limitation. |
 | Production smoke tests | Manual curl only | No automated post-deploy verification. | Add a lightweight checklist or script. |
 
@@ -135,8 +160,8 @@
 
 | Doc | Risk | Correction needed |
 | --- | --- | --- |
-| `README.md` | Claims "Real user accounts ... bcrypt-hashed passwords" — bcrypt is wrong; auth UI now exists. | Update to PBKDF2 and remove backend-only caveat. |
-| `README.md` | `wrangler.jsonc` snippet shows `main: "src/server.ts"`; actual is `.output/server/index.mjs`. | Fix snippet to match `wrangler.jsonc`. |
+| `README.md` | Historically framed V1 as broad provider chat/native release, then incorrectly hardcoded an unrelated Hermes/OpenClaw/Ollama proof set. | Keep V1 language constrained to the generic local OpenAI-compatible endpoint selected by product decision. |
+| `README.md` | Provider support matrix can be misread as V1 promise. | Keep cloud providers and other local endpoints labeled as supported infrastructure/non-V1. |
 | `docs/lovable-environmental-sync.md` | Claims auto-deploy via `.github/workflows/deploy.yml`. | Replace with current `ci.yml` reality and manual deploy instructions. |
 | `docs/lovable-environmental-sync.md` | Lists incomplete D1 tables and stale `main` field. | Update table list and `wrangler.jsonc` block. |
 | `docs/manual-qa-checklist.md` | Should note that provider API keys require an authenticated account to save. | Add a note that key save requires signing in. |
@@ -145,14 +170,17 @@
 
 ---
 
-## Top blockers to "flawless E2E perfection"
+## Top V1 blockers
 
-1. **Google/Apple/OAuth not implemented.** Social login is documented as future work; only email/password auth exists today.
-2. **D1 thread sync toggle still missing.** The backend supports authenticated thread sync, but the opt-in UI toggle is not exposed.
-3. **Outdated / auto-deploy docs.** `docs/lovable-environmental-sync.md` claims CI auto-deploys to production; it does not.
-4. **External credentials not present in CI.** Signed macOS/Android/iOS release artifacts cannot be produced without Apple/Android signing secrets.
-5. **No production smoke automation.** Post-deploy verification is manual curl only.
-6. **No native device E2E.** iOS/Android behavior on real hardware is unverified.
-7. **Cross-user isolation not covered by browser E2E.** Unit tests prove isolation; a real-cookie integration test would harden it.
+No V1 blockers remain from this audit. The executable state contract, V1 endpoint UI, safe model-list action, and focused browser E2E are implemented for the generic local OpenAI-compatible endpoint.
 
-All of the above are either documentation-only fixes or clearly scoped future implementation work; none should be addressed by silent adjacent code changes.
+Remaining items below are accepted non-V1 limitations or separate validation work; they must not block the V1 local loop.
+
+## Accepted non-V1 limitations
+
+- Google/Apple/OAuth is not implemented and is not required for V1.
+- Marketplace or provider-store scope does not exist and is not required for V1.
+- Signed macOS/Android/iOS release artifacts require external credentials and are not required for V1.
+- Native device/simulator E2E is not required for V1.
+- Cloud provider live tests remain opt-in infrastructure and must not gate the V1 local loop.
+- Hermes Agent, OpenClaw, Ollama, LM Studio, vLLM, llama.cpp, and other named providers remain catalog candidates or future named presets only; they are not the V1 proof set.

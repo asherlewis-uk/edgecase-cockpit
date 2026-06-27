@@ -1,5 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { getProvider, PROVIDERS, ProviderError, type ChatMessage } from "@/lib/providers";
+import { describe, it, expect, vi } from "vitest";
+import {
+  deriveLocalCapabilityState,
+  getProvider,
+  probeLocalOpenAICompatibleModels,
+  PROVIDERS,
+  ProviderError,
+  V1_LOCAL_OPENAI_COMPAT_ENDPOINT_ID,
+  type ChatMessage,
+  type LocalCapabilityStateInput,
+} from "@/lib/providers";
 import { buildPersonalizationSystemMessage } from "@/hooks/use-chat";
 import { defaultSettings } from "@/lib/cockpit-store";
 
@@ -172,5 +181,257 @@ describe("PROVIDERS catalog", () => {
         expect(p.baseUrlEditable).toBe(true);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveLocalCapabilityState
+// ---------------------------------------------------------------------------
+describe("deriveLocalCapabilityState", () => {
+  const baseInput: LocalCapabilityStateInput = {
+    endpointId: V1_LOCAL_OPENAI_COMPAT_ENDPOINT_ID,
+    providerId: "custom",
+    baseUrl: "http://localhost:8000",
+    chatPath: "/v1/chat/completions",
+    modelsPath: "/v1/models",
+    environment: { pageProtocol: "http:", isMobile: false },
+  };
+
+  it("models checking state before reachability or model-list results exist", () => {
+    const state = deriveLocalCapabilityState({ ...baseInput, checking: true });
+    expect(state.status).toBe("checking");
+    expect(state.actionable).toBe(false);
+    expect(state.label).toBe("Checking local endpoint");
+  });
+
+  it("models misconfigured state for a missing base URL", () => {
+    const state = deriveLocalCapabilityState({ ...baseInput, baseUrl: "" });
+    expect(state.status).toBe("misconfigured");
+    expect(state.reason).toContain("No local OpenAI-compatible base URL");
+    expect(state.actionable).toBe(true);
+  });
+
+  it("models hosted HTTPS local HTTP blocking before fetch", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      environment: { pageProtocol: "https:", isMobile: false },
+    });
+    expect(state.status).toBe("hosted-HTTPS-blocked");
+    expect(state.nextAction).toContain("localhost-safe context");
+    expect(state.nextAction).toContain("http://127.0.0.1");
+  });
+
+  it("models mobile localhost mismatch before fetch", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      environment: { pageProtocol: "http:", isMobile: true },
+    });
+    expect(state.status).toBe("mobile-localhost-mismatch");
+    expect(state.reason).toContain("localhost refers to the phone or tablet");
+  });
+
+  it("distinguishes basic reachability from ready model state", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      detect: { ok: true, status: 200 },
+    });
+    expect(state.status).toBe("reachable");
+    expect(state.reason).toContain("usable model state has not been confirmed");
+    expect(state.modelCount).toBeUndefined();
+  });
+
+  it("models unreachable state from a failed reachability check", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      detect: { ok: false, error: "fetch failed" },
+    });
+    expect(state.status).toBe("unreachable");
+    expect(state.reason).toBe("fetch failed");
+    expect(state.raw?.error).toBe("fetch failed");
+  });
+
+  it("models no-models state from an empty model-list result", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      modelList: { status: "success", models: [] },
+    });
+    expect(state.status).toBe("no-models");
+    expect(state.modelCount).toBe(0);
+    expect(state.models).toEqual([]);
+  });
+
+  it("models failed state from a malformed model-list response", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      modelList: { status: "malformed", statusCode: 200, error: "missing data[]" },
+    });
+    expect(state.status).toBe("failed");
+    expect(state.label).toBe("Model-list response is malformed");
+    expect(state.raw?.status).toBe(200);
+  });
+
+  it("models failed state from model-list timeout or network failure", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      modelList: { status: "failed", error: "timeout" },
+    });
+    expect(state.status).toBe("failed");
+    expect(state.reason).toBe("timeout");
+    expect(state.nextAction).toContain("retry the model-list check");
+  });
+
+  it("models ready state from usable model-list results", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      modelList: { status: "success", models: [{ id: "llama3" }, { id: "  " }] },
+    });
+    expect(state.status).toBe("ready");
+    expect(state.modelCount).toBe(1);
+    expect(state.models).toEqual([{ id: "llama3" }]);
+    expect(state.raw?.modelSource).toBe("model-list");
+  });
+
+  it("models ready state only when reachable plus explicit model config exists", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      model: "local-model",
+      detect: { ok: true, status: 200 },
+    });
+    expect(state.status).toBe("ready");
+    expect(state.modelCount).toBe(1);
+    expect(state.models).toEqual([{ id: "local-model" }]);
+    expect(state.raw?.modelSource).toBe("configured");
+  });
+
+  it("models unreachable state from a model-list network failure", () => {
+    const state = deriveLocalCapabilityState({
+      ...baseInput,
+      modelList: { status: "unreachable", error: "Failed to fetch" },
+    });
+    expect(state.status).toBe("unreachable");
+    expect(state.label).toBe("Model-list endpoint unreachable");
+    expect(state.nextAction).toContain("retry the model-list check");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// probeLocalOpenAICompatibleModels
+// ---------------------------------------------------------------------------
+describe("probeLocalOpenAICompatibleModels", () => {
+  const provider = getProvider("custom");
+
+  it("returns usable models without sending auth or cloud key headers", async () => {
+    let requestInit: RequestInit | undefined;
+    const result = await probeLocalOpenAICompatibleModels({
+      provider,
+      baseUrl: "http://localhost:8000/",
+      fetchImpl: async (url, init) => {
+        requestInit = init;
+        expect(url).toBe("http://localhost:8000/v1/models");
+        return new Response(
+          JSON.stringify({
+            data: [{ id: "llama3", name: "Llama 3" }, { id: "  " }],
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.statusCode).toBe(200);
+    expect(result.models).toEqual([{ id: "llama3", label: "Llama 3" }]);
+    const headers = new Headers(requestInit?.headers);
+    expect(headers.get("Authorization")).toBeNull();
+    expect(headers.get("X-API-Key")).toBeNull();
+  });
+
+  it("returns empty when the model list has no usable ids", async () => {
+    const result = await probeLocalOpenAICompatibleModels({
+      provider,
+      baseUrl: "http://localhost:8000",
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ data: [{ id: "" }, { object: "model" }] }), {
+          status: 200,
+        }),
+    });
+
+    expect(result.status).toBe("empty");
+    expect(result.models).toEqual([]);
+  });
+
+  it("returns malformed when the response is not OpenAI-compatible", async () => {
+    const result = await probeLocalOpenAICompatibleModels({
+      provider,
+      baseUrl: "http://localhost:8000",
+      fetchImpl: async () => new Response(JSON.stringify({ models: ["llama3"] }), { status: 200 }),
+    });
+
+    expect(result.status).toBe("malformed");
+    expect(result.error).toContain("data[]");
+  });
+
+  it("returns failed when the endpoint responds with a non-OK status", async () => {
+    const result = await probeLocalOpenAICompatibleModels({
+      provider,
+      baseUrl: "http://localhost:8000",
+      fetchImpl: async () => new Response("not found", { status: 404 }),
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.statusCode).toBe(404);
+    expect(result.error).toContain("HTTP 404");
+  });
+
+  it("returns unreachable when fetch cannot reach the endpoint", async () => {
+    const result = await probeLocalOpenAICompatibleModels({
+      provider,
+      baseUrl: "http://localhost:8000",
+      fetchImpl: async () => {
+        throw new Error("Failed to fetch");
+      },
+    });
+
+    expect(result.status).toBe("unreachable");
+    expect(result.error).toBe("Failed to fetch");
+  });
+
+  it("returns failed when the probe times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const resultPromise = probeLocalOpenAICompatibleModels({
+        provider,
+        baseUrl: "http://localhost:8000",
+        timeoutMs: 5,
+        fetchImpl: async (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          }),
+      });
+
+      await vi.advanceTimersByTimeAsync(5);
+      const result = await resultPromise;
+      expect(result.status).toBe("failed");
+      expect(result.error).toContain("timed out");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns failed when the probe is aborted", async () => {
+    const ctrl = new AbortController();
+    const resultPromise = probeLocalOpenAICompatibleModels({
+      provider,
+      baseUrl: "http://localhost:8000",
+      signal: ctrl.signal,
+      fetchImpl: async (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    });
+
+    ctrl.abort();
+    const result = await resultPromise;
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("aborted");
   });
 });

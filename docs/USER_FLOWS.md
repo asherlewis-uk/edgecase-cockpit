@@ -1,6 +1,8 @@
-# Edgecase Cockpit — Current User Flows & Account Reality
+# Edgecase Cockpit — Current User Flows, Account Reality, and V1 Local Loop
 
 > **Scope:** A brutally literal description of the current user/account model and end-to-end product behavior. This document reflects the code and production state as of the latest audit; it does not speculate about planned features.
+
+> **V1 product contract:** V1 is a local-first/BYOC AI control surface that proves one concrete local/BYOC runtime path for edgecase-cockpit: a user-configured generic local OpenAI-compatible endpoint. This is a declared product decision made now, not recovered from prior named-provider evidence. Cloud providers, cloud API keys, OAuth/social login, marketplace scope, signed native releases, live provider accounts, named provider presets, and unrelated agent infrastructure are supported infrastructure or non-V1 future work, not the V1 promise.
 
 ---
 
@@ -23,6 +25,7 @@
 
 **What this means for a normal user today:**
 - A person opening the production URL lands as a guest and can explore the app immediately.
+- The V1 local proof path must work as a guest: configure or detect a generic local OpenAI-compatible endpoint; explain state/config; run one safe model-list action; show result; recover from failure.
 - To save provider API keys, sync settings, or own server-side data, they create an account (or sign in) through the `/auth` route or the Account menu.
 - On registration or login, any existing D1-resident guest data is claimed into the new authenticated account via `claimGuestSession`.
 
@@ -58,7 +61,9 @@
 **Areas not yet proven by an end-to-end user flow:**
 - Cross-user data denial with real cookies (unit tests mock sessions; no browser E2E for isolation yet).
 - Guest-to-user data claim in production D1.
-- Google/Apple/OAuth identity flows.
+- Google/Apple/OAuth identity flows are not implemented and are not V1.
+
+**V1 local loop proof:** The canonical generic local OpenAI-compatible endpoint loop is documented, implemented, and covered by focused browser E2E with deterministic mocked endpoint responses.
 
 ---
 
@@ -72,6 +77,15 @@
 | Are provider/tool permissions scoped by user/session/workspace? | User. `user_tool_permissions` table has `user_id`. | `migrations/0003_pricing_and_tool_permissions.sql`, `src/routes/api/tools/permissions.ts` |
 | Are configs shared globally or isolated? | Isolated per user/session. Server-side queries always include `ownerWhere`. | `src/lib/db/index.ts` |
 | What happens on a new browser/device? | A new guest cookie/session is created; `localStorage` threads/settings do not transfer. If the user signs in, server-side keys, settings, and synced threads become available. | `src/lib/session.server.ts` `getGuestSessionId`, `src/lib/cockpit-store.ts` defaults, `src/routes/auth.tsx`. |
+
+**V1 local-provider configuration boundary:**
+- V1 must prove one concrete local/BYOC runtime path: a user-configured generic local OpenAI-compatible endpoint, not an open-ended provider list.
+- This target is a declared product decision made now, not recovered from prior named-provider evidence.
+- Hermes Agent (`hermes`), OpenClaw (`openclaw`), local Ollama (`ollama`), LM Studio, vLLM, llama.cpp, and other named providers are implementation candidates or future named presets only; they are not the V1 proof set.
+- The canonical endpoint contract includes a configurable base URL, model-list endpoint, chat-completions-compatible endpoint, no required cloud API key, browser-detectable reachable/unreachable state, deterministic mocked E2E support, safe bounded model-list action, and visible recovery from bad URL, timeout, empty models, malformed response, and hosted HTTPS/local HTTP blocking.
+- V1 safe action is a model-list probe, not a broad provider chat or cloud-key validation flow.
+- V1 must not require OpenAI, any cloud provider key, OAuth, a marketplace install, signed native builds, live provider accounts, unrelated agent infrastructure, or real local daemons in CI.
+- Guests must be able to see local capability state and required base URL/model configuration before any account prompt.
 
 ---
 
@@ -99,7 +113,24 @@
 
 ---
 
-## Part B — Complete E2E user flow
+## Part B — Complete current user flow and V1 E2E promise map
+
+### V1 local loop that future E2E must prove
+
+This is the exact V1 browser E2E promise. It must be proven for the user-configured generic local OpenAI-compatible endpoint with deterministic mocked/local test responses, not live provider accounts, unrelated agent infrastructure, or real local daemons in CI.
+
+1. Fresh guest launch enters a local-first path without signing in.
+2. The UI foregrounds a configurable local OpenAI-compatible endpoint rather than a named provider preset.
+3. The endpoint contract includes a configurable base URL, model-list endpoint, and chat-completions-compatible endpoint.
+4. The target shows a capability state: checking, reachable, unreachable, misconfigured, no-models, hosted-HTTPS-blocked, mobile-localhost-mismatch, ready, or failed.
+5. The state explains what was detected, what is unavailable, and the required configuration/recovery action.
+6. The user can run one safe controlled model-list action for the target.
+7. Success shows returned models and system state.
+8. Empty models, malformed responses, unreachable endpoint, bad base URL, timeout/abort, and hosted HTTPS local HTTP block all produce visible recoverable failure states.
+9. Updating configuration and retrying can move the target from failed/unavailable to ready.
+10. The loop fails the test if it depends on OpenAI, cloud API keys, OAuth/social login, marketplace scope, signed native builds, live provider accounts, unrelated agent infrastructure, or real local daemons in CI.
+
+The sections below describe the broader current app behavior. They include non-V1 cloud/auth surfaces because those exist in the repository, not because they are V1 requirements.
 
 ### 1. User lands on the production URL
 
@@ -132,12 +163,14 @@
 - **User-visible:** Settings → provider card expands → API key input (masked) → Save. The app then tries `POST /api/keys/set`.
 - **Backend:** `/api/keys/set` validates CSRF, rate limit, provider ID, then calls `setProviderCreds` which requires `userId`.
 - **Current edge:** Guests see an inline auth prompt in `ProviderCard`; the Save button does not call `/api/keys/set` while unauthenticated. Authenticated users can save keys successfully.
+- **V1 boundary:** This API-key path is for cloud/provider infrastructure. The V1 local/BYOC model-list loop must not require an API key or authenticated account.
 - **Evidence:** `src/components/cockpit/settings/ProviderCard.tsx`, `src/routes/api/keys/set.ts`.
 
 ### 6. Provider key is saved/encrypted
 
 - **User-visible:** Save succeeds for authenticated users; guests see the auth prompt.
 - **Backend:** Key is AES-256-GCM encrypted and inserted into `user_provider_keys(user_id, provider_id, api_key_encrypted, base_url, model)`.
+- **V1 boundary:** Provider-key persistence is not part of the V1 local proof path.
 - **Evidence:** `src/lib/encryption.server.ts`, `src/lib/db/index.ts` `setUserProviderKey`.
 
 ### 7. User starts a thread
@@ -156,6 +189,7 @@
 
 - **User-visible:** Status bar shows active provider and model; ProviderStatus pill reflects ready/missing-key state.
 - **Backend:** `resolveProvider(settings)` returns active provider + model from `localStorage` settings. Cloud providers go through `/api/proxy/chat`; local providers use `directFetch`.
+- **V1 boundary:** V1 uses the generic local OpenAI-compatible endpoint as the canonical local/BYOC runtime path for the first loop. Existing provider choices are implementation candidates, compatibility surfaces, or future named presets, not V1 commitments.
 - **Evidence:** `src/lib/cockpit-store.ts`, `src/lib/providers.ts`.
 
 ### 10. Request passes CSRF/rate-limit/storage checks
@@ -231,6 +265,8 @@
 | Malformed import | `/api/threads/import` validates body with zod; client `importThreads` tries to normalize input but may drop invalid threads. | `src/routes/api/threads.import.ts`, `src/lib/cockpit-store.ts` |
 | Model/tool unsupported | Provider capability flags determine available features; unknown models fall back to declared defaults. | `src/lib/providers.ts` |
 
+For V1, error-state coverage must specifically include local model-list success, no-models, malformed response, unreachable endpoint, bad base URL, timeout/abort, hosted HTTPS local HTTP block, and recovery after configuration change for the canonical local/BYOC runtime path.
+
 ### 21. Native shell behavior
 
 | Target | Status | API base URL behavior | Caveat |
@@ -247,5 +283,7 @@
 
 - **Implemented and reachable:** Guest chat, `localStorage` threads/settings, offline queue, onboarding, provider selection, built-in tool execution, streaming responses, export/import, email/password signup and sign-in, encrypted provider key storage for authenticated users.
 - **Implemented and reachable after authentication:** Server-side settings, usage records, server-synced threads (when sync is enabled), cross-device data tied to the signed-in account.
-- **Not implemented:** Google Sign-In, Apple Sign-In, any OAuth, password reset, email verification.
-- **Most important remaining gap:** No Google/Apple/OAuth; cross-user isolation is proven by unit tests but not yet covered by browser E2E.
+- **V1 proof target:** A user-configured generic local OpenAI-compatible endpoint that proves local runtime discovery or explicit endpoint configuration, state classification, required configuration explanation, safe bounded model-list capability check, visible result/system state, and clean recovery.
+- **Named provider boundary:** Hermes Agent, OpenClaw, Ollama, LM Studio, vLLM, llama.cpp, and other named providers are catalog candidates or future named presets only; they are not the V1 proof set.
+- **Not V1:** Google Sign-In, Apple Sign-In, any OAuth, password reset, email verification, marketplace scope, signed native release perfection, cloud provider live accounts.
+- **V1 local loop proof:** The generic local OpenAI-compatible endpoint path is documented, implemented, and covered by focused browser E2E. Cross-user isolation is proven by unit tests but not yet covered by browser E2E.

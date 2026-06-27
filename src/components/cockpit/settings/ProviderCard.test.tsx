@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ProviderCard } from "./ProviderCard";
+import { LocalCapabilitySummary, ProviderCard } from "./ProviderCard";
 import { store } from "@/lib/cockpit-store";
 import { PROVIDERS } from "@/lib/providers";
 
@@ -116,5 +116,144 @@ describe("ProviderCard auth gating", () => {
     render(<ProviderCard p={openai} isActive={false} />);
     expect(screen.getByTestId("provider-status-openai")).toHaveTextContent(/Needs API key/i);
     expect(screen.queryByTestId("provider-auth-prompt")).not.toBeInTheDocument();
+  });
+});
+
+describe("LocalCapabilitySummary", () => {
+  it("shows configured/reachable as not verified ready", () => {
+    render(
+      <LocalCapabilitySummary
+        state={{
+          endpointId: "local-openai-compatible",
+          providerId: "custom",
+          status: "ready",
+          label: "Endpoint reachable with configured model",
+          reason: 'The endpoint is reachable and model "local-model" is configured locally.',
+          nextAction: "Run the model-list check to confirm usable model state.",
+          actionable: true,
+          modelCount: 1,
+          models: [{ id: "local-model" }],
+          raw: { baseUrl: "http://localhost:8000", modelSource: "configured" },
+        }}
+        baseUrl="http://localhost:8000"
+        model="local-model"
+      />,
+    );
+
+    expect(screen.getByTestId("v1-local-capability-label")).toHaveTextContent(
+      "Configured/reachable",
+    );
+    expect(screen.getByTestId("v1-local-capability-boundary")).toHaveTextContent(
+      /not verified until the model-list probe/i,
+    );
+  });
+
+  it("explains hosted HTTPS blocking for local HTTP localhost", () => {
+    render(
+      <LocalCapabilitySummary
+        state={{
+          endpointId: "local-openai-compatible",
+          providerId: "custom",
+          status: "hosted-HTTPS-blocked",
+          label: "Hosted HTTPS blocks local HTTP",
+          reason: "A hosted HTTPS page cannot directly fetch an insecure localhost HTTP endpoint.",
+          nextAction:
+            "Run the app locally, use an HTTPS local endpoint, or use an allowed local proxy.",
+          actionable: true,
+          raw: { baseUrl: "http://localhost:8000" },
+        }}
+        baseUrl="http://localhost:8000"
+        model="default"
+      />,
+    );
+
+    expect(screen.getByTestId("v1-local-capability-label")).toHaveTextContent(
+      "Hosted HTTPS blocks local HTTP",
+    );
+    expect(screen.getByTestId("v1-local-capability-boundary")).toHaveTextContent(
+      /hosted web page cannot reach local HTTP localhost directly/i,
+    );
+  });
+
+  it("shows verified model-list results with reported model names", () => {
+    render(
+      <LocalCapabilitySummary
+        state={{
+          endpointId: "local-openai-compatible",
+          providerId: "custom",
+          status: "ready",
+          label: "Endpoint ready",
+          reason: "The model-list endpoint returned 2 usable model(s).",
+          nextAction: "Use one of the reported models or rerun the model-list check after changes.",
+          actionable: true,
+          modelCount: 2,
+          models: [{ id: "llama3" }, { id: "mistral" }],
+          raw: {
+            baseUrl: "http://localhost:8000",
+            status: 200,
+            modelSource: "model-list",
+          },
+        }}
+        baseUrl="http://localhost:8000"
+        model="default"
+      />,
+    );
+
+    expect(screen.getByTestId("v1-local-capability-label")).toHaveTextContent("Verified ready");
+    expect(screen.getByTestId("v1-local-capability-models")).toHaveTextContent("llama3");
+    expect(screen.getByTestId("v1-local-capability-models")).toHaveTextContent("mistral");
+    expect(screen.getByTestId("v1-local-capability-debug")).toHaveTextContent("HTTP 200");
+  });
+
+  it("can visibly recover from a failed probe after config changes and retry", () => {
+    const { rerender } = render(
+      <LocalCapabilitySummary
+        state={{
+          endpointId: "local-openai-compatible",
+          providerId: "custom",
+          status: "unreachable",
+          label: "Model-list endpoint unreachable",
+          reason: "Failed to fetch",
+          nextAction:
+            "Check the base URL, make sure the local runtime is running, then retry the model-list check.",
+          actionable: true,
+          raw: { baseUrl: "http://localhost:8000", error: "Failed to fetch" },
+        }}
+        baseUrl="http://localhost:8000"
+        model="default"
+      />,
+    );
+
+    expect(screen.getByTestId("v1-local-capability-label")).toHaveTextContent(
+      "Model-list endpoint unreachable",
+    );
+    expect(screen.getByTestId("v1-local-capability-reason")).toHaveTextContent("Failed to fetch");
+
+    rerender(
+      <LocalCapabilitySummary
+        state={{
+          endpointId: "local-openai-compatible",
+          providerId: "custom",
+          status: "ready",
+          label: "Endpoint ready",
+          reason: "The model-list endpoint returned 1 usable model(s).",
+          nextAction: "Use one of the reported models or rerun the model-list check after changes.",
+          actionable: true,
+          modelCount: 1,
+          models: [{ id: "fixed-model" }],
+          raw: {
+            baseUrl: "http://localhost:9000",
+            status: 200,
+            modelSource: "model-list",
+          },
+        }}
+        baseUrl="http://localhost:9000"
+        model="fixed-model"
+      />,
+    );
+
+    expect(screen.getByTestId("v1-local-capability-label")).toHaveTextContent("Verified ready");
+    expect(screen.getByTestId("v1-local-capability-models")).toHaveTextContent("fixed-model");
+    expect(screen.queryByText("Failed to fetch")).not.toBeInTheDocument();
   });
 });

@@ -1,7 +1,9 @@
 // Content Security Policy header builder.
 // This module is server-side only and generates a single CSP string suitable
-// for the app's runtime (TanStack Start + Vite). Local/self-hosted provider
-// calls go through /api/proxy/*, so the page's connect-src can stay same-origin.
+// for the app's runtime (TanStack Start + Vite). The V1 local endpoint loop
+// probes user-configured loopback OpenAI-compatible runtimes directly from the
+// browser, so connect-src permits loopback while keeping cloud/provider traffic
+// same-origin by default.
 
 export type CspMode = "production" | "development";
 
@@ -15,6 +17,7 @@ export function buildCsp(mode: CspMode = "production"): string {
   const scriptSrc = isDev ? "'self' 'unsafe-inline' 'unsafe-eval'" : "'self' 'unsafe-inline'";
 
   const styleSrc = isDev ? "'self' 'unsafe-inline'" : "'self' 'unsafe-inline'";
+  const connectSrc = "'self' http://localhost:* http://127.0.0.1:* http://[::1]:*";
 
   const directives: Record<string, string> = {
     "default-src": "'self'",
@@ -24,7 +27,7 @@ export function buildCsp(mode: CspMode = "production"): string {
     "script-src": scriptSrc,
     "style-src": styleSrc,
     "img-src": "'self' data: blob:",
-    "connect-src": "'self'",
+    "connect-src": connectSrc,
     "font-src": "'self'",
     "media-src": "'self' blob:",
     "form-action": "'self'",
