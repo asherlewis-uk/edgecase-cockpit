@@ -15,6 +15,12 @@
     "binding": "ASSETS",
     "directory": ".output/public",
   },
+  "routes": [
+    {
+      "pattern": "cockpit.asherlewis.online",
+      "custom_domain": true
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
