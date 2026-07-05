@@ -37,11 +37,17 @@ dist-ssr
 .cursor/
 .continue/
 .gemini/
+.gortex/
 .opencode/
 .mcp.json
 .rules
+.cursorrules
 GEMINI.md
 .github/copilot-instructions.md
+
+# Local agent working memory / plans (not project source)
+*.PLAN.md
+PLAN*.md
 
 # Environment files (never commit secrets)
 .env
