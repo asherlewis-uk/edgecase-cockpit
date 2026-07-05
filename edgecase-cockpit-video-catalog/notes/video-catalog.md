@@ -51,9 +51,10 @@
 │   └── 09-screenshot-tool/
 └── notes/
     ├── video-catalog.md
-    ├── video-catalog.json
-    └── agent-summary.md
+    └── video-catalog.json
 ```
+
+The former duplicate summary note was moved to `docs/archive/video-catalog/agent-summary.md` and is not active instruction context.
 
 ---
 

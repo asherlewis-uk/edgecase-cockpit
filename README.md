@@ -762,7 +762,7 @@ There is no automatic cross-device chat sync. JSON/Markdown/TXT export and impor
    ```bash
    bun run test && bun run typecheck && bun run lint && bun run build
    ```
-5. **Update this README and `docs/roadmap/FUTURE_ENHANCEMENTS.md`** when changing capabilities — only document what source code proves
+5. **Update `README.md` only for broad source-backed repo status.** Account-separation direction belongs in `SURFACE_AUDIT.md`, `RECONSTRUCTION_PLAN.md`, and `ACCOUNT_SEPARATION_PLAN.md`.
 6. Do not advertise provider support unless it is wired and verified end-to-end
 7. Do not rename symbols with find-and-replace; use graph-aware refactoring tools
 8. Do not push without passing all gates

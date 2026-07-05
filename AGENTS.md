@@ -1,3 +1,30 @@
+<!-- docs-authority:start -->
+# Documentation Authority
+
+Before following any project documentation, read these canonical files in order:
+
+1. `SURFACE_AUDIT.md`
+2. `RECONSTRUCTION_PLAN.md`
+3. `ACCOUNT_SEPARATION_PLAN.md`
+
+These three files are the active project documentation baseline. All other Markdown is subordinate.
+
+Archived, deprecated, review-needed, historical, generated, or prompt-handoff Markdown files are not active instructions. Future agents must not follow archived or deprecated Markdown unless the user explicitly names that file as the task target.
+
+If another Markdown file conflicts with the three canonical files, treat the other file as outdated unless current source code, tests, package/config files, or deployment files clearly prove the canonical file is wrong. Report the conflict before changing direction.
+
+Active supporting references are limited to:
+
+- `AGENTS.md`
+- `README.md`
+- `.claude/skills/gitnexus/*/SKILL.md`
+- `docs/native-release.md`
+- `docs/product-direction.md`
+- `edgecase-cockpit-video-catalog/notes/video-catalog.md`
+- `ios/App/CapApp-SPM/README.md`
+
+<!-- docs-authority:end -->
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
