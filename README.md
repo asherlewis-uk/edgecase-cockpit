@@ -44,12 +44,12 @@ Native packaging tooling is present (Capacitor for iOS/Android, Electron for des
 
 `edgecase-cockpit` is a local-first/BYOC AI control surface. Its first release proves that a user can inspect a user-configured generic local OpenAI-compatible endpoint, understand what is available or missing, perform one safe local model-list action, see the result/system state, and recover from failure. It is a **TanStack Start + React + Cloudflare Workers** application with SSR.
 
-**Offline-first privacy model:** Chats, threads, and messages are stored in `localStorage` by default (device-local). When a user is authenticated and opts in to sync (globally via settings or per-thread), threads are stored in D1 with encrypted provider keys. RAG vector/text data remains device-local. D1 stores: user accounts, encrypted provider keys, user settings, usage statistics, and synced threads when explicitly enabled. Guest users work entirely locally and cannot sync to D1.
+**Offline-first privacy model:** Chats, threads, and messages are stored in `localStorage` by default (device-local). When a user is authenticated and opts in to sync (globally via settings or per-thread), threads are stored in D1 with encrypted provider keys. RAG vector/text data remains device-local. D1 stores: user accounts, encrypted provider keys, user settings, usage statistics, and synced threads when explicitly enabled. A local-only profile works entirely on-device and cannot sync to D1.
 
-> **Auth:** Email/password signup and sign-in are available through the `/auth` route and Account menu. Guests can explore the app locally; signing in enables server-side encrypted provider key storage, settings sync, and usage records. Google/Apple/OAuth is not implemented.
+> **Auth:** Email/password signup and sign-in are available through the `/auth` route and Account menu. A local-only profile can explore the app entirely on-device; signing in (or migrating a local-only profile into an account) enables server-side encrypted provider key storage, settings sync, and usage records. Google/Apple/OAuth is not implemented.
 
 
-**API key security:** Provider keys are stored in D1 (`user_provider_keys`) with AES-256-GCM encryption per user. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`. Guests cannot store provider keys server-side.
+**API key security:** Provider keys are stored in D1 (`user_provider_keys`) with AES-256-GCM encryption per user. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`. Local-only profiles cannot store provider keys server-side.
 
 Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/schema.sql`, `wrangler.jsonc`.
 
@@ -62,7 +62,7 @@ Sources: `src/lib/cockpit-store.ts` (`defaultSettings`, `persist`), `src/lib/db/
 - Full chat cockpit: streaming responses, message editing/deletion, regeneration from any point
 - Provider infrastructure definitions (8 cloud + 7 local) with proxy/direct routing; these are implementation candidates and compatibility surfaces, while the V1 commitment is the generic local OpenAI-compatible endpoint path
 - **Real user accounts** (register, login, logout, `/api/auth/me`) with PBKDF2-HMAC-SHA256 password hashing and a `/auth` route UI for email/password signup and sign-in
-- **Guest mode** (no account required) with data claim into a new account on registration or login
+- **Local-only profile** (no account required) selected via an explicit first-launch identity choice, with a user-initiated copy / move / keep-separate data migration choice when registering or signing in
 - **AES-256-GCM encrypted provider keys** stored in D1 per user (`user_provider_keys`)
 - CSRF double-submit cookie protection on all mutating routes
 - D1-backed distributed rate limiter (activates at startup when DB binding is available; falls back to in-memory)
@@ -120,9 +120,9 @@ The focused V1 browser E2E now proves the loop below for a user-configured gener
 
 | Data                                                | Storage                                  | Notes                                                        |
 | --------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
-| Chat threads and messages                           | `localStorage` (device-local) by default | Synced to D1 only when authenticated user enables sync. Guests are local-only. Export/import via JSON/Markdown/TXT always available. |
-| Settings (profile, personalization, shortcuts, RAG)   | `localStorage` by default                | User settings also stored in D1 when authenticated. Guests are local-only. |
-| Provider API keys                                   | D1 `user_provider_keys` (encrypted)      | AES-256-GCM encrypted. Guests cannot store keys server-side. |
+| Chat threads and messages                           | `localStorage` (device-local) by default | Synced to D1 only when authenticated user enables sync. Local-only profiles are device-local. Export/import via JSON/Markdown/TXT always available. |
+| Settings (profile, personalization, shortcuts, RAG)   | `localStorage` by default                | User settings also stored in D1 when authenticated. Local-only profiles are device-local. |
+| Provider API keys                                   | D1 `user_provider_keys` (encrypted)      | AES-256-GCM encrypted. Local-only profiles cannot store keys server-side. |
 | RAG vectors and text chunks                         | `localStorage` + in-memory               | Device-local only.                                           |
 | Provider stats (counts, tokens, cost)               | `localStorage`                           | Device-local only.                                           |
 | Usage records (per-call model/token/cost)           | D1 `usage_records` (when authenticated) | Per-user when logged in.                                     |
@@ -132,7 +132,7 @@ The focused V1 browser E2E now proves the loop below for a user-configured gener
 **Defaults proven by source:**
 
 - Chat data defaults to device-local (`is_local=1, sync_enabled=0`) — `src/lib/cockpit-store.ts` (`newThread`), `src/lib/db/schema.sql`
-- Guest users cannot store provider keys in D1 — `src/lib/session.server.ts` (`setProviderCreds` throws for guests)
+- Local-only profiles cannot store provider keys in D1 — `src/lib/session.server.ts` (`setProviderCreds` throws for local-only profiles)
 - Authenticated users can sync threads to D1 via `sync_enabled` flag — `src/lib/db/schema.sql`, `src/routes/api/threads.ts`
 - Provider API keys stored in D1 with AES-256-GCM encryption — `src/lib/db/schema.sql`, `src/lib/encryption.server.ts`
 - `_serverSyncAvailable = false` — `src/lib/vector-store.ts`; server RAG sync functions are dormant
@@ -151,7 +151,7 @@ The focused V1 browser E2E now proves the loop below for a user-configured gener
 
 **What D1 does NOT store by default:**
 
-- Chat threads for guests or users with `sync_enabled=0` — all device-local in `localStorage`
+- Chat threads for local-only profiles or users with `sync_enabled=0` — all device-local in `localStorage`
 - RAG vectors, text chunks, or embeddings — all device-local in `localStorage`
 - Provider stats (calls, tokens, cost) — all device-local in `localStorage`
 
@@ -488,7 +488,7 @@ Source: `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts`.
 - Browser never sees plaintext keys after migration
 - `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`
 - Legacy keys in `localStorage` are auto-migrated to the server on first hydration
-- Guests cannot store provider keys server-side (401 on proxy routes that need keys)
+- Local-only profiles cannot store provider keys server-side (401 on proxy routes that need keys)
 
 ### Message sanitization
 
@@ -722,7 +722,7 @@ Schemas registered via `registerLocalTool` or `registerProviderTools` are visibl
 
 Default `bun run test` runs without credentials. Live provider behavior (streaming, tools, embeddings against real APIs) is only tested via `RUN_LIVE_PROVIDER_TESTS=true`. Source: `src/live/providers.live.test.ts`.
 
-> **Privacy model:** Chat data defaults to device-local (`localStorage`). Sync to D1 is opt-in for authenticated users (per-thread or globally). Guests work entirely locally. RAG vectors and provider stats are always device-local. D1 stores user accounts, encrypted provider keys, user settings, synced threads (when enabled), sessions, rate limits, and usage records. Source: `src/lib/cockpit-store.ts`, `src/lib/db/schema.sql`, `src/lib/session.server.ts`.
+> **Privacy model:** Chat data defaults to device-local (`localStorage`). Sync to D1 is opt-in for authenticated users (per-thread or globally). Local-only profiles work entirely on-device. RAG vectors and provider stats are always device-local. D1 stores user accounts, encrypted provider keys, user settings, synced threads (when enabled), sessions, rate limits, and usage records. Source: `src/lib/cockpit-store.ts`, `src/lib/db/schema.sql`, `src/lib/session.server.ts`.
 
 ### Rate-limit backend is selectable: D1 (eventual) or Durable Object (strong)
 
