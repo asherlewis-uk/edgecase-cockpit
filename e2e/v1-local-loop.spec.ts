@@ -22,6 +22,21 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Private-Network": "true",
 };
 
+// Hosted HTTPS deployments correctly refuse to fetch insecure local HTTP
+// endpoints, so the V1 local-endpoint probe is a preview/dev-only capability.
+// Detect the deployed runtime from the explicit env flag or an https base URL
+// and condition the local-endpoint assertions accordingly.
+function isDeployedRuntime(baseURL?: string | null): boolean {
+  if (process.env.E2E_RUNTIME === "deployed") return true;
+  const candidate = baseURL ?? process.env.E2E_BASE_URL;
+  if (!candidate) return false;
+  try {
+    return new URL(candidate).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function v1Section(page: Page) {
   return page.locator("section").filter({
     has: page.getByRole("heading", { name: "V1 local endpoint" }),
@@ -55,12 +70,18 @@ function collectForbiddenRequests(page: Page) {
   return forbidden;
 }
 
-async function installModelListMocks(page: Page, responses: Map<string, MockModelList>) {
+async function installModelListMocks(
+  page: Page,
+  responses: Map<string, MockModelList>,
+  modelListRequests: string[],
+) {
   await page.route("**/api/tags", async (route) => {
+    modelListRequests.push(route.request().url());
     await route.abort("failed");
   });
 
   await page.route("**/v1/models", async (route) => {
+    modelListRequests.push(route.request().url());
     const url = new URL(route.request().url());
     const response = responses.get(url.origin);
     if (response) {
@@ -117,7 +138,8 @@ async function fulfillModelList(route: Route, response: MockModelList) {
 
 async function openSettingsAsFreshGuest(page: Page, responses: Map<string, MockModelList>) {
   const forbiddenRequests = collectForbiddenRequests(page);
-  await installModelListMocks(page, responses);
+  const modelListRequests: string[] = [];
+  await installModelListMocks(page, responses, modelListRequests);
   await page.context().clearCookies();
   // Fresh contexts start undetermined and are blocked by the identity choice.
   // Choose the local-only profile (first-class on-device identity) to reach the
@@ -145,16 +167,22 @@ async function openSettingsAsFreshGuest(page: Page, responses: Map<string, MockM
   await expect(capabilityLabel(page)).toHaveText(
     /Endpoint unreachable|Localhost points at this device|Hosted HTTPS blocks local HTTP|Endpoint needs a base URL|Endpoint URL is invalid/,
   );
-  return forbiddenRequests;
+  return { forbiddenRequests, modelListRequests };
 }
 
-async function configureEndpoint(page: Page, baseUrl: string, model: string) {
+async function configureEndpoint(page: Page, baseUrl: string, model: string, deployed = false) {
   await page.getByTestId("v1-base-url-input").fill(baseUrl);
   await expect(page.getByTestId("v1-base-url-input")).toHaveValue(baseUrl);
   await page.getByTestId("v1-model-input").fill(model);
   await expect(page.getByTestId("v1-model-input")).toHaveValue(model);
   await expect(capability(page)).toContainText(baseUrl);
   await expect(capability(page)).toContainText(model);
+  if (deployed) {
+    // Hosted HTTPS cannot fetch an insecure local HTTP endpoint, so the
+    // model-list probe stays disabled regardless of the configured URL/model.
+    await expect(checkModelsButton(page)).toBeDisabled();
+    return;
+  }
   await expect(checkModelsButton(page)).toBeEnabled();
 }
 
@@ -169,16 +197,54 @@ async function expectNoForbiddenRequests(forbiddenRequests: string[]) {
   ).toEqual([]);
 }
 
+// Deployed hosted-HTTPS runtime: a configured local HTTP endpoint must surface
+// the boundary explanation, keep the model-list probe disabled, and never fetch
+// the blocked V1 endpoint's model list. A separate, pre-existing named-provider
+// auto-detection sweep may still probe well-known local ports on settings load;
+// that sweep is not the V1 endpoint under test, so scope the fetch assertion to
+// the configured V1 base URL when one is provided.
+async function expectHostedHttpsBlocksLocalHttp(
+  page: Page,
+  modelListRequests: string[],
+  v1BaseUrl?: string,
+) {
+  await expect(capabilityLabel(page)).toHaveText("Hosted HTTPS blocks local HTTP");
+  await expect(page.getByTestId("v1-local-capability-reason")).toContainText(
+    /hosted HTTPS page cannot directly fetch an insecure localhost HTTP endpoint/i,
+  );
+  await expect(page.getByTestId("v1-local-capability-boundary")).toContainText(
+    /hosted web page cannot reach local HTTP/i,
+  );
+  await expect(checkModelsButton(page)).toBeDisabled();
+  if (v1BaseUrl) {
+    const v1ModelListFetches = modelListRequests.filter((url) => url.startsWith(v1BaseUrl));
+    expect(
+      v1ModelListFetches,
+      "Hosted HTTPS must not fetch the blocked V1 local-endpoint model list",
+    ).toEqual([]);
+  }
+}
+
 test.describe("V1 local OpenAI-compatible endpoint loop", () => {
   test("fresh guest can verify models without sign-in, OpenAI, cloud keys, or live providers", async ({
     page,
+    baseURL,
   }) => {
-    const forbiddenRequests = await openSettingsAsFreshGuest(
+    const deployed = isDeployedRuntime(baseURL);
+    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(
       page,
       new Map([[SUCCESS_BASE_URL, { kind: "success", models: [{ id: "fixture-alpha" }] }]]),
     );
 
-    await configureEndpoint(page, SUCCESS_BASE_URL, "fixture-alpha");
+    await configureEndpoint(page, SUCCESS_BASE_URL, "fixture-alpha", deployed);
+
+    if (deployed) {
+      await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, SUCCESS_BASE_URL);
+      await expect(page).not.toHaveURL(/\/auth/);
+      await expectNoForbiddenRequests(forbiddenRequests);
+      return;
+    }
+
     await expect(capabilityLabel(page)).toHaveText("Configured/reachable");
     await expect(capability(page)).toContainText("model availability is not verified", {
       ignoreCase: true,
@@ -193,13 +259,21 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
     await expectNoForbiddenRequests(forbiddenRequests);
   });
 
-  test("empty model list shows no usable models and a retry action", async ({ page }) => {
-    const forbiddenRequests = await openSettingsAsFreshGuest(
+  test("empty model list shows no usable models and a retry action", async ({ page, baseURL }) => {
+    const deployed = isDeployedRuntime(baseURL);
+    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(
       page,
       new Map([[EMPTY_BASE_URL, { kind: "empty" }]]),
     );
 
-    await configureEndpoint(page, EMPTY_BASE_URL, "expected-model");
+    await configureEndpoint(page, EMPTY_BASE_URL, "expected-model", deployed);
+
+    if (deployed) {
+      await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, EMPTY_BASE_URL);
+      await expectNoForbiddenRequests(forbiddenRequests);
+      return;
+    }
+
     await checkModels(page);
 
     await expect(capabilityLabel(page)).toHaveText("No models reported");
@@ -213,13 +287,22 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
 
   test("malformed model-list response shows failed state without provider integration", async ({
     page,
+    baseURL,
   }) => {
-    const forbiddenRequests = await openSettingsAsFreshGuest(
+    const deployed = isDeployedRuntime(baseURL);
+    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(
       page,
       new Map([[MALFORMED_BASE_URL, { kind: "malformed" }]]),
     );
 
-    await configureEndpoint(page, MALFORMED_BASE_URL, "expected-model");
+    await configureEndpoint(page, MALFORMED_BASE_URL, "expected-model", deployed);
+
+    if (deployed) {
+      await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, MALFORMED_BASE_URL);
+      await expectNoForbiddenRequests(forbiddenRequests);
+      return;
+    }
+
     await checkModels(page);
 
     await expect(capabilityLabel(page)).toHaveText("Model-list response is malformed");
@@ -230,14 +313,23 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
 
   test("unreachable endpoint shows failure, clears stale state on config change, and recovers", async ({
     page,
+    baseURL,
   }) => {
+    const deployed = isDeployedRuntime(baseURL);
     const responses = new Map<string, MockModelList>([
       [UNREACHABLE_BASE_URL, { kind: "abort" }],
       [RECOVERY_BASE_URL, { kind: "success", models: [{ id: "recovered-model" }] }],
     ]);
-    const forbiddenRequests = await openSettingsAsFreshGuest(page, responses);
+    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(page, responses);
 
-    await configureEndpoint(page, UNREACHABLE_BASE_URL, "bad-model");
+    await configureEndpoint(page, UNREACHABLE_BASE_URL, "bad-model", deployed);
+
+    if (deployed) {
+      await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, UNREACHABLE_BASE_URL);
+      await expectNoForbiddenRequests(forbiddenRequests);
+      return;
+    }
+
     await checkModels(page);
 
     await expect(capabilityLabel(page)).toHaveText("Model-list endpoint unreachable");
@@ -246,7 +338,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
       "retry the model-list check",
     );
 
-    await configureEndpoint(page, RECOVERY_BASE_URL, "recovered-model");
+    await configureEndpoint(page, RECOVERY_BASE_URL, "recovered-model", deployed);
     await expect(capability(page)).not.toContainText("Model-list endpoint unreachable");
     await expect(capability(page)).not.toContainText(/failed to fetch/i);
     await expect(capabilityLabel(page)).toHaveText("Configured/reachable");
@@ -268,8 +360,22 @@ test.describe("V1 local endpoint browser boundary states", () => {
     hasTouch: devices["Pixel 5"].hasTouch,
   });
 
-  test("mobile localhost mismatch is visible before any model-list fetch", async ({ page }) => {
-    const forbiddenRequests = await openSettingsAsFreshGuest(page, new Map());
+  test("mobile localhost mismatch is visible before any model-list fetch", async ({
+    page,
+    baseURL,
+  }) => {
+    const deployed = isDeployedRuntime(baseURL);
+    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(page, new Map());
+
+    if (deployed) {
+      // Hosted HTTPS blocking local HTTP takes priority over the mobile-localhost
+      // boundary: the page cannot reach a local HTTP endpoint on any device. The
+      // default endpoint shares a port with the named-provider detection sweep,
+      // so the proof here is the blocked label + disabled probe, not a URL fetch.
+      await expectHostedHttpsBlocksLocalHttp(page, modelListRequests);
+      await expectNoForbiddenRequests(forbiddenRequests);
+      return;
+    }
 
     await expect(capabilityLabel(page)).toHaveText("Localhost points at this device");
     await expect(page.getByTestId("v1-local-capability-boundary")).toContainText(
