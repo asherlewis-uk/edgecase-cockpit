@@ -366,7 +366,7 @@ describe("account-scoped settings", () => {
     expect(mockFetch).toHaveBeenCalledWith("/api/settings");
   });
 
-  it("logout switches to the guest bucket and does not leak User A settings", async () => {
+  it("logout switches to the local profile bucket and does not leak User A settings", async () => {
     // Seed User A's bucket with distinct settings.
     store.setUser(mockUserA);
     store.updateSettings({ profile: { displayName: "User A" } });
@@ -389,9 +389,17 @@ describe("account-scoped settings", () => {
     expect(store.getState().user).toBeNull();
     expect(store.getState().settings.profile.displayName).toBe("Guest");
 
-    // Verify the guest bucket did not absorb User A's settings.
-    const guestRaw = JSON.parse(window.localStorage.getItem("cockpit.settings.v2:guest") ?? "{}");
-    expect(guestRaw.profile?.displayName).toBe("Guest");
+    // Verify the local profile bucket did not absorb User A's settings.
+    // (Logout now returns to the local-only profile, not the legacy guest bucket.)
+    const localProfileId = store.getState().localProfileId;
+    expect(localProfileId).toBeTruthy();
+    const localRaw = JSON.parse(
+      window.localStorage.getItem(`cockpit.settings.v2:${localProfileId}`) ?? "{}",
+    );
+    expect(localRaw.profile?.displayName).toBe("Guest");
+    // User A's bucket stays isolated.
+    const userARaw = JSON.parse(window.localStorage.getItem("cockpit.settings.v2:user-a") ?? "{}");
+    expect(userARaw.profile?.displayName).toBe("User A");
   });
 
   it("fetchMe restores the authenticated user and their scoped settings", async () => {

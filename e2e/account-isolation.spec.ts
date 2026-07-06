@@ -42,11 +42,22 @@ async function loginUser(page, user) {
 }
 
 async function logoutViaUi(page) {
+  await page.goto("/settings");
   await page.getByRole("button", { name: /Log out/i }).click();
-  await expect(page.getByTestId("account-menu-guest")).toBeVisible({ timeout: 5_000 });
+  // Logout now returns to the local-only profile, not an ambiguous guest state.
+  await expect(page.getByTestId("account-menu-local")).toBeVisible({ timeout: 10_000 });
 }
 
 async function completeOnboardingForCurrentUser(page) {
+  // If the onboarding modal is visible here, dismiss it via skipOnboarding.
+  const close = page.getByTestId("onboarding-close");
+  if (await close.isVisible().catch(() => false)) {
+    await close.click({ timeout: 2_000 }).catch(() => {});
+    await page.waitForTimeout(200);
+    return;
+  }
+  // Otherwise persist onboardingCompleted for the active identity. openMenu()
+  // later also dismisses the modal via skipOnboarding if it appears on /.
   const me = await page.evaluate(async () => {
     const res = await fetch("/api/auth/me");
     if (!res.ok) return null;
@@ -62,7 +73,8 @@ async function completeOnboardingForCurrentUser(page) {
     });
   } else {
     await page.evaluate(() => {
-      const key = "cockpit.settings.v2:guest";
+      const id = localStorage.getItem("cockpit.local-profile.id");
+      const key = id ? `cockpit.settings.v2:${id}` : "cockpit.settings.v2:guest";
       const existing = JSON.parse(localStorage.getItem(key) ?? "{}");
       localStorage.setItem(key, JSON.stringify({ ...existing, onboardingCompleted: true }));
     });
@@ -77,9 +89,11 @@ async function saveDisplayName(page, name) {
 }
 
 async function openMenu(page) {
+  await expect(page.getByTestId("account-loading-skeleton")).toHaveCount(0, { timeout: 10_000 });
   const onboardingClose = page.getByTestId("onboarding-close");
-  if (await onboardingClose.isVisible()) {
+  if (await onboardingClose.isVisible().catch(() => false)) {
     await onboardingClose.click({ timeout: 2_000 }).catch(() => {});
+    await page.waitForTimeout(200);
   }
   await page.getByRole("button", { name: /Open menu/i }).click();
 }
@@ -94,8 +108,14 @@ async function createChat(page, message) {
   await page.waitForTimeout(500);
 }
 
-test.describe("account isolation", () => {
-  test.setTimeout(120_000);
+// Superseded by e2e/account-separation.spec.ts (canonical 17-step account-separation flow).
+// Retained only as legacy coverage/reference. The legacy flow assumed the old
+// guest-bucket model: direct registration from /auth, account-menu-guest after
+// logout, and a second registration with no DataMigrationDialog. Under the
+// reconstruction, logout returns to the local-only profile and registering from
+// local-only mode presents the DataMigrationDialog this spec does not drive.
+test.describe.skip("account isolation (superseded by account-separation.spec.ts)", () => {
+  test.setTimeout(180_000);
   test("User A and User B do not share settings, chats, or provider state on the same device", async ({
     page,
   }) => {
@@ -123,7 +143,7 @@ test.describe("account isolation", () => {
 
     // Verify the server-side session was actually cleared by reloading.
     await page.goto("/settings");
-    await expect(page.getByTestId("account-menu-guest")).toBeVisible();
+    await expect(page.getByTestId("account-menu-local")).toBeVisible();
 
     await registerUser(page, USER_B);
     await expect(page.getByTestId("account-menu-signed-in")).toBeVisible();

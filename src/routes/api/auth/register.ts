@@ -9,6 +9,11 @@ const Body = z.object({
   email: z.string().email().min(1).max(256),
   password: z.string().min(8).max(128),
   displayName: z.string().max(128).optional(),
+  // When false, the server skips claiming guest session data into the new user
+  // account. Defaults to true for backward compatibility. Local → server
+  // migrations send false for Copy/Keep-Separate so server-side guest data is
+  // not moved/deleted; Move sends true.
+  claimGuestData: z.boolean().optional().default(true),
 });
 
 export const Route = createFileRoute("/api/auth/register")({
@@ -38,7 +43,7 @@ export const Route = createFileRoute("/api/auth/register")({
           );
         }
 
-        const { email, password, displayName } = parsed.data;
+        const { email, password, displayName, claimGuestData } = parsed.data;
         const passwordHash = await hashPassword(password);
         const result = await createUser(email, passwordHash, displayName);
 
@@ -52,8 +57,9 @@ export const Route = createFileRoute("/api/auth/register")({
         // Immediately log the user in after registration
         await setAuthSession(result.user.id, result.user.email);
 
-        // Claim any guest session data into the new user account
-        if (guestId) {
+        // Claim any guest session data into the new user account, unless the
+        // client explicitly opted out (local → server Copy/Keep-Separate).
+        if (guestId && claimGuestData !== false) {
           await claimGuestSession(guestId, result.user.id);
         }
 

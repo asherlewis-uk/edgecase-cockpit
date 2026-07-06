@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { store, defaultSettings } from "./cockpit-store";
 import { __resetHydration } from "./cockpit-store";
 
+// Establish a local-only profile so identity-safe hydrate recovers from the
+// local profile bucket (not the legacy ":guest" bucket) on reload.
+function establishLocalProfile(id = "local-profile-onboarding"): void {
+  window.localStorage.setItem("cockpit.account.mode", "local-only");
+  window.localStorage.setItem("cockpit.local-profile.id", id);
+}
+
 // Mock localStorage
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
@@ -62,22 +69,30 @@ describe("cockpit-store onboarding state", () => {
   });
 
   it("should persist completeOnboarding state after reload", () => {
+    establishLocalProfile();
+    __resetHydration();
+    store.getState(); // hydrate loads the local profile bucket
+
     store.completeOnboarding();
     const state1 = store.getState();
     expect(state1.settings.onboardingCompleted).toBe(true);
 
-    // Simulate page reload by resetting hydration and reading from localStorage
+    // Simulate page reload: identity-safe hydrate recovers from the local bucket.
     __resetHydration();
     const state2 = store.getState();
     expect(state2.settings.onboardingCompleted).toBe(true);
   });
 
   it("should persist skipOnboarding state after reload", () => {
+    establishLocalProfile();
+    __resetHydration();
+    store.getState(); // hydrate loads the local profile bucket
+
     store.skipOnboarding();
     const state1 = store.getState();
     expect(state1.settings.onboardingCompleted).toBe(true);
 
-    // Simulate page reload by resetting hydration and reading from localStorage
+    // Simulate page reload: identity-safe hydrate recovers from the local bucket.
     __resetHydration();
     const state2 = store.getState();
     expect(state2.settings.onboardingCompleted).toBe(true);

@@ -15,7 +15,8 @@ const STORE_KEY_BASE = "cockpit.vector-store.v1";
 
 /** Return the localStorage vector-store key for the current account scope. */
 function getStoreKey(): string {
-  const scope = store.getState().user?.id ?? "guest";
+  const s = store.getState();
+  const scope = s.user?.id ?? s.localProfileId ?? "guest";
   return `${STORE_KEY_BASE}:${scope}`;
 }
 
@@ -139,6 +140,23 @@ export function addVectorDocsForUser(userId: string | null, docs: VectorDoc[]) {
     } catch {
       /* ignore */
     }
+  }
+}
+
+/** Read all vector docs from a specific account bucket without touching the shared cache. */
+export function getAllVectorDocsForUser(userId: string | null): VectorDoc[] {
+  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  return loadDocsForKey(key);
+}
+
+/** Replace the entire vector-doc set for a specific account bucket (used by copy/move migration). */
+export function saveVectorStoreForUser(userId: string | null, docs: VectorDoc[]): void {
+  if (typeof window === "undefined") return;
+  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  try {
+    localStorage.setItem(key, JSON.stringify(docs));
+  } catch {
+    /* ignore quota errors */
   }
 }
 

@@ -759,14 +759,19 @@ describe("costOverrides", () => {
 // Thread persistence after reload
 // ---------------------------------------------------------------------------
 describe("thread persistence after reload", () => {
+  const LOCAL_PROFILE_ID = "local-profile-thread-persistence";
+
   beforeEach(() => {
     __resetHydration();
     storage.clear();
-    store.clearAll();
-    __resetHydration();
+    // Establish a local-only profile so identity-safe hydrate recovers from the
+    // local profile bucket (not the legacy ":guest" bucket) on reload.
+    storage.set("cockpit.account.mode", "local-only");
+    storage.set("cockpit.local-profile.id", LOCAL_PROFILE_ID);
   });
 
   it("recovers threads and messages from localStorage after reload", () => {
+    store.getState(); // hydrate into local-only mode (loads local profile bucket)
     const threadId = store.newThread();
     store.addMessage(threadId, {
       id: "msg-1",
@@ -781,14 +786,14 @@ describe("thread persistence after reload", () => {
       ts: Date.now(),
     });
 
-    // Verify localStorage has the data
-    const rawThreads = storage.get("cockpit.threads.v1:guest");
+    // Verify localStorage has the data under the local profile bucket.
+    const rawThreads = storage.get(`cockpit.threads.v1:${LOCAL_PROFILE_ID}`);
     expect(rawThreads).toBeDefined();
     const parsed = JSON.parse(rawThreads!);
     expect(parsed).toHaveLength(1);
     expect(parsed[0].messages).toHaveLength(2);
 
-    // Simulate reload
+    // Simulate reload: identity-safe hydrate recovers from the local bucket.
     __resetHydration();
     const state = store.getState();
 

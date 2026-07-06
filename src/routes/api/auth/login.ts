@@ -13,6 +13,9 @@ import { sessionRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 const Body = z.object({
   email: z.string().email().min(1).max(256),
   password: z.string().min(1).max(128),
+  // When false, the server skips claiming guest session data into the user
+  // account. Defaults to true for backward compatibility.
+  claimGuestData: z.boolean().optional().default(true),
 });
 
 export const Route = createFileRoute("/api/auth/login")({
@@ -42,7 +45,7 @@ export const Route = createFileRoute("/api/auth/login")({
           );
         }
 
-        const { email, password } = parsed.data;
+        const { email, password, claimGuestData } = parsed.data;
         const user = await getUserByEmail(email);
 
         if (!user) {
@@ -59,8 +62,9 @@ export const Route = createFileRoute("/api/auth/login")({
 
         await setAuthSession(user.id, user.email);
 
-        // Claim any guest session data into the user account
-        if (guestId) {
+        // Claim any guest session data into the user account, unless the
+        // client explicitly opted out.
+        if (guestId && claimGuestData !== false) {
           await claimGuestSession(guestId, user.id);
         }
 

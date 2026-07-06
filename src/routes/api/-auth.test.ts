@@ -165,6 +165,68 @@ describe("POST /api/auth/register", () => {
     );
   });
 
+  it("skips claiming guest data when claimGuestData is false", async () => {
+    const mockUser = {
+      id: "user-1",
+      email: "keep@example.com",
+      display_name: "Keep Separate",
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(hashPassword).mockResolvedValue("hashed-password");
+    vi.mocked(createUser).mockResolvedValue({ user: mockUser });
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/register");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "keep@example.com",
+          password: "password123",
+          displayName: "Keep Separate",
+          claimGuestData: false,
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).not.toHaveBeenCalled();
+  });
+
+  it("defaults claimGuestData to true (backward compatible)", async () => {
+    const mockUser = {
+      id: "user-1",
+      email: "default@example.com",
+      display_name: "Default",
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(hashPassword).mockResolvedValue("hashed-password");
+    vi.mocked(createUser).mockResolvedValue({ user: mockUser });
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/register");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "default@example.com",
+          password: "password123",
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).toHaveBeenCalledWith("guest-session", "user-1");
+  });
+
   it("rejects duplicate email with 409", async () => {
     vi.mocked(hashPassword).mockResolvedValue("hashed-password");
     vi.mocked(createUser).mockResolvedValue({ error: "Email already registered" } as any);
@@ -293,6 +355,38 @@ describe("POST /api/auth/login", () => {
     expect(vi.mocked(getGuestSessionId).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(setAuthSession).mock.invocationCallOrder[0],
     );
+  });
+
+  it("skips claiming guest data when claimGuestData is false", async () => {
+    const fullUser = {
+      id: "user-1",
+      email: "login@example.com",
+      password_hash: "hashed",
+      display_name: "Login User",
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(getUserByEmail).mockResolvedValue(fullUser as any);
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/login");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "login@example.com",
+          password: "correct-password",
+          claimGuestData: false,
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).not.toHaveBeenCalled();
   });
 
   it("rejects wrong password with 401", async () => {

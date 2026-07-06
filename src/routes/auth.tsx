@@ -17,7 +17,19 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { register, login } from "@/lib/cockpit-store";
+import {
+  register,
+  login,
+  store,
+  enterServerMode,
+  copyLocalToServer,
+  moveLocalToServer,
+  type UserPublic,
+} from "@/lib/cockpit-store";
+import {
+  DataMigrationDialog,
+  type MigrationChoice,
+} from "@/components/cockpit/DataMigrationDialog";
 
 const searchSchema = z.object({
   redirect: z.string().catch("/settings"),
@@ -54,6 +66,10 @@ function AuthPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"signin" | "register">(mode);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  // When set, a local-only user is registering and must choose a migration
+  // behavior before the register request is sent.
+  const [pendingRegistration, setPendingRegistration] = useState<RegisterForm | null>(null);
+  const [migrationSubmitting, setMigrationSubmitting] = useState(false);
 
   useEffect(() => {
     setActiveTab(mode);
@@ -82,6 +98,14 @@ function AuthPage() {
 
   const handleRegister = async (values: RegisterForm) => {
     setGlobalError(null);
+    const previousMode = store.getState().accountMode;
+    if (previousMode === "local-only") {
+      // Local → server registration: intercept and require an explicit
+      // migration choice BEFORE the register request is sent so claimGuestData
+      // matches the choice and no local data silently leaks into the new account.
+      setPendingRegistration(values);
+      return;
+    }
     const result = await register(values.email, values.password, values.displayName);
     if (result.ok) {
       toast.success("Account created");
@@ -89,6 +113,42 @@ function AuthPage() {
       return;
     }
     setGlobalError(result.error);
+  };
+
+  const performMigrationRegister = async (values: RegisterForm, choice: MigrationChoice) => {
+    setGlobalError(null);
+    setMigrationSubmitting(true);
+    // claimGuestData is true only for Move (server claims server-side guest
+    // data). Copy and Keep-Separate send false so server-side guest data is not
+    // moved/deleted by the server.
+    const claimGuestData = choice === "move";
+    const result = await register(values.email, values.password, values.displayName, {
+      claimGuestData,
+      // Do not auto-enter server mode; we perform the client-side migration
+      // first, then enter server mode against the correctly-populated bucket.
+      onBeforeEnterServer: () => false,
+    });
+    if (!result.ok) {
+      setMigrationSubmitting(false);
+      setGlobalError(result.error);
+      setPendingRegistration(null);
+      return;
+    }
+    const user = result.user as UserPublic;
+    const localProfileId = store.getState().localProfileId;
+    if (localProfileId) {
+      if (choice === "copy") {
+        copyLocalToServer(user.id, localProfileId);
+      } else if (choice === "move") {
+        moveLocalToServer(user.id, localProfileId);
+      }
+      // keep-separate: leave local data untouched; server account starts clean.
+    }
+    enterServerMode(user);
+    setMigrationSubmitting(false);
+    setPendingRegistration(null);
+    toast.success("Account created");
+    navigate({ to: redirect });
   };
 
   return (
@@ -253,6 +313,19 @@ function AuthPage() {
           Your session is stored in an encrypted cookie and persists for 30 days.
         </p>
       </div>
+
+      {pendingRegistration && (
+        <DataMigrationDialog
+          submitting={migrationSubmitting}
+          onCancel={() => {
+            setGlobalError(null);
+            setPendingRegistration(null);
+          }}
+          onChoose={(choice) => {
+            void performMigrationRegister(pendingRegistration, choice);
+          }}
+        />
+      )}
     </div>
   );
 }

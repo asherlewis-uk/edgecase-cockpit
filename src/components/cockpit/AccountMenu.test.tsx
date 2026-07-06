@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AccountMenu } from "./AccountMenu";
 import { store } from "@/lib/cockpit-store";
@@ -113,6 +113,43 @@ describe("AccountMenu", () => {
       );
     });
     expect(store.getState().user).toBeNull();
+    expect(callback).toHaveBeenCalled();
+  });
+
+  it("labels a local-only profile as Local Profile, not Guest", () => {
+    store.enterLocalMode("lp-account-menu");
+    render(<AccountMenu />);
+    expect(screen.getByTestId("account-menu-local")).toBeInTheDocument();
+    expect(screen.getByText(/local profile/i)).toBeInTheDocument();
+    expect(screen.queryByText(/as a guest/i)).toBeNull();
+  });
+
+  it("shows Switch to Local Profile when signed in", () => {
+    store.setUser({
+      id: "u1",
+      email: "test@example.com",
+      display_name: "Test User",
+      created_at: 1,
+      updated_at: 1,
+    });
+    render(<AccountMenu />);
+    expect(screen.getByTestId("account-menu-switch-local")).toBeInTheDocument();
+  });
+
+  it("switching to local profile enters local mode", () => {
+    store.setUser({
+      id: "u1",
+      email: "test@example.com",
+      display_name: "Test User",
+      created_at: 1,
+      updated_at: 1,
+    });
+    const callback = vi.fn();
+    render(<AccountMenu onAction={callback} />);
+    fireEvent.click(screen.getByTestId("account-menu-switch-local"));
+    expect(store.getState().user).toBeNull();
+    expect(store.getState().accountMode).toBe("local-only");
+    expect(store.getState().localProfileId).toBeTruthy();
     expect(callback).toHaveBeenCalled();
   });
 });

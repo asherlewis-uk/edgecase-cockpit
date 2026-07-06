@@ -14,7 +14,12 @@ import {
 } from "@/lib/providers";
 import type { ToolCall, ToolResult } from "@/lib/tools";
 import { setCostOverrides } from "@/lib/tokens";
-import { loadVectorStoreForUser, clearVectorStoreCache } from "@/lib/vector-store";
+import {
+  loadVectorStoreForUser,
+  clearVectorStoreCache,
+  getAllVectorDocsForUser,
+  saveVectorStoreForUser,
+} from "@/lib/vector-store";
 
 export type ProviderConfig = {
   apiKey: string;
@@ -130,7 +135,7 @@ const SETTINGS_KEY_BASE = "cockpit.settings.v2";
 
 /** Return the localStorage settings key for the current account scope. */
 function getSettingsKey(): string {
-  const scope = state.user?.id ?? "guest";
+  const scope = state.user?.id ?? state.localProfileId ?? "guest";
   return `${SETTINGS_KEY_BASE}:${scope}`;
 }
 
@@ -146,7 +151,7 @@ const THREADS_KEY_BASE = "cockpit.threads.v1";
 
 /** Return the localStorage threads key for the current account scope. */
 function getThreadsKey(): string {
-  const scope = state.user?.id ?? "guest";
+  const scope = state.user?.id ?? state.localProfileId ?? "guest";
   return `${THREADS_KEY_BASE}:${scope}`;
 }
 
@@ -172,7 +177,7 @@ const STATS_KEY_BASE = "cockpit.provider-stats.v1";
 
 /** Return the localStorage stats key for the current account scope. */
 function getStatsKey(): string {
-  const scope = state.user?.id ?? "guest";
+  const scope = state.user?.id ?? state.localProfileId ?? "guest";
   return `${STATS_KEY_BASE}:${scope}`;
 }
 
@@ -183,6 +188,67 @@ function getStatsKeyForUser(userId: string): string {
 
 function getGuestStatsKey(): string {
   return `${STATS_KEY_BASE}:guest`;
+}
+
+// ── Account mode + local profile identity ──────────────────────────────────
+// The active account mode is persisted so reloads can resolve identity before
+// rendering any account-scoped data (no guest-first flash).
+//   "undetermined" — user has not yet made an explicit identity choice.
+//   "local-only"   — user chose the on-device local profile (stable localProfileId).
+//   "server"       — a server account is currently authenticated.
+
+export type AccountMode = "undetermined" | "local-only" | "server";
+
+export const ACCOUNT_MODE_KEY = "cockpit.account.mode";
+export const LOCAL_PROFILE_ID_KEY = "cockpit.local-profile.id";
+const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";
+
+export function readAccountMode(): AccountMode {
+  if (typeof window === "undefined") return "undetermined";
+  const raw = localStorage.getItem(ACCOUNT_MODE_KEY);
+  if (raw === "local-only" || raw === "server") return raw;
+  return "undetermined";
+}
+
+export function writeAccountMode(mode: AccountMode): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ACCOUNT_MODE_KEY, mode);
+}
+
+export function readLocalProfileId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(LOCAL_PROFILE_ID_KEY);
+}
+
+export function writeLocalProfileId(id: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LOCAL_PROFILE_ID_KEY, id);
+}
+
+export function generateLocalProfileId(): string {
+  return crypto.randomUUID();
+}
+
+export function getLocalProfileSettingsKey(id: string): string {
+  return `${SETTINGS_KEY_BASE}:${id}`;
+}
+
+export function getLocalProfileThreadsKey(id: string): string {
+  return `${THREADS_KEY_BASE}:${id}`;
+}
+
+export function getLocalProfileStatsKey(id: string): string {
+  return `${STATS_KEY_BASE}:${id}`;
+}
+
+/** Clear the global offline queue so queued prompts cannot fire under the wrong account. */
+export function clearOfflineQueue(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(OFFLINE_QUEUE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export type ProviderStat = {
@@ -522,6 +588,10 @@ type State = {
       lastValidated?: number;
     }
   >;
+  /** Resolved account mode. "undetermined" until the user makes an explicit identity choice. */
+  accountMode: AccountMode;
+  /** Stable on-device local profile identity (null until the user chooses local-only). */
+  localProfileId: string | null;
 };
 
 let state: State = {
@@ -532,48 +602,94 @@ let state: State = {
   providerKeyStatus: {},
   providerValidationStatus: {},
   stats: {},
+  accountMode: "undetermined",
+  localProfileId: null,
 };
 let hydrated = false;
 
-/** For tests: reset hydration state so setupCrossTabSync can be re-exercised. */
+/**
+ * For tests: reset hydration state AND restore the clean initial state so a test
+ * starts from a known neutral slate (no stale threads/settings/account mode from
+ * a prior test). Subsequent store.getState() re-runs identity-safe hydrate()
+ * against the cleared localStorage.
+ */
 export function __resetHydration(): void {
   hydrated = false;
-}
-
-function hydrate() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  let rawSettings = readJson(getSettingsKey());
-  let legacyProviderKeys: LegacyProviderKey[] = [];
-  if (!isRecord(rawSettings)) {
-    // Fall back to legacy global settings blob once for migration.
-    const legacy = readJson(SETTINGS_KEY_BASE);
-    legacyProviderKeys = extractLegacyProviderKeys(legacy);
-    rawSettings = isRecord(legacy) ? legacy : undefined;
-  }
   state = {
-    settings: normalizeSettings(rawSettings),
-    threads: readArr<Thread>(getThreadsKey()),
+    settings: defaultSettings,
+    threads: [],
     activeThreadId: null,
-    user: state.user,
+    user: null,
     providerKeyStatus: {},
     providerValidationStatus: {},
     stats: {},
+    accountMode: "undetermined",
+    localProfileId: null,
   };
+}
+
+/**
+ * Identity-safe legacy hydration.
+ *
+ * This synchronous path is reachable via store.getState()/useStore. It must
+ * NEVER load the legacy ":guest" bucket (or any wrong-account bucket) before
+ * identity is resolved — that was the source of the reload flash for
+ * authenticated users.
+ *
+ * Behaviour by persisted accountMode:
+ *   - "undetermined": leave the neutral initial state; load no bucket and fire
+ *     no server calls. The IdentityChoiceModal drives the next transition.
+ *   - "local-only" (with a localProfileId): synchronously load the local
+ *     profile bucket — this is safe because the local profile is the resolved
+ *     identity and cannot flash another account's data.
+ *   - "server": load NO bucket synchronously. Server identity requires an
+ *     async /api/auth/me round-trip, which is handled by hydrateAsync(). The
+ *     UI gate blocks rendering until hydrateAsync resolves, so hydrate() in
+ *     server mode only marks itself satisfied and wires cross-tab sync.
+ *
+ * Tests that need bucket recovery must set up accountMode/localProfileId
+ * explicitly rather than relying on a default guest-bucket load.
+ */
+function hydrate() {
+  if (hydrated || typeof window === "undefined") return;
+  hydrated = true;
+  const mode = readAccountMode();
+  const localProfileId = readLocalProfileId();
+
+  if (mode === "local-only" && localProfileId) {
+    const rawSettings = readJson(getLocalProfileSettingsKey(localProfileId));
+    state = {
+      ...state,
+      settings: normalizeSettings(rawSettings),
+      threads: readArr<Thread>(getLocalProfileThreadsKey(localProfileId)),
+      activeThreadId: null,
+      user: null,
+      accountMode: "local-only",
+      localProfileId,
+      providerKeyStatus: {},
+      providerValidationStatus: {},
+      stats: loadStatsForKey(getLocalProfileStatsKey(localProfileId)),
+    };
+    setupCrossTabSync();
+    persist();
+    setCostOverrides(state.settings.costOverrides ?? {});
+    loadVectorStoreForUser(localProfileId);
+    return;
+  }
+
+  if (mode === "server") {
+    // Do NOT load any bucket synchronously. hydrateAsync() resolves the server
+    // identity via fetchMe and calls enterServerMode/enterLocalMode. Mark
+    // hydrated and wire cross-tab sync only.
+    state = { ...state, accountMode: "server", localProfileId };
+    setupCrossTabSync();
+    return;
+  }
+
+  // undetermined (or local-only without an id): neutral state, no bucket load,
+  // no server calls, no guest vector bucket.
+  state = { ...state, accountMode: "undetermined", localProfileId: null };
   setupCrossTabSync();
-  persist();
-  // Apply persisted cost overrides immediately so token cost estimates
-  // are correct before the first emit().
-  setCostOverrides(state.settings.costOverrides ?? {});
-  // Migrate any legacy apiKeys persisted in localStorage to the server session,
-  // then keep local settings stripped. Fire-and-forget; UI updates via emit().
-  void migrateLocalKeysToServer(legacyProviderKeys);
-  // Fetch server-side key status to populate readiness indicators.
-  void refreshProviderKeyStatus();
-  // Restore authenticated user from the encrypted cookie via /api/auth/me.
-  void fetchMe();
-  // Start with the guest vector bucket until fetchMe confirms the account.
-  loadVectorStoreForUser(null);
 }
 
 const listeners = new Set<() => void>();
@@ -636,6 +752,228 @@ function setupCrossTabSync() {
   });
 }
 
+// ── Account-mode transitions ───────────────────────────────────────────────
+// enterServerMode / enterLocalMode are the canonical account switches. They
+// load the correct account bucket, clear runtime caches that could leak state
+// across accounts, persist the account mode, and switch the vector store.
+
+function clearRuntimeCaches(): void {
+  state = {
+    ...state,
+    providerKeyStatus: {},
+    providerValidationStatus: {},
+  };
+}
+
+/** One-time migration of the legacy hardcoded ":guest" bucket into a local profile bucket. */
+export function migrateGuestBucketToLocalProfile(localProfileId: string): void {
+  if (typeof window === "undefined") return;
+  const guestSettings = readJson(getGuestSettingsKey());
+  const guestThreads = readArr<Thread>(getGuestThreadsKey());
+  const guestStats = loadStatsForKey(getGuestStatsKey());
+  const guestDocs = getAllVectorDocsForUser(null);
+
+  if (isRecord(guestSettings)) {
+    localStorage.setItem(getLocalProfileSettingsKey(localProfileId), JSON.stringify(guestSettings));
+  }
+  if (guestThreads.length) {
+    localStorage.setItem(getLocalProfileThreadsKey(localProfileId), JSON.stringify(guestThreads));
+  }
+  if (Object.keys(guestStats).length) {
+    localStorage.setItem(getLocalProfileStatsKey(localProfileId), JSON.stringify(guestStats));
+  }
+  if (guestDocs.length) {
+    saveVectorStoreForUser(localProfileId, guestDocs);
+  }
+  // Intentionally do NOT delete the legacy ":guest" keys during the initial
+  // migration — they remain as a rollback safety net.
+}
+
+/**
+ * Ensure a local profile id exists, persisting a fresh one if needed, and lazily
+ * migrating any legacy ":guest" bucket into it the first time it is used.
+ * Returns the resolved local profile id.
+ */
+export function ensureLocalProfileId(): string {
+  let id = readLocalProfileId();
+  if (!id) {
+    id = generateLocalProfileId();
+    writeLocalProfileId(id);
+  }
+  const hasLocalData = readJson(getLocalProfileSettingsKey(id)) !== undefined;
+  if (!hasLocalData) {
+    migrateGuestBucketToLocalProfile(id);
+  }
+  return id;
+}
+
+/**
+ * Return the runtime to the on-device local profile, establishing one if
+ * needed. Used by logout / clearUser / fetchMe-failure so a server account
+ * always lands on a first-class local profile — never an ambiguous guest state.
+ */
+function returnToLocalProfile(): void {
+  const id = ensureLocalProfileId();
+  enterLocalMode(id);
+}
+
+/** Switch the runtime to a server account. Loads the user bucket and clears caches. */
+export function enterServerMode(user: UserPublic): void {
+  const settingsKey = getSettingsKeyForUser(user.id);
+  const threadsKey = getThreadsKeyForUser(user.id);
+  const statsKey = getStatsKeyForUser(user.id);
+  const userLocalSettings = readJson(settingsKey);
+  const accountSettings = normalizeSettings(userLocalSettings);
+  const accountThreads = readArr<Thread>(threadsKey);
+
+  clearRuntimeCaches();
+  state = {
+    ...state,
+    user,
+    accountMode: "server",
+    settings: accountSettings,
+    threads: accountThreads,
+    activeThreadId: null,
+    stats: loadStatsForKey(statsKey),
+  };
+  writeAccountMode("server");
+  emit();
+  persist();
+  loadVectorStoreForUser(user.id);
+  clearOfflineQueue();
+  // One-time legacy v1→v2 migration: if this user has no account-scoped
+  // settings yet but a legacy global settings blob with apiKeys exists, push
+  // those keys to the server session and keep local settings stripped.
+  if (userLocalSettings === undefined) {
+    const legacy = readJson(SETTINGS_KEY_BASE);
+    const legacyKeys = extractLegacyProviderKeys(legacy);
+    if (legacyKeys.length) {
+      void migrateLocalKeysToServer(legacyKeys);
+    }
+  }
+  // Pull server-side settings first, then refresh provider key status. Ordering
+  // matters: settings sync must consume the first post-auth response so legacy
+  // callers/tests that mock a single settings payload still see it applied.
+  void loadSettingsFromServer();
+  void refreshProviderKeyStatus();
+}
+
+/** Switch the runtime to the on-device local profile. Loads the local bucket and clears caches. */
+export function enterLocalMode(localProfileId: string): void {
+  const settingsKey = getLocalProfileSettingsKey(localProfileId);
+  const threadsKey = getLocalProfileThreadsKey(localProfileId);
+  const statsKey = getLocalProfileStatsKey(localProfileId);
+  const accountSettings = normalizeSettings(readJson(settingsKey));
+  const accountThreads = readArr<Thread>(threadsKey);
+
+  clearRuntimeCaches();
+  state = {
+    ...state,
+    user: null,
+    accountMode: "local-only",
+    localProfileId,
+    settings: accountSettings,
+    threads: accountThreads,
+    activeThreadId: null,
+    stats: loadStatsForKey(statsKey),
+  };
+  writeAccountMode("local-only");
+  writeLocalProfileId(localProfileId);
+  emit();
+  persist();
+  loadVectorStoreForUser(localProfileId);
+  clearVectorStoreCache();
+  clearOfflineQueue();
+  // Local-only profiles never call server settings/key sync.
+}
+
+/**
+ * Blocking async identity hydration. The UI must not render account-scoped data
+ * until this resolves. Replaces the fire-and-forget guest-first hydration that
+ * flashed local data on reload for authenticated users.
+ */
+export async function hydrateAsync(): Promise<void> {
+  if (hydrated || typeof window === "undefined") return;
+  hydrated = true;
+
+  const mode = readAccountMode();
+  let localProfileId = readLocalProfileId();
+
+  if (mode === "server") {
+    // fetchMe enters server mode on success, or falls back to the local profile
+    // (via fetchMeFailureFallback) when a localProfileId is already established.
+    const user = await fetchMe();
+    if (!user) {
+      // Session expired/invalid. If no local profile existed yet (e.g. the user
+      // went straight to a server account from undetermined), establish one now
+      // and lazily migrate any legacy ":guest" bucket — never land in an
+      // ambiguous guest state.
+      if (!localProfileId) {
+        localProfileId = generateLocalProfileId();
+        writeLocalProfileId(localProfileId);
+        const hasLocalData = readJson(getLocalProfileSettingsKey(localProfileId)) !== undefined;
+        if (!hasLocalData) {
+          migrateGuestBucketToLocalProfile(localProfileId);
+        }
+        enterLocalMode(localProfileId);
+      }
+      // Otherwise fetchMeFailureFallback already entered local mode.
+    }
+  } else if (mode === "local-only") {
+    if (!localProfileId) {
+      localProfileId = generateLocalProfileId();
+      writeLocalProfileId(localProfileId);
+    }
+    const hasLocalData = readJson(getLocalProfileSettingsKey(localProfileId)) !== undefined;
+    if (!hasLocalData) {
+      migrateGuestBucketToLocalProfile(localProfileId);
+    }
+    enterLocalMode(localProfileId);
+  } else {
+    // undetermined — leave state in the initial neutral state. Do NOT load the
+    // legacy guest/local/server buckets; the IdentityChoiceModal drives the
+    // next transition.
+    state = { ...state, accountMode: "undetermined", localProfileId: null };
+  }
+
+  setupCrossTabSync();
+  persist();
+}
+
+// ── Local → server data migration helpers (copy / move / keep-separate) ─────
+
+/** Copy local profile settings/threads/stats/vector docs into a user bucket, preserving local data. */
+export function copyLocalToServer(userId: string, localProfileId: string): void {
+  if (typeof window === "undefined") return;
+  const localSettings = readJson(getLocalProfileSettingsKey(localProfileId));
+  const localThreads = readArr<Thread>(getLocalProfileThreadsKey(localProfileId));
+  const localStats = loadStatsForKey(getLocalProfileStatsKey(localProfileId));
+  const localDocs = getAllVectorDocsForUser(localProfileId);
+
+  if (localSettings !== undefined) {
+    localStorage.setItem(getSettingsKeyForUser(userId), JSON.stringify(localSettings));
+  }
+  if (localThreads.length) {
+    localStorage.setItem(getThreadsKeyForUser(userId), JSON.stringify(localThreads));
+  }
+  if (Object.keys(localStats).length) {
+    localStorage.setItem(getStatsKeyForUser(userId), JSON.stringify(localStats));
+  }
+  if (localDocs.length) {
+    saveVectorStoreForUser(userId, localDocs);
+  }
+}
+
+/** Copy local profile data into a user bucket, then clear the local profile bucket. */
+export function moveLocalToServer(userId: string, localProfileId: string): void {
+  copyLocalToServer(userId, localProfileId);
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(getLocalProfileSettingsKey(localProfileId));
+  localStorage.removeItem(getLocalProfileThreadsKey(localProfileId));
+  localStorage.removeItem(getLocalProfileStatsKey(localProfileId));
+  saveVectorStoreForUser(localProfileId, []);
+}
+
 export const store = {
   getState: () => {
     hydrate();
@@ -646,67 +984,66 @@ export const store = {
     return () => listeners.delete(l);
   },
   setUser(user: UserPublic | null) {
-    const settingsKey = user ? getSettingsKeyForUser(user.id) : getGuestSettingsKey();
-    const threadsKey = user ? getThreadsKeyForUser(user.id) : getGuestThreadsKey();
-    const statsKey = user ? getStatsKeyForUser(user.id) : getGuestStatsKey();
-    const accountSettings = normalizeSettings(readJson(settingsKey));
-    const accountThreads = readArr<Thread>(threadsKey);
-    state = {
-      ...state,
-      user,
-      // Clear server-scoped runtime caches whenever the active account changes.
-      providerKeyStatus: {},
-      providerValidationStatus: {},
-      settings: accountSettings,
-      threads: accountThreads,
-      activeThreadId: null,
-      stats: loadStatsForKey(statsKey),
-    };
-    emit();
-    // Switch RAG memory to the active account bucket.
-    loadVectorStoreForUser(user?.id ?? null);
-  },
-  clearUser() {
-    const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-    const guestThreads = readArr<Thread>(getGuestThreadsKey());
-    state = {
-      ...state,
-      user: null,
-      settings: guestSettings,
-      threads: guestThreads,
-      activeThreadId: null,
-    };
-    emit();
-    // Return RAG memory to the guest bucket and clear any stale in-memory cache.
-    loadVectorStoreForUser(null);
-    clearVectorStoreCache();
-  },
-  async logout() {
-    try {
-      await apiFetch("/api/auth/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...csrfHeaders() },
-      });
-    } catch {
-      /* ignore */
+    if (user) {
+      // Low-level server bucket switch. Deliberately fetch-free: server
+      // settings/key sync are handled by the authRequest/fetchMe/hydrateAsync
+      // paths via enterServerMode. This keeps setUser usable from contexts
+      // (and tests) that must not trigger network calls.
+      const settingsKey = getSettingsKeyForUser(user.id);
+      const threadsKey = getThreadsKeyForUser(user.id);
+      const statsKey = getStatsKeyForUser(user.id);
+      const accountSettings = normalizeSettings(readJson(settingsKey));
+      const accountThreads = readArr<Thread>(threadsKey);
+      clearRuntimeCaches();
+      state = {
+        ...state,
+        user,
+        accountMode: "server",
+        settings: accountSettings,
+        threads: accountThreads,
+        activeThreadId: null,
+        stats: loadStatsForKey(statsKey),
+      };
+      writeAccountMode("server");
+      clearOfflineQueue();
+      emit();
+      loadVectorStoreForUser(user.id);
+      return;
+    }
+    // null: prefer the local profile if one is established; otherwise return to
+    // the legacy ":guest" bucket (backward compatibility).
+    const existingLocalId = state.localProfileId ?? readLocalProfileId();
+    if (existingLocalId) {
+      enterLocalMode(existingLocalId);
+      return;
     }
     const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
     const guestThreads = readArr<Thread>(getGuestThreadsKey());
+    clearRuntimeCaches();
     state = {
       ...state,
       user: null,
-      providerKeyStatus: {},
-      providerValidationStatus: {},
+      accountMode: "undetermined",
+      localProfileId: null,
       settings: guestSettings,
       threads: guestThreads,
       activeThreadId: null,
       stats: loadStatsForKey(getGuestStatsKey()),
     };
     emit();
-    persist();
-    // Return RAG memory to the guest bucket and clear any stale in-memory cache.
+    clearOfflineQueue();
     loadVectorStoreForUser(null);
     clearVectorStoreCache();
+  },
+  enterServerMode,
+  enterLocalMode,
+  clearUser() {
+    // Always return to the local profile (establishing one if needed) so a
+    // server account never lands in an ambiguous guest state.
+    returnToLocalProfile();
+  },
+  async logout() {
+    await logout();
   },
   updateSettings(patch: Partial<Settings>) {
     state = {
@@ -1083,6 +1420,8 @@ export const store = {
       providerKeyStatus: {},
       providerValidationStatus: {},
       stats: {},
+      accountMode: state.accountMode,
+      localProfileId: state.localProfileId,
     };
     persist();
     emit();
@@ -1093,9 +1432,21 @@ export const store = {
   },
 };
 
+type AuthRequestOpts = {
+  /** When false, the server skips claiming guest session data. Defaults to true. */
+  claimGuestData?: boolean;
+  /**
+   * Hook fired after credentials are validated but before the runtime switches
+   * to the server account. Return false to suppress the auto-switch (e.g. to
+   * show a data-migration dialog); the caller then calls enterServerMode(user).
+   */
+  onBeforeEnterServer?: (user: UserPublic) => boolean;
+};
+
 async function authRequest(
   path: string,
   body: Record<string, unknown>,
+  opts?: AuthRequestOpts,
 ): Promise<{ ok: true; user: UserPublic } | { ok: false; error: string }> {
   try {
     const res = await apiFetch(path, {
@@ -1111,27 +1462,13 @@ async function authRequest(
     if (!user) {
       return { ok: false, error: "Invalid response from server" };
     }
-    const currentSettings = state.settings;
-    const userLocalSettings = readJson(getSettingsKeyForUser(user.id));
-    const userLocalThreads = readArr<Thread>(getThreadsKeyForUser(user.id));
-    state = {
-      ...state,
-      user,
-      providerKeyStatus: {},
-      providerValidationStatus: {},
-      stats: {},
-      settings: isRecord(userLocalSettings)
-        ? normalizeSettings(userLocalSettings)
-        : currentSettings,
-      threads: userLocalThreads,
-      activeThreadId: null,
-    };
-    emit();
-    // Persist to the new account bucket and pull server-side settings.
-    persist();
-    void loadSettingsFromServer();
-    // Switch RAG memory to the authenticated account bucket.
-    loadVectorStoreForUser(user.id);
+    // Allow the caller to intercept the transition (e.g. local → server migration
+    // dialog). When intercepted, do NOT switch buckets; the caller drives the
+    // final enterServerMode(user) call after the migration choice.
+    if (opts?.onBeforeEnterServer && !opts.onBeforeEnterServer(user)) {
+      return { ok: true, user };
+    }
+    enterServerMode(user);
     return { ok: true, user };
   } catch {
     return { ok: false, error: "Network error" };
@@ -1142,81 +1479,60 @@ export async function fetchMe(): Promise<UserPublic | null> {
   try {
     const res = await apiFetch("/api/auth/me");
     if (!res.ok) {
-      const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-      const guestThreads = readArr<Thread>(getGuestThreadsKey());
-      state = {
-        ...state,
-        user: null,
-        settings: guestSettings,
-        threads: guestThreads,
-        activeThreadId: null,
-      };
-      emit();
-      loadVectorStoreForUser(null);
-      clearVectorStoreCache();
+      fetchMeFailureFallback();
       return null;
     }
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const user = (json.user ?? null) as UserPublic | null;
     if (!user) {
-      loadVectorStoreForUser(null);
-      clearVectorStoreCache();
-      const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-      const guestThreads = readArr<Thread>(getGuestThreadsKey());
-      state = {
-        ...state,
-        user: null,
-        settings: guestSettings,
-        threads: guestThreads,
-        activeThreadId: null,
-      };
-      emit();
+      fetchMeFailureFallback();
       return null;
     }
-    const userLocalSettings = readJson(getSettingsKeyForUser(user.id));
-    const userLocalThreads = readArr<Thread>(getThreadsKeyForUser(user.id));
-    state = {
-      ...state,
-      user,
-      settings: isRecord(userLocalSettings) ? normalizeSettings(userLocalSettings) : state.settings,
-      threads: userLocalThreads,
-      activeThreadId: null,
-    };
-    emit();
-    persist();
-    loadVectorStoreForUser(user.id);
-    void loadSettingsFromServer();
+    // Success: delegate to the canonical server-mode transition so accountMode,
+    // caches, vector store, and server settings/key sync are handled uniformly.
+    enterServerMode(user);
     return user;
   } catch {
-    loadVectorStoreForUser(null);
-    clearVectorStoreCache();
-    const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-    const guestThreads = readArr<Thread>(getGuestThreadsKey());
-    state = {
-      ...state,
-      user: null,
-      settings: guestSettings,
-      threads: guestThreads,
-      activeThreadId: null,
-    };
-    emit();
+    fetchMeFailureFallback();
     return null;
   }
+}
+
+/**
+ * Failure fallback for fetchMe (401 / no user / network error). Never loads the
+ * legacy ":guest" bucket when a local profile is established — returns to the
+ * local profile instead. When no local profile exists (legacy/test state), falls
+ * back to the neutral guest bucket for backward compatibility.
+ */
+function fetchMeFailureFallback(): void {
+  // Never load the legacy ":guest" bucket. Always return to the local profile,
+  // establishing one if needed (lazily migrating any legacy guest data).
+  returnToLocalProfile();
 }
 
 export async function register(
   email: string,
   password: string,
   displayName?: string,
+  opts?: AuthRequestOpts,
 ): Promise<{ ok: true; user: UserPublic } | { ok: false; error: string }> {
-  return authRequest("/api/auth/register", { email, password, displayName });
+  const body: Record<string, unknown> = { email, password, displayName };
+  if (opts?.claimGuestData !== undefined) {
+    body.claimGuestData = opts.claimGuestData;
+  }
+  return authRequest("/api/auth/register", body, opts);
 }
 
 export async function login(
   email: string,
   password: string,
+  opts?: AuthRequestOpts,
 ): Promise<{ ok: true; user: UserPublic } | { ok: false; error: string }> {
-  return authRequest("/api/auth/login", { email, password });
+  const body: Record<string, unknown> = { email, password };
+  if (opts?.claimGuestData !== undefined) {
+    body.claimGuestData = opts.claimGuestData;
+  }
+  return authRequest("/api/auth/login", body, opts);
 }
 
 export async function logout(): Promise<void> {
@@ -1228,23 +1544,9 @@ export async function logout(): Promise<void> {
   } catch {
     /* ignore */
   }
-  const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-  const guestThreads = readArr<Thread>(getGuestThreadsKey());
-  state = {
-    ...state,
-    user: null,
-    providerKeyStatus: {},
-    providerValidationStatus: {},
-    settings: guestSettings,
-    threads: guestThreads,
-    activeThreadId: null,
-    stats: loadStatsForKey(getGuestStatsKey()),
-  };
-  emit();
-  persist();
-  // Return RAG memory to the guest bucket and clear any stale in-memory cache.
-  loadVectorStoreForUser(null);
-  clearVectorStoreCache();
+  // Logging out of a server account always returns to the local-only profile,
+  // establishing one if needed — never an empty ambiguous guest state.
+  returnToLocalProfile();
 }
 
 async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {

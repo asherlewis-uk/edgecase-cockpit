@@ -1,12 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   Outlet,
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { hydrateAsync, store, type AccountMode } from "@/lib/cockpit-store";
+import { AccountLoadingSkeleton } from "@/components/cockpit/AccountLoadingSkeleton";
+import { IdentityChoiceModal } from "@/components/cockpit/IdentityChoiceModal";
 
 import appCss from "../styles.css?url";
 
@@ -110,6 +115,51 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [hydrating, setHydrating] = useState(true);
+  const [mode, setMode] = useState<AccountMode>("undetermined");
+
+  useEffect(() => {
+    let active = true;
+    // Subscribe to store changes so accountMode updates after an identity
+    // transition (e.g. enterServerMode following successful auth on /auth).
+    // store.subscribe does NOT call getState, so it cannot trigger legacy
+    // hydrate() before hydrateAsync resolves.
+    const unsub = store.subscribe(() => {
+      if (!active) return;
+      setMode(store.getState().accountMode);
+    });
+    void hydrateAsync().then(() => {
+      if (!active) return;
+      setMode(store.getState().accountMode);
+      setHydrating(false);
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, []);
+
+  // During hydration: render a neutral skeleton with NO account-scoped data so
+  // the wrong account bucket can never flash before identity is resolved.
+  if (hydrating) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <AccountLoadingSkeleton />
+      </QueryClientProvider>
+    );
+  }
+
+  // Block every non-auth route until an explicit identity choice is made. /auth
+  // is allowed through so a user can create/sign in to a server account without
+  // first dismissing the identity gate.
+  if (mode === "undetermined" && pathname !== "/auth") {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <IdentityChoiceModal accountMode={mode} />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

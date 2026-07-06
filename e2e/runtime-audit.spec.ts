@@ -57,7 +57,7 @@ type Snapshot = StorageSnapshot & {
   links: ElementSummary[];
   inputs: ElementSummary[];
   identity: {
-    appearsGuest: boolean;
+    appearsLocalProfile: boolean;
     appearsSignedIn: boolean;
     accountEmail: string | null;
     accountText: string | null;
@@ -190,6 +190,27 @@ async function runRuntimeAudit(
 
   await gotoAndSettle(page, "/");
   await snapshot(page, context, report, artifactDir, "01-fresh-first-launch");
+
+  // Fresh contexts now start undetermined and block on the identity choice.
+  const identityModal = page.getByTestId("identity-choice-modal");
+  if (await identityModal.isVisible().catch(() => false)) {
+    report.actions.push("Identity choice modal present; choosing local-only profile.");
+    await page
+      .getByTestId("identity-choice-local-only")
+      .click()
+      .catch(() => undefined);
+    await settle(page);
+    await snapshot(page, context, report, artifactDir, "02-identity-choice-local-only");
+    // Complete onboarding for the local profile so settings/chat are reachable.
+    await page.evaluate(() => {
+      const id = localStorage.getItem("cockpit.local-profile.id");
+      if (!id) return;
+      const key = `cockpit.settings.v2:${id}`;
+      const existing = JSON.parse(localStorage.getItem(key) ?? "{}");
+      localStorage.setItem(key, JSON.stringify({ ...existing, onboardingCompleted: true }));
+    });
+    await gotoAndSettle(page, "/");
+  }
 
   const getStarted = await clickButton(page, [/^get started$/i]);
   if (getStarted.clicked) {
@@ -541,13 +562,15 @@ async function visibleText(page: Page): Promise<string> {
 }
 
 async function identityState(page: Page): Promise<Snapshot["identity"]> {
-  const appearsGuest =
+  // Under account separation the "not signed in" identity is the local-only
+  // profile (account-menu-local), not the obsolete guest state.
+  const appearsLocalProfile =
     (await page
-      .getByTestId("account-menu-guest")
+      .getByTestId("account-menu-local")
       .isVisible({ timeout: 500 })
       .catch(() => false)) ||
     (await page
-      .getByText(/using cockpit as a guest/i)
+      .getByText(/local profile/i)
       .isVisible({ timeout: 500 })
       .catch(() => false));
   const appearsSignedIn = await page
@@ -559,10 +582,10 @@ async function identityState(page: Page): Promise<Snapshot["identity"]> {
     .innerText({ timeout: 500 })
     .catch(() => null);
   const accountText = await page
-    .getByTestId(appearsSignedIn ? "account-menu-signed-in" : "account-menu-guest")
+    .getByTestId(appearsSignedIn ? "account-menu-signed-in" : "account-menu-local")
     .innerText({ timeout: 500 })
     .catch(() => null);
-  return { appearsGuest, appearsSignedIn, accountEmail, accountText };
+  return { appearsLocalProfile, appearsSignedIn, accountEmail, accountText };
 }
 
 async function gotoAndSettle(page: Page, url: string) {

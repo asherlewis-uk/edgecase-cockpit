@@ -23,7 +23,7 @@ test.describe("logout session invalidation", () => {
 
     // 2. Log out and confirm the UI flips to guest immediately.
     await page.getByRole("button", { name: /log out/i }).click();
-    await expect(page.getByTestId("account-menu-guest")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("account-menu-local")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("account-menu-signed-in")).not.toBeVisible();
 
     // 3. The server-side session must be unauthenticated.
@@ -33,13 +33,13 @@ test.describe("logout session invalidation", () => {
     // 4. Direct /settings navigation after logout remains guest.
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("account-menu-guest")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("account-menu-local")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("account-menu-signed-in")).not.toBeVisible();
     await expect(page.getByText(user.email)).not.toBeVisible();
 
     // 5. Hard refresh after logout still remains guest.
     await page.reload({ waitUntil: "networkidle" });
-    await expect(page.getByTestId("account-menu-guest")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("account-menu-local")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("account-menu-signed-in")).not.toBeVisible();
     await expect(page.getByText(user.email)).not.toBeVisible();
   });

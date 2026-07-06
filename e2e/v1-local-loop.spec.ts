@@ -119,8 +119,24 @@ async function openSettingsAsFreshGuest(page: Page, responses: Map<string, MockM
   const forbiddenRequests = collectForbiddenRequests(page);
   await installModelListMocks(page, responses);
   await page.context().clearCookies();
+  // Fresh contexts start undetermined and are blocked by the identity choice.
+  // Choose the local-only profile (first-class on-device identity) to reach the
+  // settings page without a server account.
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByTestId("account-loading-skeleton")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByTestId("identity-choice-modal")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("identity-choice-local-only").click();
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {
+    const id = localStorage.getItem("cockpit.local-profile.id");
+    if (!id) return;
+    const key = `cockpit.settings.v2:${id}`;
+    const existing = JSON.parse(localStorage.getItem(key) ?? "{}");
+    localStorage.setItem(key, JSON.stringify({ ...existing, onboardingCompleted: true }));
+  });
   await page.goto("/settings");
-  await expect(page.getByTestId("account-menu-guest")).toBeVisible();
+  await expect(page.getByTestId("account-menu-local")).toBeVisible();
   await expect(v1Section(page)).toContainText("Generic local OpenAI-compatible endpoint");
   await expect(v1Section(page)).toContainText("does not require signing in");
   await expect(v1Section(page)).toContainText("cloud API keys");
