@@ -320,7 +320,10 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
       [UNREACHABLE_BASE_URL, { kind: "abort" }],
       [RECOVERY_BASE_URL, { kind: "success", models: [{ id: "recovered-model" }] }],
     ]);
-    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(page, responses);
+    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(
+      page,
+      responses,
+    );
 
     await configureEndpoint(page, UNREACHABLE_BASE_URL, "bad-model", deployed);
 
@@ -365,7 +368,10 @@ test.describe("V1 local endpoint browser boundary states", () => {
     baseURL,
   }) => {
     const deployed = isDeployedRuntime(baseURL);
-    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(page, new Map());
+    const { forbiddenRequests, modelListRequests } = await openSettingsAsFreshGuest(
+      page,
+      new Map(),
+    );
 
     if (deployed) {
       // Hosted HTTPS blocking local HTTP takes priority over the mobile-localhost
