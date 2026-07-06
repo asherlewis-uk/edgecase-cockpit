@@ -84,11 +84,46 @@ async function registerFromAuth(
   await page.getByRole("button", { name: /Create account/i }).click();
 }
 
+async function waitForAuthenticatedSession(page: Page) {
+  await expect
+    .poll(async () =>
+      page.evaluate(async () => {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        return res.status;
+      }),
+    )
+    .toBe(200);
+}
+
 async function signInFromAuth(page: Page, user: { email: string; password: string }) {
   await page.goto("/auth?mode=signin&redirect=/");
   await page.getByLabel("Email").first().fill(user.email);
   await page.getByLabel("Password").first().fill(user.password);
+
+  const loginResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/auth/login",
+  );
+
   await page.getByRole("button", { name: /Sign in/i }).click();
+
+  await loginResponse;
+  await waitForAuthenticatedSession(page);
+}
+
+async function chooseKeepSeparateAndWaitForAuth(page: Page) {
+  const registerResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/auth/register",
+  );
+
+  await page.getByTestId("migration-choice-keep-separate").click();
+
+  await registerResponse;
+
+  await waitForAuthenticatedSession(page);
 }
 
 /** Register a new server account from local-only mode and choose keep-separate. */
@@ -98,7 +133,7 @@ async function registerFromLocalKeepSeparate(
 ) {
   await registerFromAuth(page, user);
   await expect(page.getByTestId("data-migration-dialog")).toBeVisible({ timeout: 10_000 });
-  await page.getByTestId("migration-choice-keep-separate").click();
+  await chooseKeepSeparateAndWaitForAuth(page);
 }
 
 async function logoutViaUi(page: Page) {
@@ -150,7 +185,7 @@ test.describe("account separation", () => {
     await expect(page.getByTestId("data-migration-dialog")).toBeVisible({ timeout: 10_000 });
 
     // 6. Keep Separate: local data preserved, server account starts clean.
-    await page.getByTestId("migration-choice-keep-separate").click();
+    await chooseKeepSeparateAndWaitForAuth(page);
     await expectSignedInAs(page, USER_A.email);
     // Local profile data still present.
     const localStillThere = await page.evaluate((k) => localStorage.getItem(k), localThreadsKey);
