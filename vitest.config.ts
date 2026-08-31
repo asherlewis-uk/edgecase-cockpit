@@ -10,6 +10,17 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     css: false,
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/routeTree.gen.ts", "src/**/*.d.ts"],
+      thresholds: {
+        statements: 43,
+        branches: 41,
+        functions: 35,
+        lines: 44,
+      },
+    },
   },
   resolve: {
     alias: {

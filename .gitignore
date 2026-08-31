@@ -24,6 +24,9 @@ dist-ssr
 playwright-report/
 test-results/
 
+# Vitest coverage reports (generated)
+coverage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -35,6 +35,9 @@ jobs:
       - name: Unit tests
         run: bun run test
 
+      - name: Coverage
+        run: bun run test:coverage
+
   build:
     needs: validate
     runs-on: ubuntu-latest
@@ -73,8 +76,12 @@ jobs:
       - name: Install Playwright browser
         run: bun run test:e2e:install
 
-      - name: Run production-preview runtime audit
+      - name: Run asserting E2E suite
+        run: bun run test:e2e:ci
+
+      - name: Run production-preview runtime audit (non-gating diagnostics)
         run: bun run test:e2e:audit:preview
+        continue-on-error: true
 
       - name: Upload web E2E artifacts
         uses: actions/upload-artifact@v7
