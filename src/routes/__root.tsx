@@ -147,7 +147,7 @@ function RootComponent() {
 
   // During hydration: render a neutral skeleton with NO account-scoped data so
   // the wrong account bucket can never flash before identity is resolved.
-  if (hydrating) {
+  if (hydrating || isNavigating) {
     return (
       <QueryClientProvider client={queryClient}>
         <AccountLoadingSkeleton />
