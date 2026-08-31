@@ -10,12 +10,13 @@ description: "Work in the src/lib · validateToolName area — 38 symbols across
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/tools.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File               | Symbols                                                 |
+| ------------------ | ------------------------------------------------------- |
 | `src/lib/tools.ts` | parseOpenAIToolCalls, complete, deltas, out, delta, ... |
 
 ## How to Explore

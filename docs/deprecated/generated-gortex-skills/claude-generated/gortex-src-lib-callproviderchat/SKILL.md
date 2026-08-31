@@ -10,12 +10,13 @@ description: "Work in the src/lib · callProviderChat area — 41 symbols across
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/providers.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                   | Symbols                                              |
+| ---------------------- | ---------------------------------------------------- |
 | `src/lib/providers.ts` | reader, signal, ProviderCallOpts, decoder, body, ... |
 
 ## Entry Points

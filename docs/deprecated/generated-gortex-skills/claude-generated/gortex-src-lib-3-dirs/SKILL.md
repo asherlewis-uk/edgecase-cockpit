@@ -10,6 +10,7 @@ description: "Work in the src/lib +3 dirs area — 96 symbols across 6 files (89
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/components/cockpit/settings/ProviderCard.tsx`
 - `src/lib/cockpit-store.ts`
 - `src/lib/embeddings.ts`
@@ -19,14 +20,14 @@ Use this skill when working on files in:
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/components/cockpit/settings/ProviderCard.tsx` | keyDraft, settings, setKeyDraft, saveKey, saveKey, ... |
-| `src/lib/cockpit-store.ts` | csrfHeaders, hydrate, v, syncTokenUsageToServer, T, ... |
-| `src/lib/embeddings.ts` | res, model, embedTexts, json, texts, ... |
-| `src/lib/providers.ts` | p, e, blob, transcribeAudioViaProxy, res, ... |
-| `src/routes/settings.tsx` | ProviderCard, saving, pinned, setKeyDraft, ready, ... |
-| `src/server.ts` | isDocument, brandedErrorResponse, normalized, body, response, ... |
+| File                                               | Symbols                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------- |
+| `src/components/cockpit/settings/ProviderCard.tsx` | keyDraft, settings, setKeyDraft, saveKey, saveKey, ...            |
+| `src/lib/cockpit-store.ts`                         | csrfHeaders, hydrate, v, syncTokenUsageToServer, T, ...           |
+| `src/lib/embeddings.ts`                            | res, model, embedTexts, json, texts, ...                          |
+| `src/lib/providers.ts`                             | p, e, blob, transcribeAudioViaProxy, res, ...                     |
+| `src/routes/settings.tsx`                          | ProviderCard, saving, pinned, setKeyDraft, ready, ...             |
+| `src/server.ts`                                    | isDocument, brandedErrorResponse, normalized, body, response, ... |
 
 ## Entry Points
 

@@ -24,6 +24,7 @@ The backend now has:
 - CSRF double-submit cookie protection and per-session rate limiting on all mutating routes.
 
 Source files:
+
 - `src/lib/auth.server.ts` — password hashing, user CRUD, `requireAuth`.
 - `src/lib/session.server.ts` — encrypted cookie session, auth helpers, provider-credential DB wrapper.
 - `src/lib/db/index.ts` — user-scoped data layer, guest session claim, provider key / settings storage.
@@ -36,29 +37,29 @@ Source files:
 
 ## 2. Data Ownership Model
 
-| Data | Storage | Scoped to user? |
-|------|---------|-----------------|
-| User credentials | `users.password_hash` | ✅ Yes, per `users.id` |
-| Provider API keys | `user_provider_keys.api_key_encrypted` | ✅ Yes, per `user_id` |
-| Provider base URL / model | `user_provider_keys.base_url`, `model` | ✅ Yes, per `user_id` |
-| User settings/profile | `user_settings` JSON columns | ✅ Yes, per `user_id` |
-| Synced threads | `threads` (only when `sync_enabled=1` and `is_local=0`) | ✅ Yes, per `user_id` |
-| Provider stats | `provider_stats` | ✅ Yes, per `user_id` |
-| Usage records | `usage_records` | ✅ Yes, per `user_id` |
-| Server-side vector docs | `vector_docs` | ✅ Yes, per `user_id` |
-| Guest session data | `guest_sessions` | ⚠️ Ephemeral, claimed on account creation |
-| Local threads/settings/RAG/stats | `localStorage` | ❌ Single-user, device-local by design |
+| Data                             | Storage                                                 | Scoped to user?                           |
+| -------------------------------- | ------------------------------------------------------- | ----------------------------------------- |
+| User credentials                 | `users.password_hash`                                   | ✅ Yes, per `users.id`                    |
+| Provider API keys                | `user_provider_keys.api_key_encrypted`                  | ✅ Yes, per `user_id`                     |
+| Provider base URL / model        | `user_provider_keys.base_url`, `model`                  | ✅ Yes, per `user_id`                     |
+| User settings/profile            | `user_settings` JSON columns                            | ✅ Yes, per `user_id`                     |
+| Synced threads                   | `threads` (only when `sync_enabled=1` and `is_local=0`) | ✅ Yes, per `user_id`                     |
+| Provider stats                   | `provider_stats`                                        | ✅ Yes, per `user_id`                     |
+| Usage records                    | `usage_records`                                         | ✅ Yes, per `user_id`                     |
+| Server-side vector docs          | `vector_docs`                                           | ✅ Yes, per `user_id`                     |
+| Guest session data               | `guest_sessions`                                        | ⚠️ Ephemeral, claimed on account creation |
+| Local threads/settings/RAG/stats | `localStorage`                                          | ❌ Single-user, device-local by design    |
 
 ---
 
 ## 3. Authentication Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/auth/register` | POST | Create account, hash password, log in, claim guest data |
-| `/api/auth/login` | POST | Verify password, set auth session, claim guest data |
-| `/api/auth/logout` | POST | Clear auth and guest session state |
-| `/api/auth/me` | GET | Return current public user profile |
+| Endpoint             | Method | Purpose                                                 |
+| -------------------- | ------ | ------------------------------------------------------- |
+| `/api/auth/register` | POST   | Create account, hash password, log in, claim guest data |
+| `/api/auth/login`    | POST   | Verify password, set auth session, claim guest data     |
+| `/api/auth/logout`   | POST   | Clear auth and guest session state                      |
+| `/api/auth/me`       | GET    | Return current public user profile                      |
 
 ---
 
@@ -123,4 +124,4 @@ bun run test
 
 ---
 
-*Previous audit findings (2026-06-15) identified missing backend auth. Those issues have been resolved by the real-user-account migration recorded in `plan.md` and verified by the tests above.*
+_Previous audit findings (2026-06-15) identified missing backend auth. Those issues have been resolved by the real-user-account migration recorded in `plan.md` and verified by the tests above._

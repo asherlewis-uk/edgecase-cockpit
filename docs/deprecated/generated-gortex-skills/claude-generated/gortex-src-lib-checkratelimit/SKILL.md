@@ -10,15 +10,16 @@ description: "Work in the src/lib · checkRateLimit area — 22 symbols across 2
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/cockpit-store.test.ts`
 - `src/lib/rate-limit.server.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/cockpit-store.test.ts` | key, index |
-| `src/lib/rate-limit.server.ts` | key, sessionId, checkRateLimit, statsRateLimit, usageRateLimit, ... |
+| File                            | Symbols                                                             |
+| ------------------------------- | ------------------------------------------------------------------- |
+| `src/lib/cockpit-store.test.ts` | key, index                                                          |
+| `src/lib/rate-limit.server.ts`  | key, sessionId, checkRateLimit, statsRateLimit, usageRateLimit, ... |
 
 ## How to Explore
 

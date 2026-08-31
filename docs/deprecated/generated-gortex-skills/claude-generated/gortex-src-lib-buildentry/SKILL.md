@@ -10,12 +10,13 @@ description: "Work in the src/lib · buildEntry area — 22 symbols across 1 fil
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/logger.server.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                       | Symbols                                          |
+| -------------------------- | ------------------------------------------------ |
 | `src/lib/logger.server.ts` | meta, message, logger.debug, level, message, ... |
 
 ## How to Explore

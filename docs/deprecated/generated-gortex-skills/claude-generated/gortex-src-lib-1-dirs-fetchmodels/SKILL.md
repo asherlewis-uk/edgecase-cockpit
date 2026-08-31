@@ -10,14 +10,15 @@ description: "Work in the src/lib +1 dirs · fetchModels area — 20 symbols acr
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/providers.ts`
 - `src/routes/api/proxy/models.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/providers.ts` | Model |
+| File                             | Symbols                                       |
+| -------------------------------- | --------------------------------------------- |
+| `src/lib/providers.ts`           | Model                                         |
 | `src/routes/api/proxy/models.ts` | provider, rl, timer, handlers.GET, creds, ... |
 
 ## Entry Points

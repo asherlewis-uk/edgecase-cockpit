@@ -10,14 +10,15 @@ description: "Work in the src/lib · validateProviderKey area — 21 symbols acr
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/providers.ts`
 - `src/lib/validate-key.server.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/providers.ts` | ProviderDef |
+| File                             | Symbols                                                               |
+| -------------------------------- | --------------------------------------------------------------------- |
+| `src/lib/providers.ts`           | ProviderDef                                                           |
 | `src/lib/validate-key.server.ts` | validateProviderKey, apiKey, timeout, provider, buildAuthHeaders, ... |
 
 ## How to Explore

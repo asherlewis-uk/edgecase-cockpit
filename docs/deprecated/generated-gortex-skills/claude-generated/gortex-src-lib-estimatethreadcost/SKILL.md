@@ -10,12 +10,13 @@ description: "Work in the src/lib · estimateThreadCost area — 21 symbols acro
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/tokens.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                | Symbols                                                           |
+| ------------------- | ----------------------------------------------------------------- |
 | `src/lib/tokens.ts` | msg, wordEstimate, thread, providerId, estimateMessageTokens, ... |
 
 ## How to Explore

@@ -5,6 +5,7 @@ This document ground-truths the claims in `ACCOUNT_SEPARATION_PLAN.md` against t
 ## Scope of Audit
 
 Files inspected:
+
 - `src/lib/cockpit-store.ts` (1,478 lines — core state, hydration, auth helpers)
 - `src/lib/vector-store.ts` (262 lines — RAG memory bucket switching)
 - `src/lib/session.server.ts` (127 lines — encrypted cookie session)
@@ -22,10 +23,12 @@ Files inspected:
 ## ✅ Correct Claims
 
 ### Local Storage Scope by `user.id` or `"guest"`
+
 - `getSettingsKey()`, `getThreadsKey()`, `getStatsKey()` all fall back to `"guest"` when `state.user` is null (`cockpit-store.ts:133`, `:149`, `:175`).
 - Equivalent explicit helpers exist: `getGuestSettingsKey()`, `getGuestThreadsKey()`, `getGuestStatsKey()` (`:142`, `:158`, `:184`).
 
 ### Server-Side D1 Isolation
+
 - `claimGuestSession(guestId, userId)` (`db/index.ts:633`) reassigns `session_id` rows to `user_id` for:
   - `provider_stats`
   - `threads`
@@ -34,21 +37,25 @@ Files inspected:
 - All auth-scoped queries elsewhere use `user_id` vs `session_id` correctly (e.g. provider keys, user settings, synced threads).
 
 ### Auto-Claim on Login/Register
+
 - `register.ts` captures `guestId = await getGuestSessionId()` before `setAuthSession`, then calls `claimGuestSession(guestId, user.id)` (`:49-58`).
 - `login.ts` does the same (`:57-65`).
 - There is no user choice today; the plan’s goal here is accurate.
 
 ### Account Switching Helpers
+
 - `setUser(user)` (`cockpit-store.ts:648`) loads the correct user bucket and clears caches.
 - `clearUser()` (`:669`) returns to `"guest"` bucket.
 - `loadVectorStoreForUser(userId | null)` (`vector-store.ts:103`) switches RAG bucket.
 
 ### Guest/Local is Currently a Fallback
+
 - `AccountMenu.tsx` renders a "guest" explainer when `!user` (`:25-49`).
 - Text says: "You’re using Cockpit as a guest. Settings, chats, RAG memory, and usage stats stay on this device only."
 - The plan’s reframing to "Local Profile" matches this behavior.
 
 ### Hydration Loads `"guest"` Before `fetchMe`
+
 - `hydrate()` is synchronous and immediately reads the guest bucket (`cockpit-store.ts:543-577`).
 - It starts `loadVectorStoreForUser(null)` (guest bucket) at `:576`.
 - It fires `void fetchMe()` at `:574` as fire-and-forget.
@@ -57,6 +64,7 @@ Files inspected:
 ## ⚠️ Partially Correct / Needs Precision
 
 ### 1. Persistent `localProfileId`
+
 The plan proposes `cockpit.local-profile.id` as a stable local identity.
 
 **Current state:** there is no such key today. The guest bucket is keyed literally to `"guest"`, not to a generated local profile id. The plan’s table is conceptually right but technically inaccurate: `localStorage` does **not** currently use a stable UUID; it uses the hardcoded string `"guest"`. Introducing `localProfileId` is a real storage change, not just a rename.
@@ -64,9 +72,11 @@ The plan proposes `cockpit.local-profile.id` as a stable local identity.
 **Implication:** Phase 1 must generate and persist `cockpit.local-profile.id`, then migrate any existing `"guest"` bucket data into `cockpit.settings.v2:<localProfileId>` etc.
 
 ### 2. `claimGuestData` Server Parameter
+
 The plan says: "Remove hardcoded `claimGuestSession` from `login.ts` and `register.ts`" and add a `claimGuestData: boolean` body parameter defaulting `true`.
 
 **Reality check:**
+
 - `register.ts` and `login.ts` both call `claimGuestSession` unconditionally today.
 - The server-side `claimGuestSession` only migrates **server-side** data from `session_id` to `user_id`.
 - The plan’s `Copy` / `Move` / `Keep Separate` choices are intended to control **client-side localStorage** migration, not server-side session migration.
@@ -75,22 +85,27 @@ The plan says: "Remove hardcoded `claimGuestSession` from `login.ts` and `regist
 **Implication:** when a user chooses **Keep Separate**, the register request should send `claimGuestData: false`. When they choose **Move**, send `claimGuestData: true` (default). When they choose **Copy**, also send `claimGuestData: false` because the server must not delete the guest session data; the client copies it into the user bucket.
 
 ### 3. Vector Store Copy/Move
+
 The plan’s pseudocode in section 2.4 references `saveVectorStoreForUser(userId, docs)` and `getAllMemoryDocs()`.
 
 **Reality check:**
+
 - `vector-store.ts` has `loadVectorStoreForUser`, `searchVectorStoreForUser`, `addVectorDocsForUser`, and `clearVectorStoreCache`.
 - It does **not** expose `saveVectorStoreForUser()` or `getAllMemoryDocs()`.
 - `addVectorDocsForUser` exists but does not replace; it only appends deduplicated docs by id.
 
 **Implication:** implementers must add:
+
 - `export function saveVectorStoreForUser(userId: string | null, docs: VectorDoc[]): void`
 - `export function getAllVectorDocsForUser(userId: string | null): VectorDoc[]`
 - Or clear + re-add via existing helpers. Plan’s pseudocode needs adjustment.
 
 ### 4. First-Launch Identity Gate in `src/routes/index.tsx`
+
 The plan proposes replacing the unconditional `<OnboardingModal />` with an identity gate.
 
 **Reality check:**
+
 - `src/routes/index.tsx` imports `OnboardingModal` at line 36 but the file was truncated before the render portion was reached.
 - Search results did not show `OnboardingModal` rendered inside `index.tsx`; it may be rendered via a different route or via `useOnboardingState`.
 - Need to inspect lines 500-944 of `index.tsx` to confirm where and how `OnboardingModal` is currently invoked.
@@ -98,9 +113,11 @@ The plan proposes replacing the unconditional `<OnboardingModal />` with an iden
 **Implication:** before implementing the identity gate, verify the actual render site. The plan assumes `index.tsx` but the evidence is incomplete.
 
 ### 5. Logout Cookie Behavior
+
 The plan says: "Keep the `id` (session UUID) in the cookie so the local profile's CSRF continuity is preserved. Do NOT clear `guestSessionId`."
 
 **Reality check:**
+
 - `session.server.ts` already keeps `id` during `clearAuthSession()` (`:53-56`).
 - `logout.ts` calls `clearAuthSession()` and `clearGuestSessionId()` — the latter removes `guestSessionId` from the session.
 - `getGuestSessionId()` regenerates a new `guestSessionId` from `s.data.id` if missing.
@@ -108,6 +125,7 @@ The plan says: "Keep the `id` (session UUID) in the cookie so the local profile'
 **Implication:** the plan is mostly correct. After logout, the same `id` remains and a fresh `guestSessionId` is created on the next anonymous request. Local profile CSRF continuity is preserved because `id` does not change. The plan’s recommendation to "regenerate" rather than clear is consistent with current behavior (clearing triggers regeneration next call). No code change is strictly necessary here unless we want to avoid the regeneration step by keeping `guestSessionId` as the local profile id itself.
 
 ### 6. Offline Queue
+
 The plan mentions `cockpit.offline-queue.v1` as a global queue that needs clearing on switch.
 
 **Reality check:** no file search result returned a match for `offline-queue` in the inspected files. This may exist in `use-chat.ts` or a hook not yet audited.
@@ -115,9 +133,11 @@ The plan mentions `cockpit.offline-queue.v1` as a global queue that needs cleari
 **Implication:** verify whether an offline queue still exists and is actually used. If not, this risk can be downgraded.
 
 ### 7. `authRequest` Does Not Persist `accountMode`
+
 The plan assumes `enterServerMode(user)` will persist `accountMode = 'server'` to `localStorage`.
 
 **Reality check:**
+
 - `authRequest` in `cockpit-store.ts:1096` sets `state.user` and switches the bucket but does not write `localStorage` account metadata.
 - `enterServerMode` / `enterLocalMode` do not yet exist.
 
@@ -126,24 +146,29 @@ The plan assumes `enterServerMode(user)` will persist `accountMode = 'server'` t
 ## ❌ Discrepancies / Things the Plan Got Wrong
 
 ### A. `src/routes/auth.tsx` May Not Exist
+
 - Search for `src/routes/auth.tsx` returned zero results.
 - The auth route likely uses TanStack Start file-based routing elsewhere, or is named `src/routes/(auth).tsx` or `src/routes/login.tsx`.
 
 **Implication:** the plan’s file-by-file table references `src/routes/auth.tsx` but this file path is unverified. Find the actual auth route before wiring the `DataMigrationDialog`.
 
 ### B. `DataMigrationDialog` Trigger Point
+
 The plan says: "Wire it into the register flow when previous mode was `local-only`."
 
 **Reality check:**
+
 - `register()` in `cockpit-store.ts:1207` is a thin wrapper around `authRequest()`.
 - There is no UI flow file yet to receive the migration prompt.
 
 **Implication:** the migration dialog must be triggered from the actual register page component, not from `register()` itself. Need to locate that component.
 
 ### C. Server-Side Settings Sync
+
 The plan says settings sync only fires when `state.user` is set.
 
 **Reality check:**
+
 - `updateSettings` calls `syncSettingsToServer(patch)` only if `state.user` is truthy (`cockpit-store.ts:744-746`).
 - However, `authRequest` calls `loadSettingsFromServer()` after login (`:1132`), which may overwrite local settings with server settings.
 - For local-only mode, no server sync happens, which is correct.
@@ -162,6 +187,7 @@ The plan says settings sync only fires when `state.user` is set.
 ## Pre-Reconstruction Recommendations
 
 Before writing `RECONSTRUCTION_PLAN.md`, answer the six unknowns above. The most critical are:
+
 - Confirm the OnboardingModal render site.
 - Confirm the register/login page components and paths.
 - Read the relevant test files to understand existing assertions.
@@ -170,15 +196,15 @@ These answers will determine whether the identity gate lives in `index.tsx`, a l
 
 ## Risk Summary
 
-| Area | Risk Level | Notes |
-|------|------------|-------|
-| Storage scope rename to `localProfileId` | Medium | Requires one-time migration of existing `"guest"` buckets. |
-| Hydration flash fix | Medium | Making hydration async touches the app bootstrap and may affect SSR/Workers. |
-| Server `claimGuestData` parameter | Low | Straightforward Zod change; backward compatible if default `true`. |
-| Vector store copy/move helpers | Low | Additive change, isolated to `vector-store.ts`. |
-| Auth route/component discovery | Medium | Cannot wire UI until exact paths/components are known. |
-| Offline queue clearing | Unknown | Verify existence first. |
+| Area                                     | Risk Level | Notes                                                                        |
+| ---------------------------------------- | ---------- | ---------------------------------------------------------------------------- |
+| Storage scope rename to `localProfileId` | Medium     | Requires one-time migration of existing `"guest"` buckets.                   |
+| Hydration flash fix                      | Medium     | Making hydration async touches the app bootstrap and may affect SSR/Workers. |
+| Server `claimGuestData` parameter        | Low        | Straightforward Zod change; backward compatible if default `true`.           |
+| Vector store copy/move helpers           | Low        | Additive change, isolated to `vector-store.ts`.                              |
+| Auth route/component discovery           | Medium     | Cannot wire UI until exact paths/components are known.                       |
+| Offline queue clearing                   | Unknown    | Verify existence first.                                                      |
 
 ---
 
-*Generated as the next document after `ACCOUNT_SEPARATION_PLAN.md`. Feed its unknowns into `RECONSTRUCTION_PLAN.md` once resolved.*
+_Generated as the next document after `ACCOUNT_SEPARATION_PLAN.md`. Feed its unknowns into `RECONSTRUCTION_PLAN.md` once resolved._

@@ -17,15 +17,16 @@ All are safely fixable within the current stack (React 19, TanStack, Cloudflare 
 
 Rather than rebuilding storage or auth, we **reframe the existing architecture**:
 
-| Current Concept | New Concept | Change |
-|---------------|-------------|--------|
-| `user === null` (guest) | `accountMode === 'local-only'` | Rename/refactor only |
+| Current Concept                    | New Concept                                                      | Change                               |
+| ---------------------------------- | ---------------------------------------------------------------- | ------------------------------------ |
+| `user === null` (guest)            | `accountMode === 'local-only'`                                   | Rename/refactor only                 |
 | `localStorage` key scope `"guest"` | `localStorage` key scope `"local"` + persistent `localProfileId` | Storage key change + UUID generation |
-| Auto-claim on login/register | User-initiated claim with `copy / move / keep-separate` choice | API + UI change |
-| Onboarding wizard first | Identity choice first, then onboarding | UI flow change |
-| Fire-and-forget `fetchMe` | Blocking hydration until account resolved | Async init change |
+| Auto-claim on login/register       | User-initiated claim with `copy / move / keep-separate` choice   | API + UI change                      |
+| Onboarding wizard first            | Identity choice first, then onboarding                           | UI flow change                       |
+| Fire-and-forget `fetchMe`          | Blocking hydration until account resolved                        | Async init change                    |
 
 **Why this is safe:**
+
 - No database schema changes required.
 - No encryption or secure storage changes required.
 - Local-only users already use local providers (no cloud API keys needed per current onboarding).
@@ -43,11 +44,13 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
 **Implementation:**
 
 1. **Generate a persistent local profile ID** on first launch:
+
    ```ts
    // localStorage key: cockpit.local-profile.id
-   const localProfileId = localStorage.getItem('cockpit.local-profile.id') ?? crypto.randomUUID();
-   localStorage.setItem('cockpit.local-profile.id', localProfileId);
+   const localProfileId = localStorage.getItem("cockpit.local-profile.id") ?? crypto.randomUUID();
+   localStorage.setItem("cockpit.local-profile.id", localProfileId);
    ```
+
    This ID survives cookie clears, reinstalls of the browser shell, and logout cycles. It is the stable identity for the local profile.
 
 2. **Replace `"guest"` storage scope with `localProfileId`:**
@@ -58,8 +61,8 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
 
 3. **Store the `accountMode` explicitly:**
    ```ts
-   type AccountMode = 'local-only' | 'server' | 'undetermined';
-   localStorage.setItem('cockpit.account.mode', mode);
+   type AccountMode = "local-only" | "server" | "undetermined";
+   localStorage.setItem("cockpit.account.mode", mode);
    ```
    `undetermined` is the state before the user has made their first-launch choice. The app blocks on this.
 
@@ -70,8 +73,9 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
 **Implementation:**
 
 1. **Replace the unconditional `<OnboardingModal />` in `src/routes/index.tsx`** with a conditional gate:
+
    ```tsx
-   if (accountMode === 'undetermined') {
+   if (accountMode === "undetermined") {
      return <IdentityChoiceModal />;
    }
    if (!settings.onboardingCompleted) {
@@ -94,6 +98,7 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
 **Implementation:**
 
 1. **Add `accountMode` to `cockpit-store.ts` `State`:**
+
    ```ts
    type State = {
      // ... existing fields
@@ -140,6 +145,7 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
      - **Keep Separate:** `startFreshServer(user.id)` — leaves the local profile untouched. Server call: `claimGuestData: false`. The server account starts empty.
 
 3. **Client-side copy/move functions:**
+
    ```ts
    function copyLocalToServer(userId: string) {
      const localSettings = localStorage.getItem(getLocalProfileSettingsKey());
@@ -188,6 +194,7 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
    - During the await, show a loading spinner (not the local profile data, not the previous user's data).
 
 2. **Update `src/routes/index.tsx` or `src/router.tsx`:**
+
    ```tsx
    const [initializing, setInitializing] = useState(true);
    useEffect(() => {
@@ -197,13 +204,14 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
    ```
 
 3. **Implement `hydrateAsync()` in `cockpit-store.ts`:**
+
    ```ts
    async function hydrateAsync() {
-     if (hydrated || typeof window === 'undefined') return;
+     if (hydrated || typeof window === "undefined") return;
      hydrated = true;
      const mode = readAccountMode();
      const localProfileId = readLocalProfileId();
-     if (mode === 'server') {
+     if (mode === "server") {
        // Try to restore the server user
        const user = await fetchMe();
        if (user) {
@@ -229,73 +237,73 @@ Rather than rebuilding storage or auth, we **reframe the existing architecture**
 
 ### Client-Side (UI & State)
 
-| File | Change |
-|------|--------|
-| `src/lib/cockpit-store.ts` | Add `accountMode`, `localProfileId` to `State`. Rename guest keys → local profile keys. Add `hydrateAsync()`, `enterServerMode()`, `enterLocalMode()`. Update `persist()` to strip `apiKey` (unchanged). Update `logout()` to return to local profile. Update `authRequest()` to support data migration. |
-| `src/lib/vector-store.ts` | Add `getLocalProfileStoreKey()`, `saveVectorStoreForUser()`. Update `loadVectorStoreForUser()` to accept `localProfileId`. |
-| `src/components/cockpit/IdentityChoiceModal.tsx` | **New.** First-launch gate. Three explicit buttons. No skip. |
-| `src/components/cockpit/DataMigrationDialog.tsx` | **New.** Shown after registration from local mode. Copy / Move / Keep Separate. |
-| `src/components/cockpit/OnboardingModal.tsx` | Update to only show after identity choice is made and `accountMode !== 'undetermined'`. |
-| `src/components/cockpit/AccountMenu.tsx` | Update labels: "Guest" → "Local Profile". Add "Switch to Local Profile" / "Sign In" actions. |
-| `src/routes/index.tsx` | Add `initializing` gate. Render `IdentityChoiceModal` when `accountMode === 'undetermined'`. |
-| `src/routes/auth.tsx` | After successful registration, check if previous mode was `local-only`. If so, show `DataMigrationDialog` before redirecting to `/`. |
+| File                                             | Change                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/cockpit-store.ts`                       | Add `accountMode`, `localProfileId` to `State`. Rename guest keys → local profile keys. Add `hydrateAsync()`, `enterServerMode()`, `enterLocalMode()`. Update `persist()` to strip `apiKey` (unchanged). Update `logout()` to return to local profile. Update `authRequest()` to support data migration. |
+| `src/lib/vector-store.ts`                        | Add `getLocalProfileStoreKey()`, `saveVectorStoreForUser()`. Update `loadVectorStoreForUser()` to accept `localProfileId`.                                                                                                                                                                               |
+| `src/components/cockpit/IdentityChoiceModal.tsx` | **New.** First-launch gate. Three explicit buttons. No skip.                                                                                                                                                                                                                                             |
+| `src/components/cockpit/DataMigrationDialog.tsx` | **New.** Shown after registration from local mode. Copy / Move / Keep Separate.                                                                                                                                                                                                                          |
+| `src/components/cockpit/OnboardingModal.tsx`     | Update to only show after identity choice is made and `accountMode !== 'undetermined'`.                                                                                                                                                                                                                  |
+| `src/components/cockpit/AccountMenu.tsx`         | Update labels: "Guest" → "Local Profile". Add "Switch to Local Profile" / "Sign In" actions.                                                                                                                                                                                                             |
+| `src/routes/index.tsx`                           | Add `initializing` gate. Render `IdentityChoiceModal` when `accountMode === 'undetermined'`.                                                                                                                                                                                                             |
+| `src/routes/auth.tsx`                            | After successful registration, check if previous mode was `local-only`. If so, show `DataMigrationDialog` before redirecting to `/`.                                                                                                                                                                     |
 
 ### Server-Side (API)
 
-| File | Change |
-|------|--------|
-| `src/routes/api/auth/register.ts` | Add `claimGuestData?: boolean` to Zod body schema. Only call `claimGuestSession` if `claimGuestData !== false`. |
-| `src/routes/api/auth/login.ts` | Add `claimGuestData?: boolean` to Zod body schema. Only call `claimGuestSession` if `claimGuestData !== false`. |
-| `src/routes/api/auth/logout.ts` | Keep `guestSessionId` in the cookie (or regenerate it) so the local profile retains session continuity. Do not delete the cookie entirely. |
-| `src/routes/api/auth/me.ts` | Unchanged. Returns 401 when no auth session. |
+| File                              | Change                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/routes/api/auth/register.ts` | Add `claimGuestData?: boolean` to Zod body schema. Only call `claimGuestSession` if `claimGuestData !== false`.                            |
+| `src/routes/api/auth/login.ts`    | Add `claimGuestData?: boolean` to Zod body schema. Only call `claimGuestSession` if `claimGuestData !== false`.                            |
+| `src/routes/api/auth/logout.ts`   | Keep `guestSessionId` in the cookie (or regenerate it) so the local profile retains session continuity. Do not delete the cookie entirely. |
+| `src/routes/api/auth/me.ts`       | Unchanged. Returns 401 when no auth session.                                                                                               |
 
 ### Tests
 
-| File | Change |
-|------|--------|
-| `src/routes/api/-auth.test.ts` | Update register/login tests to pass `claimGuestData: false` where auto-claim is not desired. Add test for `claimGuestData: true` (default). |
-| `src/routes/api/-account-separation.test.ts` | Add E2E-style tests: local profile → sign up → keep separate → logout → local profile returns. |
-| `src/components/cockpit/AccountMenu.test.tsx` | Update assertions: "Guest" → "Local Profile". |
-| `src/lib/cockpit-store.test.ts` (or add) | Add tests for `enterServerMode`, `enterLocalMode`, `hydrateAsync`, data migration. |
+| File                                          | Change                                                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/routes/api/-auth.test.ts`                | Update register/login tests to pass `claimGuestData: false` where auto-claim is not desired. Add test for `claimGuestData: true` (default). |
+| `src/routes/api/-account-separation.test.ts`  | Add E2E-style tests: local profile → sign up → keep separate → logout → local profile returns.                                              |
+| `src/components/cockpit/AccountMenu.test.tsx` | Update assertions: "Guest" → "Local Profile".                                                                                               |
+| `src/lib/cockpit-store.test.ts` (or add)      | Add tests for `enterServerMode`, `enterLocalMode`, `hydrateAsync`, data migration.                                                          |
 
 ---
 
 ## 4. E2E Acceptance Flow Mapping
 
-| Step | Requirement | How the Plan Satisfies It |
-|------|-------------|---------------------------|
-| 1 | Fresh browser install | `accountMode` defaults to `undetermined`. `localProfileId` is generated on first choice. |
-| 2 | First launch shows identity choice | `IdentityChoiceModal` blocks all other UI when `accountMode === 'undetermined'`. |
-| 3 | Choose local-only profile | Sets `accountMode = 'local-only'`. Generates `localProfileId`. Onboarding proceeds. |
-| 4 | Create local chat, settings, provider config | Data is stored in `localStorage` keyed by `localProfileId`. Server is not involved. |
-| 5 | Sign up as User A | User fills register form. Client sends `claimGuestData: false` (because we want to handle migration client-side). |
-| 6 | Confirm copy/move/keep-separate | `DataMigrationDialog` is shown. User chooses. Local data is copied/moved/kept in `localProfileId` bucket. |
-| 7 | Create User A data | New threads/settings go into `user-a` `localStorage` bucket and server-side `user_id` scope. |
-| 8 | Log out | `/api/auth/logout` clears auth. `enterLocalMode()` loads `localProfileId` bucket. |
-| 9 | Local profile data returns | `localStorage` for `localProfileId` is untouched (if "keep separate" or "copy" was chosen) or empty (if "move" was chosen). User A's data is not visible. |
-| 10 | Sign in as User B | `authRequest` loads `user-b` bucket. Server-side queries use `user-b` `user_id`. |
-| 11 | User B sees none of User A / local data | `localStorage` for `user-b` is separate. Server-side D1 queries are scoped by `user-b`. `providerKeyStatus` is cleared on switch. |
-| 12 | Reload page | `hydrateAsync()` blocks UI. `fetchMe()` returns User B. `enterServerMode(userB)` loads `user-b` bucket. |
-| 13 | User B still isolated after hydration | `hydrateAsync()` only loads the resolved account. No flash of local data. |
-| 14 | Log out | Same as step 8. Returns to `localProfileId` bucket. |
-| 15 | Local profile data returns again | Same as step 9. |
-| 16 | Sign back in as User A | `authRequest` loads `user-a` bucket. |
-| 17 | User A data returns; User B/local absent | `user-a` bucket is isolated. `user-b` and `localProfileId` are not loaded. |
+| Step | Requirement                                  | How the Plan Satisfies It                                                                                                                                 |
+| ---- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Fresh browser install                        | `accountMode` defaults to `undetermined`. `localProfileId` is generated on first choice.                                                                  |
+| 2    | First launch shows identity choice           | `IdentityChoiceModal` blocks all other UI when `accountMode === 'undetermined'`.                                                                          |
+| 3    | Choose local-only profile                    | Sets `accountMode = 'local-only'`. Generates `localProfileId`. Onboarding proceeds.                                                                       |
+| 4    | Create local chat, settings, provider config | Data is stored in `localStorage` keyed by `localProfileId`. Server is not involved.                                                                       |
+| 5    | Sign up as User A                            | User fills register form. Client sends `claimGuestData: false` (because we want to handle migration client-side).                                         |
+| 6    | Confirm copy/move/keep-separate              | `DataMigrationDialog` is shown. User chooses. Local data is copied/moved/kept in `localProfileId` bucket.                                                 |
+| 7    | Create User A data                           | New threads/settings go into `user-a` `localStorage` bucket and server-side `user_id` scope.                                                              |
+| 8    | Log out                                      | `/api/auth/logout` clears auth. `enterLocalMode()` loads `localProfileId` bucket.                                                                         |
+| 9    | Local profile data returns                   | `localStorage` for `localProfileId` is untouched (if "keep separate" or "copy" was chosen) or empty (if "move" was chosen). User A's data is not visible. |
+| 10   | Sign in as User B                            | `authRequest` loads `user-b` bucket. Server-side queries use `user-b` `user_id`.                                                                          |
+| 11   | User B sees none of User A / local data      | `localStorage` for `user-b` is separate. Server-side D1 queries are scoped by `user-b`. `providerKeyStatus` is cleared on switch.                         |
+| 12   | Reload page                                  | `hydrateAsync()` blocks UI. `fetchMe()` returns User B. `enterServerMode(userB)` loads `user-b` bucket.                                                   |
+| 13   | User B still isolated after hydration        | `hydrateAsync()` only loads the resolved account. No flash of local data.                                                                                 |
+| 14   | Log out                                      | Same as step 8. Returns to `localProfileId` bucket.                                                                                                       |
+| 15   | Local profile data returns again             | Same as step 9.                                                                                                                                           |
+| 16   | Sign back in as User A                       | `authRequest` loads `user-a` bucket.                                                                                                                      |
+| 17   | User A data returns; User B/local absent     | `user-a` bucket is isolated. `user-b` and `localProfileId` are not loaded.                                                                                |
 
 ---
 
 ## 5. Risk Mitigation & Edge Cases
 
-| Risk | Mitigation |
-|------|------------|
-| **Cross-user localStorage leakage** | Each server account has a `user.id` bucket. Local profile has a `localProfileId` bucket. No shared keys. |
-| **Memory cache leakage** | `enterServerMode()` and `enterLocalMode()` clear `providerKeyStatus`, `providerValidationStatus`, and `stats`. Vector store cache is switched via `loadVectorStoreForUser()`. |
-| **Guest data auto-claim on login** | Server handlers now require `claimGuestData: true` to run `claimGuestSession`. Default is `true` for backward compatibility, but the client explicitly passes `false` for local-to-server transitions. |
-| **Local profile ID loss** | `localProfileId` is stored in `localStorage` and never deleted. Even if the user clears cookies, the local profile data survives. Only a full `localStorage` clear would erase it, which is equivalent to a factory reset. |
-| **Offline queue leakage** | The offline queue (`cockpit.offline-queue.v1`) is global. Add a `clearOfflineQueue()` call in `enterServerMode()` and `enterLocalMode()` to prevent queued prompts from being sent under the wrong account. |
-| **Provider key status leakage** | `providerKeyStatus` is already cleared on account switch. After login, `refreshProviderKeyStatus()` fetches keys for the new user only. |
-| **Settings sync confusion** | `syncSettingsToServer()` only fires when `state.user` is set. In local mode, settings are local-only. Server settings are fetched only on `enterServerMode()`. |
-| **First-launch existing users** | Users who already have data in the old `"guest"` bucket will need a one-time migration. The `hydrateAsync()` function can detect the absence of `localProfileId` and `accountMode` and run a migration: generate `localProfileId`, copy `"guest"` data into the new local profile bucket, set `accountMode = 'local-only'`. This preserves all existing data. |
+| Risk                                | Mitigation                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cross-user localStorage leakage** | Each server account has a `user.id` bucket. Local profile has a `localProfileId` bucket. No shared keys.                                                                                                                                                                                                                                                      |
+| **Memory cache leakage**            | `enterServerMode()` and `enterLocalMode()` clear `providerKeyStatus`, `providerValidationStatus`, and `stats`. Vector store cache is switched via `loadVectorStoreForUser()`.                                                                                                                                                                                 |
+| **Guest data auto-claim on login**  | Server handlers now require `claimGuestData: true` to run `claimGuestSession`. Default is `true` for backward compatibility, but the client explicitly passes `false` for local-to-server transitions.                                                                                                                                                        |
+| **Local profile ID loss**           | `localProfileId` is stored in `localStorage` and never deleted. Even if the user clears cookies, the local profile data survives. Only a full `localStorage` clear would erase it, which is equivalent to a factory reset.                                                                                                                                    |
+| **Offline queue leakage**           | The offline queue (`cockpit.offline-queue.v1`) is global. Add a `clearOfflineQueue()` call in `enterServerMode()` and `enterLocalMode()` to prevent queued prompts from being sent under the wrong account.                                                                                                                                                   |
+| **Provider key status leakage**     | `providerKeyStatus` is already cleared on account switch. After login, `refreshProviderKeyStatus()` fetches keys for the new user only.                                                                                                                                                                                                                       |
+| **Settings sync confusion**         | `syncSettingsToServer()` only fires when `state.user` is set. In local mode, settings are local-only. Server settings are fetched only on `enterServerMode()`.                                                                                                                                                                                                |
+| **First-launch existing users**     | Users who already have data in the old `"guest"` bucket will need a one-time migration. The `hydrateAsync()` function can detect the absence of `localProfileId` and `accountMode` and run a migration: generate `localProfileId`, copy `"guest"` data into the new local profile bucket, set `accountMode = 'local-only'`. This preserves all existing data. |
 
 ---
 

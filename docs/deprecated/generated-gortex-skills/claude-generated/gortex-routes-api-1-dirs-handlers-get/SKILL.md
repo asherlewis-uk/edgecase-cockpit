@@ -10,17 +10,18 @@ description: "Work in the routes/api +1 dirs · handlers.GET area — 27 symbols
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/db/index.ts`
 - `src/routes/api/threads.$id.export.ts`
 - `src/routes/api/threads.$id.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/db/index.ts` | sessionId, id, db, getThread, messages, ... |
+| File                                   | Symbols                                              |
+| -------------------------------------- | ---------------------------------------------------- |
+| `src/lib/db/index.ts`                  | sessionId, id, db, getThread, messages, ...          |
 | `src/routes/api/threads.$id.export.ts` | msg, handlers.GET, extension, filename, session, ... |
-| `src/routes/api/threads.$id.ts` | session, handlers.GET, thread, id |
+| `src/routes/api/threads.$id.ts`        | session, handlers.GET, thread, id                    |
 
 ## Entry Points
 

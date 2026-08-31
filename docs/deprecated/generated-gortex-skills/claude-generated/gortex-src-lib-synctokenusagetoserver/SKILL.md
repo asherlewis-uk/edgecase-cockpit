@@ -10,17 +10,18 @@ description: "Work in the src/lib · syncTokenUsageToServer area — 28 symbols 
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/cockpit-store.ts`
 - `src/lib/embeddings.ts`
 - `src/lib/providers.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                       | Symbols                                              |
+| -------------------------- | ---------------------------------------------------- |
 | `src/lib/cockpit-store.ts` | csrfHeaders, threadId, providerId, token, model, ... |
-| `src/lib/embeddings.ts` | embedTexts, json, res, txt, model, ... |
-| `src/lib/providers.ts` | fd, detectProvider, DetectResult, res, e, ... |
+| `src/lib/embeddings.ts`    | embedTexts, json, res, txt, model, ...               |
+| `src/lib/providers.ts`     | fd, detectProvider, DetectResult, res, e, ...        |
 
 ## How to Explore
 

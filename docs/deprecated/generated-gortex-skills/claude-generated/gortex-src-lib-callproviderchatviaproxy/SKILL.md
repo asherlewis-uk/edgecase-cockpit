@@ -10,12 +10,13 @@ description: "Work in the src/lib · callProviderChatViaProxy area — 44 symbol
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/providers.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                   | Symbols                                    |
+| ---------------------- | ------------------------------------------ |
 | `src/lib/providers.ts` | signal, tools, line, text, retryAfter, ... |
 
 ## Entry Points

@@ -20,13 +20,13 @@ bun run native:desktop:package:signed
 
 Required GitHub Actions / CI secrets:
 
-| Secret | Source |
-|---|---|
-| `CSC_LINK` | Base64-encoded Apple Developer ID Application `.p12` |
-| `CSC_KEY_PASSWORD` | Password for the `.p12` |
-| `APPLE_ID` | Apple ID for notarization |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization |
-| `APPLE_TEAM_ID` | Apple Developer Team ID (10 characters) |
+| Secret                        | Source                                               |
+| ----------------------------- | ---------------------------------------------------- |
+| `CSC_LINK`                    | Base64-encoded Apple Developer ID Application `.p12` |
+| `CSC_KEY_PASSWORD`            | Password for the `.p12`                              |
+| `APPLE_ID`                    | Apple ID for notarization                            |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization               |
+| `APPLE_TEAM_ID`               | Apple Developer Team ID (10 characters)              |
 
 After signed build, verify with:
 
@@ -58,6 +58,7 @@ bun run native:ios:build
 4. Upload to App Store Connect via Xcode Organizer or `xcodebuild -exportArchive`.
 
 Required external artifacts:
+
 - Apple Developer account
 - App ID / bundle ID `uk.asherlewis.edgecase.cockpit`
 - Distribution provisioning profile
@@ -83,6 +84,7 @@ bun run native:android:assembleRelease
 ```
 
 Required external artifact:
+
 - Android signing keystore (`.jks` or `.keystore`)
 - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
 - Play Store developer account

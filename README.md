@@ -30,13 +30,13 @@ Cloud providers, cloud provider keys, OAuth/social login, marketplace-style disc
 
 Platform packaging is useful infrastructure, not the V1 product proof. V1 is proven by browser E2E coverage for the generic local OpenAI-compatible endpoint path.
 
-| Target                     | V1 product proof required | Status                    | Notes                                                              |
-| -------------------------- | ------------------------- | ------------------------- | ------------------------------------------------------------------ |
-| Browser/web runtime        | **Yes**                   | ✅ Builds                 | Used for V1 E2E proof; no cloud keys or live provider accounts required |
-| Cloudflare Workers backend | Supporting infrastructure | ✅ Configured             | `wrangler.jsonc` + D1 configured; deployment is separate from V1 proof |
+| Target                     | V1 product proof required | Status                            | Notes                                                                                        |
+| -------------------------- | ------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| Browser/web runtime        | **Yes**                   | ✅ Builds                         | Used for V1 E2E proof; no cloud keys or live provider accounts required                      |
+| Cloudflare Workers backend | Supporting infrastructure | ✅ Configured                     | `wrangler.jsonc` + D1 configured; deployment is separate from V1 proof                       |
 | macOS native (Electron)    | No                        | ✅ Unsigned .app package verified | Useful for local provider transport; signed `.dmg`/notarization is post-V1 distribution work |
-| iOS native (Capacitor)     | No                        | ✅ Build verified         | Build scaffolding exists; distribution profile/device E2E are post-V1 |
-| Android native (Capacitor) | No                        | ✅ Build verified         | Debug build exists; release keystore/store submission are post-V1 |
+| iOS native (Capacitor)     | No                        | ✅ Build verified                 | Build scaffolding exists; distribution profile/device E2E are post-V1                        |
+| Android native (Capacitor) | No                        | ✅ Build verified                 | Debug build exists; release keystore/store submission are post-V1                            |
 
 Native packaging tooling is present (Capacitor for iOS/Android, Electron for desktop). Those paths are documented for distribution readiness, but V1 acceptance does not depend on signed native artifacts.
 
@@ -47,7 +47,6 @@ Native packaging tooling is present (Capacitor for iOS/Android, Electron for des
 **Offline-first privacy model:** Chats, threads, and messages are stored in `localStorage` by default (device-local). When a user is authenticated and opts in to sync (globally via settings or per-thread), threads are stored in D1 with encrypted provider keys. RAG vector/text data remains device-local. D1 stores: user accounts, encrypted provider keys, user settings, usage statistics, and synced threads when explicitly enabled. A local-only profile works entirely on-device and cannot sync to D1.
 
 > **Auth:** Email/password signup and sign-in are available through the `/auth` route and Account menu. A local-only profile can explore the app entirely on-device; signing in (or migrating a local-only profile into an account) enables server-side encrypted provider key storage, settings sync, and usage records. Google/Apple/OAuth is not implemented.
-
 
 **API key security:** Provider keys are stored in D1 (`user_provider_keys`) with AES-256-GCM encryption per user. The browser never sees plaintext keys after migration. `cockpit-store.ts` strips `apiKey` before persisting settings to `localStorage`. Local-only profiles cannot store provider keys server-side.
 
@@ -118,16 +117,16 @@ The focused V1 browser E2E now proves the loop below for a user-configured gener
 
 ## 3. Privacy and data model
 
-| Data                                                | Storage                                  | Notes                                                        |
-| --------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| Data                                                | Storage                                  | Notes                                                                                                                                               |
+| --------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Chat threads and messages                           | `localStorage` (device-local) by default | Synced to D1 only when authenticated user enables sync. Local-only profiles are device-local. Export/import via JSON/Markdown/TXT always available. |
-| Settings (profile, personalization, shortcuts, RAG)   | `localStorage` by default                | User settings also stored in D1 when authenticated. Local-only profiles are device-local. |
-| Provider API keys                                   | D1 `user_provider_keys` (encrypted)      | AES-256-GCM encrypted. Local-only profiles cannot store keys server-side. |
-| RAG vectors and text chunks                         | `localStorage` + in-memory               | Device-local only.                                           |
-| Provider stats (counts, tokens, cost)               | `localStorage`                           | Device-local only.                                           |
-| Usage records (per-call model/token/cost)           | D1 `usage_records` (when authenticated) | Per-user when logged in.                                     |
-| Rate limit state                                    | In-memory (fallback) or D1 `rate_limits` | Server-side for cloud providers.                             |
-| Session/security data                               | D1 `sessions` + encrypted cookie         | Server-side only.                                            |
+| Settings (profile, personalization, shortcuts, RAG) | `localStorage` by default                | User settings also stored in D1 when authenticated. Local-only profiles are device-local.                                                           |
+| Provider API keys                                   | D1 `user_provider_keys` (encrypted)      | AES-256-GCM encrypted. Local-only profiles cannot store keys server-side.                                                                           |
+| RAG vectors and text chunks                         | `localStorage` + in-memory               | Device-local only.                                                                                                                                  |
+| Provider stats (counts, tokens, cost)               | `localStorage`                           | Device-local only.                                                                                                                                  |
+| Usage records (per-call model/token/cost)           | D1 `usage_records` (when authenticated)  | Per-user when logged in.                                                                                                                            |
+| Rate limit state                                    | In-memory (fallback) or D1 `rate_limits` | Server-side for cloud providers.                                                                                                                    |
+| Session/security data                               | D1 `sessions` + encrypted cookie         | Server-side only.                                                                                                                                   |
 
 **Defaults proven by source:**
 
@@ -310,22 +309,22 @@ Sources: `src/hooks/use-chat.ts`, `src/lib/cockpit-store.ts`, `src/lib/providers
 
 The V1 proof target is a user-configured generic local OpenAI-compatible endpoint. This is a declared product decision made now, not recovered from prior named-provider evidence. Existing providers are implementation candidates, compatibility surfaces, or future named presets; they are not V1 commitments. Hermes Agent, OpenClaw, Ollama, LM Studio, vLLM, llama.cpp, and other named providers are not the V1 proof set.
 
-| Provider                   | V1 role | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Type  | Body style |
-| -------------------------- | ------- | ---- | ------ | ----- | --------------- | ---------- | ------ | ------------- | ----- | ---------- |
-| Hermes Agent (`hermes`)    | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ✅         | ❌     | ❌            | Local | openai     |
-| OpenClaw                   | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Local | openai     |
-| Ollama (local)             | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
-| OpenAI                     | Supported infrastructure | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Cloud | openai     |
-| Anthropic                  | Supported infrastructure | ✅   | ✅     | ✅    | ✅              | ❌         | ✅     | ❌            | Cloud | anthropic  |
-| Google Gemini              | Supported infrastructure | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Cloud | openai     |
-| Moonshot / KimiCoding      | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Cloud | openai     |
-| OpenRouter                 | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Cloud | openai     |
-| Ollama Cloud               | Supported infrastructure | ✅   | ✅     | ❌    | ❌              | ✅         | ❌     | ❌            | Cloud | openai     |
-| NVIDIA NIM                 | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
-| Vercel AI Gateway          | Supported infrastructure | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
-| LM Studio                  | Catalog candidate/future preset; not V1 | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
-| vLLM                       | Catalog candidate/future preset; not V1 | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
-| llama.cpp server           | Catalog candidate/future preset; not V1 | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| Provider                   | V1 role                                                                               | Chat | Models | Tools | Streaming Tools | Embeddings | Vision | Transcription | Type  | Body style |
+| -------------------------- | ------------------------------------------------------------------------------------- | ---- | ------ | ----- | --------------- | ---------- | ------ | ------------- | ----- | ---------- |
+| Hermes Agent (`hermes`)    | Catalog candidate/future preset; not V1                                               | ✅   | ✅     | ✅    | ❌              | ✅         | ❌     | ❌            | Local | openai     |
+| OpenClaw                   | Catalog candidate/future preset; not V1                                               | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Local | openai     |
+| Ollama (local)             | Catalog candidate/future preset; not V1                                               | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| OpenAI                     | Supported infrastructure                                                              | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ✅            | Cloud | openai     |
+| Anthropic                  | Supported infrastructure                                                              | ✅   | ✅     | ✅    | ✅              | ❌         | ✅     | ❌            | Cloud | anthropic  |
+| Google Gemini              | Supported infrastructure                                                              | ✅   | ✅     | ✅    | ✅              | ✅         | ✅     | ❌            | Cloud | openai     |
+| Moonshot / KimiCoding      | Supported infrastructure                                                              | ✅   | ✅     | ✅    | ❌              | ❌         | ❌     | ❌            | Cloud | openai     |
+| OpenRouter                 | Supported infrastructure                                                              | ✅   | ✅     | ✅    | ❌              | ❌         | ✅     | ❌            | Cloud | openai     |
+| Ollama Cloud               | Supported infrastructure                                                              | ✅   | ✅     | ❌    | ❌              | ✅         | ❌     | ❌            | Cloud | openai     |
+| NVIDIA NIM                 | Supported infrastructure                                                              | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
+| Vercel AI Gateway          | Supported infrastructure                                                              | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Cloud | openai     |
+| LM Studio                  | Catalog candidate/future preset; not V1                                               | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| vLLM                       | Catalog candidate/future preset; not V1                                               | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
+| llama.cpp server           | Catalog candidate/future preset; not V1                                               | ✅   | ✅     | ❌    | ❌              | ✅         | ✅     | ❌            | Local | openai     |
 | Custom (OpenAI-compatible) | Implementation surface for the generic local endpoint; not a named-provider V1 preset | ✅   | ✅     | ✅    | ❌              | ✅         | ✅     | ✅            | Local | openai     |
 
 **Streaming tools** is implemented client-side via `StreamToolCallAccumulator` (OpenAI body style) and `AnthropicStreamToolCallAccumulator` + `extractAnthropicToolCallDelta` (Anthropic body style). Gemini uses the OpenAI-compatible path. Providers without `streamingTools: true` in their capability flags fall back to non-streaming when tools are present.
@@ -773,20 +772,20 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 
 ### Scripts
 
-| Script         | Command                                                |
-| -------------- | ------------------------------------------------------ |
-| `dev`          | `vite dev`                                             |
-| `build`        | `vite build`                                           |
-| `build:dev`    | `vite build --mode development`                        |
-| `preview`      | `vite preview`                                         |
-| `lint`         | `eslint .`                                             |
-| `format`       | `prettier --write .`                                   |
-| `typecheck`    | `tsc --noEmit`                                         |
-| `test`         | `vitest run`                                           |
-| `test:live`    | `vitest run --config vitest.live.config.ts`            |
-| `test:release` | `npm run test && (OPENAI_API_KEY present → test:live)` |
-| `test:e2e`     | `playwright test`                                      |
-| `test:e2e:install` | `playwright install --with-deps chromium`          |
+| Script             | Command                                                |
+| ------------------ | ------------------------------------------------------ |
+| `dev`              | `vite dev`                                             |
+| `build`            | `vite build`                                           |
+| `build:dev`        | `vite build --mode development`                        |
+| `preview`          | `vite preview`                                         |
+| `lint`             | `eslint .`                                             |
+| `format`           | `prettier --write .`                                   |
+| `typecheck`        | `tsc --noEmit`                                         |
+| `test`             | `vitest run`                                           |
+| `test:live`        | `vitest run --config vitest.live.config.ts`            |
+| `test:release`     | `npm run test && (OPENAI_API_KEY present → test:live)` |
+| `test:e2e`         | `playwright test`                                      |
+| `test:e2e:install` | `playwright install --with-deps chromium`              |
 
 ---
 
@@ -796,22 +795,22 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`). Use `bun install`, `bun r
 
 The following native packaging tooling is present in this repository:
 
-| Item                                              | Status                    | Verified by source                                                               |
-| ------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
-| Native packaging framework (Capacitor + Electron) | ✅ Present                | `capacitor.config.ts`, `@capacitor/*` deps, `electron` + `electron-builder` deps |
-| macOS build command (Electron)                    | ✅ Verified (compile + native-shell) | `bun run native:desktop:dev` builds and compiles; `npx electron-builder build` stalls in headless env but prior DMGs exist |
-| macOS install/run command (Electron dev)          | ✅ Exists                 | `bun run native:desktop:dev`                                                     |
-| macOS app bundle                                  | ✅ Verified (unsigned)     | `bun run native:desktop:package:unsigned` produces `electron/release/mac-arm64/Edgecase Cockpit.app` |
-| macOS signing / notarization config               | ⚠️ Configured, needs secrets | `electron-builder.yml` ready; requires `CSC_LINK`, `APPLE_ID`, etc. in CI/secrets |
-| iOS Xcode project (Capacitor)                     | ✅ Build verified         | `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO build` succeeds |
-| iOS bundle ID                                     | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
-| iOS app icon / permissions                        | ✅ Configured             | `ios/App/App/Assets.xcassets/AppIcon.appiconset/`                                |
-| Android Gradle project (Capacitor)                | ✅ Build verified         | `./gradlew assembleDebug` succeeds after `bun run native:android:sync`            |
-| Android application ID                            | ✅ Configured             | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                        |
-| Android app icon / permissions                    | ✅ Configured             | `android/app/src/main/res/mipmap-*/`                                             |
-| PWA manifest / service worker                     | ⚠️ Not present            | PWA manifest not a V1 native target; add only if web-install is required         |
-| Native release scripts / CI jobs                  | ✅ Scripts verified        | `native:desktop:package:unsigned`, `native:desktop:package:signed`, `native:ios:build`, `native:ios:archive`, `native:android:assembleRelease` exist; signed CI job only needs certs |
-| Automated user-flow E2E (browser)                | ✅ Implemented            | Playwright harness (`playwright.config.ts`, `e2e/smoke.spec.ts`); run `bun run test:e2e:install` then `bun run test:e2e` |
+| Item                                              | Status                               | Verified by source                                                                                                                                                                   |
+| ------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Native packaging framework (Capacitor + Electron) | ✅ Present                           | `capacitor.config.ts`, `@capacitor/*` deps, `electron` + `electron-builder` deps                                                                                                     |
+| macOS build command (Electron)                    | ✅ Verified (compile + native-shell) | `bun run native:desktop:dev` builds and compiles; `npx electron-builder build` stalls in headless env but prior DMGs exist                                                           |
+| macOS install/run command (Electron dev)          | ✅ Exists                            | `bun run native:desktop:dev`                                                                                                                                                         |
+| macOS app bundle                                  | ✅ Verified (unsigned)               | `bun run native:desktop:package:unsigned` produces `electron/release/mac-arm64/Edgecase Cockpit.app`                                                                                 |
+| macOS signing / notarization config               | ⚠️ Configured, needs secrets         | `electron-builder.yml` ready; requires `CSC_LINK`, `APPLE_ID`, etc. in CI/secrets                                                                                                    |
+| iOS Xcode project (Capacitor)                     | ✅ Build verified                    | `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO build` succeeds                                                     |
+| iOS bundle ID                                     | ✅ Configured                        | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                                                                                                                            |
+| iOS app icon / permissions                        | ✅ Configured                        | `ios/App/App/Assets.xcassets/AppIcon.appiconset/`                                                                                                                                    |
+| Android Gradle project (Capacitor)                | ✅ Build verified                    | `./gradlew assembleDebug` succeeds after `bun run native:android:sync`                                                                                                               |
+| Android application ID                            | ✅ Configured                        | `uk.asherlewis.edgecase.cockpit` in `capacitor.config.ts`                                                                                                                            |
+| Android app icon / permissions                    | ✅ Configured                        | `android/app/src/main/res/mipmap-*/`                                                                                                                                                 |
+| PWA manifest / service worker                     | ⚠️ Not present                       | PWA manifest not a V1 native target; add only if web-install is required                                                                                                             |
+| Native release scripts / CI jobs                  | ✅ Scripts verified                  | `native:desktop:package:unsigned`, `native:desktop:package:signed`, `native:ios:build`, `native:ios:archive`, `native:android:assembleRelease` exist; signed CI job only needs certs |
+| Automated user-flow E2E (browser)                 | ✅ Implemented                       | Playwright harness (`playwright.config.ts`, `e2e/smoke.spec.ts`); run `bun run test:e2e:install` then `bun run test:e2e`                                                             |
 
 ### What exists (native scaffolding)
 

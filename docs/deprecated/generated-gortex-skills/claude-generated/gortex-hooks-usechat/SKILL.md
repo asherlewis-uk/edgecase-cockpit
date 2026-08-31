@@ -10,15 +10,16 @@ description: "Work in the hooks · useChat area — 67 symbols across 2 files (9
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/hooks/use-chat.test.ts`
 - `src/hooks/use-chat.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/hooks/use-chat.test.ts` | selector, randomUUID, useStore |
-| `src/hooks/use-chat.ts` | setCooldownUntil, count, setRagError, cooldownUntil, activeId, ... |
+| File                         | Symbols                                                            |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `src/hooks/use-chat.test.ts` | selector, randomUUID, useStore                                     |
+| `src/hooks/use-chat.ts`      | setCooldownUntil, count, setRagError, cooldownUntil, activeId, ... |
 
 ## Entry Points
 

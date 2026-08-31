@@ -10,6 +10,7 @@ description: "Work in the src/lib · validateImportPayload area — 32 symbols a
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/cockpit-store.test.ts`
 - `src/lib/cockpit-store.ts`
 - `src/lib/env.server.ts`
@@ -17,12 +18,12 @@ Use this skill when working on files in:
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/cockpit-store.test.ts` | length |
-| `src/lib/cockpit-store.ts` | store.getThreadCount, store.getMessageCount, store.getTotalTokens |
-| `src/lib/env.server.ts` | validateEnv, key, warnings, key, missing |
-| `src/lib/storage-limits.server.ts` | violation, validateMessages, m, getStorageLimits, limits, ... |
+| File                               | Symbols                                                           |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| `src/lib/cockpit-store.test.ts`    | length                                                            |
+| `src/lib/cockpit-store.ts`         | store.getThreadCount, store.getMessageCount, store.getTotalTokens |
+| `src/lib/env.server.ts`            | validateEnv, key, warnings, key, missing                          |
+| `src/lib/storage-limits.server.ts` | violation, validateMessages, m, getStorageLimits, limits, ...     |
 
 ## How to Explore
 
