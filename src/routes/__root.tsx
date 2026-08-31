@@ -116,6 +116,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // True while a navigation is in flight (new route not yet committed). During
+  // this window the router keeps rendering the PREVIOUS route's component under
+  // the new URL — e.g. after an identity choice, the chat surface would flash
+  // at /auth before the auth page loads. Render the neutral skeleton instead.
+  const isNavigating = useRouterState({ select: (s) => s.status === "pending" });
   const [hydrating, setHydrating] = useState(true);
   const [mode, setMode] = useState<AccountMode>("undetermined");
 
@@ -142,7 +147,7 @@ function RootComponent() {
 
   // During hydration: render a neutral skeleton with NO account-scoped data so
   // the wrong account bucket can never flash before identity is resolved.
-  if (hydrating) {
+  if (hydrating || isNavigating) {
     return (
       <QueryClientProvider client={queryClient}>
         <AccountLoadingSkeleton />
