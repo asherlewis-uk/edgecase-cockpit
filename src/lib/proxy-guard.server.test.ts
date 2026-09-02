@@ -131,6 +131,20 @@ describe("urlAllowedForProvider", () => {
   });
 });
 
+describe("local provider 127.0.0.1 allowlist (regression)", () => {
+  it("allows ollama's explicit 127.0.0.1 allowlist entry", () => {
+    expect(urlAllowedForProvider("ollama", "http://127.0.0.1:11434/v1/models")).toBe(true);
+  });
+
+  it("allows lmstudio's explicit 127.0.0.1 allowlist entry", () => {
+    expect(urlAllowedForProvider("lmstudio", "http://127.0.0.1:1234/v1/models")).toBe(true);
+  });
+
+  it("resolves a 127.0.0.1 URL to a local provider via urlAllowedAnyProvider", () => {
+    expect(urlAllowedAnyProvider("http://127.0.0.1:11434/v1/models")).toBe("ollama");
+  });
+});
+
 describe("urlAllowedAnyProvider", () => {
   it("returns a provider id for allowed URLs", () => {
     const result = urlAllowedAnyProvider("https://api.openai.com/v1");
@@ -209,6 +223,12 @@ describe("custom provider wildcard host policy", () => {
       expect(urlAllowedForProvider("custom", "https://example.com/api")).toBe(true);
     });
 
+    it("still blocks private-range IP literals for the custom wildcard in production with opt-in", () => {
+      process.env.NODE_ENV = "production";
+      process.env.PROXY_ALLOW_CUSTOM_WILDCARD = "true";
+      expect(urlAllowedForProvider("custom", "http://10.0.0.1/")).toBe(false);
+    });
+
     it("still allows explicit hosts for non-custom providers in production", () => {
       process.env.NODE_ENV = "production";
       expect(urlAllowedForProvider("openai", "https://api.openai.com/v1")).toBe(true);
@@ -262,6 +282,14 @@ describe("isBlockedNetworkTarget", () => {
     ["IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]/"],
     ["IPv4-mapped IPv6 metadata", "http://[::ffff:169.254.169.254]/"],
     ["0.0.0.0/8", "http://0.0.0.0/"],
+  ])("blocks %s", (_label, url) => {
+    expect(isBlockedNetworkTarget(url)).toBe(true);
+  });
+
+  it.each([
+    ["IPv4-compatible IPv6 loopback", "http://[::127.0.0.1]/"],
+    ["6to4-encoded loopback", "http://[2002:7f00:1::]/"],
+    ["NAT64 well-known prefix loopback", "http://[64:ff9b::127.0.0.1]/"],
   ])("blocks %s", (_label, url) => {
     expect(isBlockedNetworkTarget(url)).toBe(true);
   });

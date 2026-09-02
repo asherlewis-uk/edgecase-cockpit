@@ -146,7 +146,12 @@ export function isBlockedNetworkTarget(url: string): boolean {
       const inner = normalizeIpv4Literal(mapped[1]);
       return inner ? isBlockedIpv4(inner) : true;
     }
-    return false;
+    // Fail CLOSED on any other IPv6 literal. IPv4-compatible ([::127.0.0.1]),
+    // 6to4 ([2002:7f00:1::]), NAT64 ([64:ff9b::127.0.0.1]), Teredo and ISATAP
+    // all embed an IPv4 address that URL.hostname canonicalizes to hex, so the
+    // range checks above cannot see it. No provider allowlists an IPv6 literal,
+    // so blocking the unrecognized remainder costs nothing legitimate.
+    return true;
   }
 
   const dotted = normalizeIpv4Literal(host);
@@ -158,7 +163,6 @@ export function isBlockedNetworkTarget(url: string): boolean {
 export function urlAllowedForProvider(providerId: string, url: string): boolean {
   const p = PROVIDERS.find((x) => x.id === providerId);
   if (!p) return false;
-  if (isBlockedNetworkTarget(url)) return false;
   const allowed = p.allowedHosts ?? [];
   if (allowed.length === 0) return false;
   let host = "";
@@ -168,7 +172,14 @@ export function urlAllowedForProvider(providerId: string, url: string): boolean 
     return false;
   }
 
-  // Wildcard hosts require an explicit production opt-in.
+  // Explicit (non-wildcard) allowlist entries are honoured as-is, with no IP
+  // guard: local providers allowlist "127.0.0.1" and "localhost" on purpose.
+  for (const pattern of allowed) {
+    if (pattern === "*") continue;
+    if (matchHost(pattern, host)) return true;
+  }
+
+  // Only a wildcard match is subject to the network-target guard.
   if (allowed.includes("*")) {
     if (!isWildcardHostAllowed()) {
       console.warn(
@@ -177,11 +188,11 @@ export function urlAllowedForProvider(providerId: string, url: string): boolean 
       );
       return false;
     }
-    // Wildcard is allowed — but still check explicit patterns first
-    // (so you can have both "*" and "specific.host.com").
+    if (isBlockedNetworkTarget(url)) return false;
+    return true;
   }
 
-  return allowed.some((pattern) => matchHost(pattern, host));
+  return false;
 }
 
 export function urlAllowedAnyProvider(url: string): string | null {
@@ -191,17 +202,28 @@ export function urlAllowedAnyProvider(url: string): string | null {
   } catch {
     return null;
   }
-  // An IP literal in a blocked range is never allowed, whatever matches it.
-  if (isBlockedNetworkTarget(url)) return null;
 
+  // First pass: explicit (non-wildcard) allowlist entries are honoured as-is,
+  // with no IP guard — local providers allowlist "127.0.0.1" on purpose.
   for (const p of PROVIDERS) {
     const patterns = p.allowedHosts ?? [];
     for (const pattern of patterns) {
-      // A wildcard requires the same production opt-in urlAllowedForProvider
-      // enforces. Without this, the `custom` provider's "*" made every host
-      // reachable from /api/proxy/detect.
-      if (pattern === "*" && !isWildcardHostAllowed()) continue;
+      if (pattern === "*") continue;
       if (matchHost(pattern, host)) return p.id;
+    }
+  }
+
+  // Second pass: a wildcard match requires the same production opt-in
+  // urlAllowedForProvider enforces, AND the network-target guard. Without the
+  // opt-in, the `custom` provider's "*" would make every host reachable from
+  // /api/proxy/detect.
+  for (const p of PROVIDERS) {
+    const patterns = p.allowedHosts ?? [];
+    for (const pattern of patterns) {
+      if (pattern !== "*") continue;
+      if (!isWildcardHostAllowed()) continue;
+      if (isBlockedNetworkTarget(url)) continue;
+      return p.id;
     }
   }
   return null;
