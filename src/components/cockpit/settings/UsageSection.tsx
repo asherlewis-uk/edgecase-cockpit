@@ -39,7 +39,9 @@ export function UsageSection() {
               {totalCalls} call{totalCalls !== 1 ? "s" : ""}
             </span>
             <span>{formatTokens(totalTokens)} tokens</span>
-            <span className="text-white/80">{formatCost(totalCost)}</span>
+            <span data-testid="usage-total-cost" className="text-white/80">
+              {formatCost(totalCost)}
+            </span>
           </div>
 
           {/* Per-provider breakdown */}

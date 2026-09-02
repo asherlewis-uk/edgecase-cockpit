@@ -167,7 +167,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
             placeholder={searchActive ? "Search chats…" : "Filter recent…"}
             className="mb-2 w-full rounded-full bg-white/[0.04] px-5 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none"
           />
-          <div className="max-h-[40vh] overflow-y-auto">
+          <div data-testid="thread-list" className="max-h-[40vh] overflow-y-auto">
             {filtered.length === 0 && (
               <div className="px-5 py-3 text-sm text-white/40">
                 {threads.length === 0 ? "No chats yet." : "No matching chats."}

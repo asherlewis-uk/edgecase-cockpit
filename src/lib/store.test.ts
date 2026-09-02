@@ -10,6 +10,7 @@ const ALLOWED = [
   "ensureLocalProfileId",
   "copyLocalToServer",
   "moveLocalToServer",
+  "pushAccountSettingsToServer",
   "register",
   "login",
   "logout",

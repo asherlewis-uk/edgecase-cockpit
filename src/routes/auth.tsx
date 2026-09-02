@@ -24,6 +24,7 @@ import {
   enterServerMode,
   copyLocalToServer,
   moveLocalToServer,
+  pushAccountSettingsToServer,
   type UserPublic,
 } from "@/lib/store";
 import {
@@ -169,6 +170,12 @@ function AuthPage() {
         moveLocalToServer(user.id, localProfileId);
       }
       // keep-separate: local data untouched; the account bucket starts clean.
+    }
+    // Push the migrated settings to the server BEFORE entering server mode so
+    // the post-auth settings load returns them instead of the fresh-account
+    // empty state clobbering the copy/move.
+    if (choice !== "keep-separate" && localProfileId) {
+      await pushAccountSettingsToServer(user.id);
     }
     enterServerMode(user);
     setMigrationSubmitting(false);

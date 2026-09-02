@@ -1058,6 +1058,28 @@ export function moveLocalToServer(userId: string, localProfileId: string): void 
   saveVectorStoreForUser(localProfileId, []);
 }
 
+/**
+ * Push the account bucket's settings to the server. Used after a copy/move
+ * migration so the post-auth settings load returns the migrated settings
+ * instead of the fresh-account empty state clobbering them. Best-effort: the
+ * local bucket remains the source of truth if the push fails.
+ */
+export async function pushAccountSettingsToServer(userId: string): Promise<void> {
+  const raw = readJson(getSettingsKeyForUser(userId));
+  if (raw === undefined) return;
+  const settings = normalizeSettings(raw);
+  await syncSettingsToServer({
+    profile: settings.profile,
+    personalization: settings.personalization,
+    keyboardShortcuts: settings.keyboardShortcuts,
+    rag: settings.rag,
+    activeProviderId: settings.activeProviderId,
+    pinnedProviderIds: settings.pinnedProviderIds,
+    costOverrides: settings.costOverrides,
+    onboardingCompleted: settings.onboardingCompleted,
+  });
+}
+
 export const store = {
   getState: () => {
     hydrate();

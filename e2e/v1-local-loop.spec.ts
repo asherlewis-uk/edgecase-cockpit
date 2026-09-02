@@ -190,7 +190,11 @@ async function checkModels(page: Page) {
   await checkModelsButton(page).click();
 }
 
-async function expectNoForbiddenRequests(forbiddenRequests: string[]) {
+async function expectNoForbiddenRequests(forbiddenRequests: string[], modelListRequests: string[]) {
+  expect(
+    modelListRequests.length + forbiddenRequests.length,
+    "the page must have made at least one request — an inert page passes any forbidden-request check",
+  ).toBeGreaterThan(0);
   expect(
     forbiddenRequests,
     "V1 local loop must not use auth, cloud-key, OAuth, marketplace, native, or proxy routes",
@@ -241,7 +245,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
     if (deployed) {
       await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, SUCCESS_BASE_URL);
       await expect(page).not.toHaveURL(/\/auth/);
-      await expectNoForbiddenRequests(forbiddenRequests);
+      await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
       return;
     }
 
@@ -256,7 +260,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
     await expect(capability(page)).toContainText("ready");
     await expect(page.getByTestId("v1-local-capability-models")).toContainText("fixture-alpha");
     await expect(page).not.toHaveURL(/\/auth/);
-    await expectNoForbiddenRequests(forbiddenRequests);
+    await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
   });
 
   test("empty model list shows no usable models and a retry action", async ({ page, baseURL }) => {
@@ -270,7 +274,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
 
     if (deployed) {
       await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, EMPTY_BASE_URL);
-      await expectNoForbiddenRequests(forbiddenRequests);
+      await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
       return;
     }
 
@@ -282,7 +286,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
     await expect(page.getByTestId("v1-local-capability-next-action")).toContainText(
       "retry the model-list check",
     );
-    await expectNoForbiddenRequests(forbiddenRequests);
+    await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
   });
 
   test("malformed model-list response shows failed state without provider integration", async ({
@@ -299,7 +303,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
 
     if (deployed) {
       await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, MALFORMED_BASE_URL);
-      await expectNoForbiddenRequests(forbiddenRequests);
+      await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
       return;
     }
 
@@ -308,7 +312,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
     await expect(capabilityLabel(page)).toHaveText("Model-list response is malformed");
     await expect(capability(page)).toContainText("failed");
     await expect(capability(page)).toContainText("did not match an OpenAI-compatible model-list");
-    await expectNoForbiddenRequests(forbiddenRequests);
+    await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
   });
 
   test("unreachable endpoint shows failure, clears stale state on config change, and recovers", async ({
@@ -329,7 +333,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
 
     if (deployed) {
       await expectHostedHttpsBlocksLocalHttp(page, modelListRequests, UNREACHABLE_BASE_URL);
-      await expectNoForbiddenRequests(forbiddenRequests);
+      await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
       return;
     }
 
@@ -350,7 +354,7 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
 
     await expect(capabilityLabel(page)).toHaveText("Verified ready");
     await expect(page.getByTestId("v1-local-capability-models")).toContainText("recovered-model");
-    await expectNoForbiddenRequests(forbiddenRequests);
+    await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
   });
 
   test("first run shows the whole provider catalog, not just the local endpoint", async ({
@@ -411,7 +415,7 @@ test.describe("V1 local endpoint browser boundary states", () => {
       // default endpoint shares a port with the named-provider detection sweep,
       // so the proof here is the blocked label + disabled probe, not a URL fetch.
       await expectHostedHttpsBlocksLocalHttp(page, modelListRequests);
-      await expectNoForbiddenRequests(forbiddenRequests);
+      await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
       return;
     }
 
@@ -420,6 +424,6 @@ test.describe("V1 local endpoint browser boundary states", () => {
       "localhost points at the mobile device",
     );
     await expect(checkModelsButton(page)).toBeDisabled();
-    await expectNoForbiddenRequests(forbiddenRequests);
+    await expectNoForbiddenRequests(forbiddenRequests, modelListRequests);
   });
 });

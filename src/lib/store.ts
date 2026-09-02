@@ -10,7 +10,12 @@
  * store.test.ts in the same commit so the surface stays asserted.
  */
 export { store, useStore, hydrateAsync, enterLocalMode, enterServerMode } from "./cockpit-store";
-export { ensureLocalProfileId, copyLocalToServer, moveLocalToServer } from "./cockpit-store";
+export {
+  ensureLocalProfileId,
+  copyLocalToServer,
+  moveLocalToServer,
+  pushAccountSettingsToServer,
+} from "./cockpit-store";
 export { register, login, logout, csrfHeaders } from "./cockpit-store";
 export { resolveProvider, isProviderReady, providerHasKey } from "./cockpit-store";
 export {
