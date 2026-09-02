@@ -1222,22 +1222,34 @@ function RagSection() {
   );
 }
 
-function ToolPermissionsSection() {
+export function ToolPermissionsSection() {
   const [tools, setTools] = useState<Array<{ name: string; source: string; approved: boolean }>>(
     [],
   );
   const [loading, setLoading] = useState(false);
+  // Approvals are per-account. Re-key the fetch on the active scope so switching
+  // accounts inside the settings page cannot leave the previous list rendered.
+  const accountScope = useStore((s) => s.user?.id ?? s.localProfileId ?? null);
 
   useEffect(() => {
+    let active = true;
+    setTools([]);
     setLoading(true);
     apiFetch("/api/tools/permissions", { headers: csrfHeaders() })
       .then((res) => res.json())
       .then((json: { tools: Array<{ name: string; source: string; approved: boolean }> }) => {
-        setTools(json.tools ?? []);
+        if (active) setTools(json.tools ?? []);
       })
-      .catch(() => setTools([]))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        if (active) setTools([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [accountScope]);
 
   const toggle = async (name: string, action: "grant" | "revoke") => {
     const res = await apiFetch("/api/tools/permissions", {
