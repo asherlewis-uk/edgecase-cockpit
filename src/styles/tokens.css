@@ -1,0 +1,137 @@
+/**
+ * Design tokens — the visual contract from docs/product-direction.md §5.
+ *
+ * Names are product-semantic first, colour second: `--provider-warning-border`,
+ * not `--amber-400`. Components consume these; they do not hardcode colour.
+ *
+ * This file DECLARES the system. Applying it to the shell, sidebar, cards, and
+ * prompt surface is the next pass (product-direction §8, step 2) — deliberately
+ * not done here, so a token change is reviewable on its own.
+ *
+ * Values are sourced two ways. Neutral surfaces, hairlines, provider and
+ * severity colours follow the existing styles.css palette. The voice-state and
+ * focus families are sampled from edgecase-cockpit-video-catalog/frames/ — the
+ * measured oklch is recorded beside each so the next pass can check drift.
+ */
+
+:root {
+  /* ── Base canvas ─────────────────────────────────────────────────────── */
+  /* --canvas-void matches the existing --background in styles.css so the
+     shell's ground colour does not shift when components adopt the token. */
+  --canvas-void: oklch(0.04 0.01 260);
+  --canvas-gradient-from: oklch(0.09 0.035 268);
+  --canvas-gradient-to: oklch(0.04 0.01 260);
+
+  /* ── Translucent surfaces ────────────────────────────────────────────── */
+  /* Opacity climbs with elevation: shell < prompt < sidebar < modal. */
+  --surface-shell-background: oklch(0.14 0.02 265 / 0.45);
+  --surface-prompt-background: oklch(0.16 0.025 265 / 0.6);
+  --surface-sidebar-background: oklch(0.12 0.02 265 / 0.75);
+  --surface-modal-background: oklch(0.13 0.02 265 / 0.9);
+  --surface-overlay-scrim: oklch(0.02 0 0 / 0.72);
+
+  /* ── Elevated panels ─────────────────────────────────────────────────── */
+  --panel-card-background: oklch(1 0 0 / 0.03);
+  --panel-menu-background: oklch(0.16 0.02 265 / 0.92);
+  --panel-input-background: oklch(1 0 0 / 0.05);
+
+  /* ── Borders and hairlines ───────────────────────────────────────────── */
+  --hairline-subtle: oklch(1 0 0 / 0.08);
+  --hairline-edge-highlight: oklch(1 0 0 / 0.16);
+  --hairline-card: oklch(1 0 0 / 0.1);
+
+  /* ── Glow and accent ─────────────────────────────────────────────────── */
+  --glow-ambient: oklch(0.6 0.18 285 / 0.25);
+  --glow-accent: oklch(0.78 0.16 300 / 0.55);
+  --glow-hover: oklch(1 0 0 / 0.12);
+
+  /* ── Provider status ─────────────────────────────────────────────────── */
+  /* Local-ready and cloud-ready are deliberately distinguishable: the user
+     needs to know which side of the routing boundary a ready provider is on. */
+  --provider-active-fill: oklch(0.72 0.17 155);
+  --provider-inactive-fill: oklch(0.55 0.01 265);
+  --provider-unavailable-fill: oklch(0.45 0.02 265);
+  --provider-missing-credentials-border: oklch(0.75 0.15 75);
+  --provider-local-ready-fill: oklch(0.75 0.15 190);
+  --provider-cloud-ready-fill: oklch(0.7 0.15 250);
+
+  /* ── Severity: warning, error, success ───────────────────────────────── */
+  --warning-text: oklch(0.85 0.12 80);
+  --warning-border: oklch(0.75 0.15 75 / 0.35);
+  --warning-fill: oklch(0.75 0.15 75 / 0.12);
+  --error-text: oklch(0.8 0.14 25);
+  --error-border: oklch(0.65 0.2 27 / 0.35);
+  --error-fill: oklch(0.65 0.2 27 / 0.12);
+  --success-text: oklch(0.85 0.13 155);
+  --success-border: oklch(0.72 0.17 155 / 0.35);
+  --success-fill: oklch(0.72 0.17 155 / 0.12);
+
+  /* ── Focus ───────────────────────────────────────────────────────────── */
+  /* Amber, not pure orange: the dashed screenshot marker in
+     0019_36s_screenshot-selection-mode.png measures oklch(0.70 0.132 72), and
+     the persistent amber accent across 0012/0017/0018 measures hue 74-80. The
+     ring is lifted in L and C from that sample so it stays legible over the
+     lit prompt surface. */
+  --focus-ring: oklch(0.78 0.15 72);
+  --focus-screenshot-ring: oklch(0.78 0.15 72 / 0.7);
+  --focus-hover-ring: oklch(1 0 0 / 0.3);
+
+  /* ── Voice states ────────────────────────────────────────────────────── */
+  /* Cycle order from the catalogue (product-direction §4): cyan → green →
+     yellow → pink → red. Sampled at the voice control, frame bbox
+     672,1184-768,1272 — note the frame FILENAMES are approximate; the pixels
+     and a visual check of the prompt bar both say otherwise:
+       cyan    oklch(0.87 0.149 177)  frames 0000/0001, 0013 at hue 188
+       green   oklch(0.88 0.208 127)  frames 0006/0009/0018/0019 (chartreuse)
+       "yellow" oklch(0.70 0.139 63)  frame 0017 — reads as ORANGE, not yellow
+       "pink"  oklch(0.32 0.125 320)  frame 0015 — reads as VIOLET, and the
+                                      whole frame is dimmed behind the file
+                                      picker, so the hue is taken and L/C are
+                                      restored to the un-dimmed cycle
+       "red"   oklch(0.56 0.218   4)  frame 0016 — reads as vivid PINK-CRIMSON
+                                      (peak oklch(0.67 0.237 0)), not red
+     Idle, muted and unavailable are not in the cycle: they are the neutral
+     rest states and stay chroma-free. */
+  --voice-idle-fill: oklch(0.55 0.02 265);
+  --voice-listening-fill: oklch(0.86 0.15 182);
+  --voice-recording-fill: oklch(0.6 0.22 6);
+  --voice-transcribing-fill: oklch(0.72 0.14 65);
+  --voice-sending-fill: oklch(0.62 0.21 318);
+  --voice-muted-fill: oklch(0.4 0.01 265);
+  --voice-unavailable-fill: oklch(0.35 0.01 265);
+
+  /* ── Media states ────────────────────────────────────────────────────── */
+  /* --media-selected-fill shares the focus hue: selection is a focus state. */
+  --media-empty-fill: oklch(1 0 0 / 0.04);
+  --media-attached-fill: oklch(0.7 0.13 250 / 0.18);
+  --media-uploading-fill: oklch(0.8 0.14 195 / 0.2);
+  --media-processing-fill: oklch(0.82 0.15 95 / 0.2);
+  --media-generated-fill: oklch(0.72 0.17 155 / 0.2);
+  --media-failed-fill: oklch(0.65 0.2 27 / 0.2);
+  --media-selected-fill: oklch(0.78 0.15 72 / 0.22);
+
+  /* ── Motion and easing ───────────────────────────────────────────────── */
+  /* Durations only. Product-direction section 6: motion communicates state,
+     it does not decorate. */
+  --motion-sidebar-slide: 220ms;
+  --motion-backdrop-fade: 160ms;
+  --motion-hover: 120ms;
+  --motion-status: 260ms;
+  --motion-voice-cycle: 900ms;
+
+  /* ── Blur and saturation ─────────────────────────────────────────────── */
+  --blur-backdrop: 24px;
+  --blur-surface: 12px;
+  --blur-elevated: 32px;
+  --saturate-ambient: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-sidebar-slide: 0ms;
+    --motion-backdrop-fade: 0ms;
+    --motion-hover: 0ms;
+    --motion-status: 0ms;
+    --motion-voice-cycle: 0ms;
+  }
+}
