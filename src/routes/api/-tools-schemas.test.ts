@@ -2,9 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- test mocks commonly use any for route handler stubs */
 
+const mockGetAuthUserId = vi.fn();
 vi.mock("@/lib/session.server", () => ({
   getCockpitSession: vi.fn(),
   getProviderCreds: vi.fn(),
+  getAuthUserId: (...args: unknown[]) => mockGetAuthUserId(...args),
 }));
 
 import { getCockpitSession } from "@/lib/session.server";
@@ -22,6 +24,9 @@ beforeEach(() => {
   clearRateLimitBuckets();
   __resetToolRegistry();
   vi.clearAllMocks();
+  // Pre-existing tests were written when POST needed no user; default to a
+  // signed-in caller so they keep passing. Anonymous tests override below.
+  mockGetAuthUserId.mockResolvedValue("user-a");
   vi.mocked(getCockpitSession).mockResolvedValue({
     data: { id: "test-session" },
     update: vi.fn(),
@@ -228,5 +233,55 @@ describe("POST /api/tools/schemas", () => {
     expect(local).toBeDefined();
     expect(local.source).toBe("local");
     expect(body.counts.local).toBe(1);
+  });
+
+  it("POST rejects an anonymous caller with 401", async () => {
+    mockGetAuthUserId.mockResolvedValue(undefined);
+    const res = await handler({
+      request: new Request("http://localhost/api/tools/schemas", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({ name: "x_tool", description: "", parameters: [] }),
+      }),
+    });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Authentication required" });
+  });
+
+  it("POST does not register anything for an anonymous caller", async () => {
+    mockGetAuthUserId.mockResolvedValue(undefined);
+    await handler({
+      request: new Request("http://localhost/api/tools/schemas", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({ name: "ghost_tool", description: "", parameters: [] }),
+      }),
+    });
+
+    // A signed-in caller must not see the tool the anonymous request tried to add.
+    mockGetAuthUserId.mockResolvedValue("user-a");
+    const getMod = await import("@/routes/api/tools/schemas");
+    const getHandler = (getMod.Route.options as any).server.handlers.GET;
+    const getRes = await getHandler({
+      request: new Request("http://localhost/api/tools/schemas", {
+        method: "GET",
+        headers: CSRF_HEADERS,
+      }),
+    });
+    const json = (await getRes.json()) as { schemas: Array<{ name: string }> };
+    expect(json.schemas.map((s) => s.name)).not.toContain("ghost_tool");
+  });
+
+  it("POST accepts a signed-in caller", async () => {
+    mockGetAuthUserId.mockResolvedValue("user-a");
+    const res = await handler({
+      request: new Request("http://localhost/api/tools/schemas", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({ name: "real_tool", description: "", parameters: [] }),
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
   });
 });
