@@ -20,6 +20,13 @@ import {
   getAllVectorDocsForUser,
   saveVectorStoreForUser,
 } from "@/lib/vector-store";
+import {
+  settingsKey as bucketSettingsKey,
+  threadsKey as bucketThreadsKey,
+  statsKey as bucketStatsKey,
+  legacyGuestKeys,
+  SETTINGS_KEY_BASE,
+} from "@/lib/account-buckets";
 
 export type ProviderConfig = {
   apiKey: string;
@@ -131,37 +138,35 @@ function titleForFirstUserMessage(msg: Message) {
   return "New chat";
 }
 
-const SETTINGS_KEY_BASE = "cockpit.settings.v2";
+/**
+ * The active bucket scope, or null when identity is unresolved.
+ *
+ * null is a real answer, not an error: in "undetermined" mode nothing may be
+ * read from or written to any bucket. Every caller must handle null rather than
+ * substituting a default.
+ */
+function getActiveScope(): string | null {
+  return state.user?.id ?? state.localProfileId ?? null;
+}
 
-/** Return the localStorage settings key for the current account scope. */
-function getSettingsKey(): string {
-  const scope = state.user?.id ?? state.localProfileId ?? "guest";
-  return `${SETTINGS_KEY_BASE}:${scope}`;
+function getSettingsKey(): string | null {
+  const scope = getActiveScope();
+  return scope ? bucketSettingsKey(scope) : null;
 }
 
 /** Return a key for a specific user id (used during account switch restore). */
 function getSettingsKeyForUser(userId: string): string {
-  return `${SETTINGS_KEY_BASE}:${userId}`;
+  return bucketSettingsKey(userId);
 }
 
-function getGuestSettingsKey(): string {
-  return `${SETTINGS_KEY_BASE}:guest`;
-}
-const THREADS_KEY_BASE = "cockpit.threads.v1";
-
-/** Return the localStorage threads key for the current account scope. */
-function getThreadsKey(): string {
-  const scope = state.user?.id ?? state.localProfileId ?? "guest";
-  return `${THREADS_KEY_BASE}:${scope}`;
+function getThreadsKey(): string | null {
+  const scope = getActiveScope();
+  return scope ? bucketThreadsKey(scope) : null;
 }
 
 /** Return a threads key for a specific user id (used during account switch restore). */
 function getThreadsKeyForUser(userId: string): string {
-  return `${THREADS_KEY_BASE}:${userId}`;
-}
-
-function getGuestThreadsKey(): string {
-  return `${THREADS_KEY_BASE}:guest`;
+  return bucketThreadsKey(userId);
 }
 
 /** Load stats for a specific account bucket without mutating current state. */
@@ -173,21 +178,15 @@ function loadStatsForKey(key: string): StatsMap {
     return {};
   }
 }
-const STATS_KEY_BASE = "cockpit.provider-stats.v1";
 
-/** Return the localStorage stats key for the current account scope. */
-function getStatsKey(): string {
-  const scope = state.user?.id ?? state.localProfileId ?? "guest";
-  return `${STATS_KEY_BASE}:${scope}`;
+function getStatsKey(): string | null {
+  const scope = getActiveScope();
+  return scope ? bucketStatsKey(scope) : null;
 }
 
 /** Return a stats key for a specific user id (used during account switch restore). */
 function getStatsKeyForUser(userId: string): string {
-  return `${STATS_KEY_BASE}:${userId}`;
-}
-
-function getGuestStatsKey(): string {
-  return `${STATS_KEY_BASE}:guest`;
+  return bucketStatsKey(userId);
 }
 
 // ── Account mode + local profile identity ──────────────────────────────────
@@ -230,15 +229,15 @@ export function generateLocalProfileId(): string {
 }
 
 export function getLocalProfileSettingsKey(id: string): string {
-  return `${SETTINGS_KEY_BASE}:${id}`;
+  return bucketSettingsKey(id);
 }
 
 export function getLocalProfileThreadsKey(id: string): string {
-  return `${THREADS_KEY_BASE}:${id}`;
+  return bucketThreadsKey(id);
 }
 
 export function getLocalProfileStatsKey(id: string): string {
-  return `${STATS_KEY_BASE}:${id}`;
+  return bucketStatsKey(id);
 }
 
 /** Clear the global offline queue so queued prompts cannot fire under the wrong account. */
@@ -261,15 +260,19 @@ type StatsMap = Record<string, ProviderStat>;
 
 function loadStats(): StatsMap {
   if (typeof window === "undefined") return {};
+  const key = getStatsKey();
+  if (!key) return {};
   try {
-    return JSON.parse(localStorage.getItem(getStatsKey()) || "{}");
+    return JSON.parse(localStorage.getItem(key) || "{}");
   } catch {
     return {};
   }
 }
 function saveStats(s: StatsMap) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(getStatsKey(), JSON.stringify(s));
+  const key = getStatsKey();
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(s));
 }
 export function getProviderStats(): StatsMap {
   return loadStats();
@@ -702,6 +705,13 @@ function emit() {
 
 function persist() {
   if (typeof window === "undefined") return;
+  const settingsKey = getSettingsKey();
+  const threadsKey = getThreadsKey();
+  // No resolved identity → no bucket to write to. Silently doing nothing is
+  // correct here: the alternative is inventing a ":guest" bucket that a later
+  // sign-in would then have to disentangle.
+  if (!settingsKey || !threadsKey) return;
+
   // Strip apiKey before persisting — keys live server-side only.
   const safeProviders: Record<string, ProviderConfig> = {};
   for (const [id, cfg] of Object.entries(state.settings.providers)) {
@@ -715,15 +725,15 @@ function persist() {
       : defaultSettings.activeProviderId,
     providers: safeProviders,
   };
-  localStorage.setItem(getSettingsKey(), JSON.stringify(safeSettings));
-  localStorage.setItem(getThreadsKey(), JSON.stringify(state.threads.filter((t) => !t.temporary)));
+  localStorage.setItem(settingsKey, JSON.stringify(safeSettings));
+  localStorage.setItem(threadsKey, JSON.stringify(state.threads.filter((t) => !t.temporary)));
 }
 
 function setupCrossTabSync() {
   if (typeof window === "undefined") return;
   window.addEventListener("storage", (e) => {
     const currentKey = getSettingsKey();
-    if (e.key === currentKey && e.newValue) {
+    if (currentKey && e.key === currentKey && e.newValue) {
       try {
         state = {
           ...state,
@@ -735,7 +745,7 @@ function setupCrossTabSync() {
       }
     }
     const currentThreadsKey = getThreadsKey();
-    if (e.key === currentThreadsKey && e.newValue) {
+    if (currentThreadsKey && e.key === currentThreadsKey && e.newValue) {
       try {
         state = { ...state, threads: JSON.parse(e.newValue) };
         emit();
@@ -744,7 +754,7 @@ function setupCrossTabSync() {
       }
     }
     const currentStatsKey = getStatsKey();
-    if (e.key === currentStatsKey) {
+    if (currentStatsKey && e.key === currentStatsKey) {
       // Another tab wrote new stats — notify local subscribers so their
       // UI reflects the updated counts without a page reload.
       statsListeners.forEach((l) => l());
@@ -768,9 +778,10 @@ function clearRuntimeCaches(): void {
 /** One-time migration of the legacy hardcoded ":guest" bucket into a local profile bucket. */
 export function migrateGuestBucketToLocalProfile(localProfileId: string): void {
   if (typeof window === "undefined") return;
-  const guestSettings = readJson(getGuestSettingsKey());
-  const guestThreads = readArr<Thread>(getGuestThreadsKey());
-  const guestStats = loadStatsForKey(getGuestStatsKey());
+  const legacy = legacyGuestKeys();
+  const guestSettings = readJson(legacy.settings);
+  const guestThreads = readArr<Thread>(legacy.threads);
+  const guestStats = loadStatsForKey(legacy.stats);
   const guestDocs = getAllVectorDocsForUser(null);
 
   if (isRecord(guestSettings)) {
@@ -1017,8 +1028,9 @@ export const store = {
       enterLocalMode(existingLocalId);
       return;
     }
-    const guestSettings = normalizeSettings(readJson(getGuestSettingsKey()));
-    const guestThreads = readArr<Thread>(getGuestThreadsKey());
+    const legacy = legacyGuestKeys();
+    const guestSettings = normalizeSettings(readJson(legacy.settings));
+    const guestThreads = readArr<Thread>(legacy.threads);
     clearRuntimeCaches();
     state = {
       ...state,
@@ -1028,7 +1040,7 @@ export const store = {
       settings: guestSettings,
       threads: guestThreads,
       activeThreadId: null,
-      stats: loadStatsForKey(getGuestStatsKey()),
+      stats: loadStatsForKey(legacy.stats),
     };
     emit();
     clearOfflineQueue();

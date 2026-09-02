@@ -28,21 +28,28 @@ import {
   addVectorDocsForUser,
 } from "./vector-store";
 
-// Mock localStorage
+// Mock localStorage. Stored keys are own enumerable properties so
+// Object.keys(localStorage) reflects what was written (like a real Storage).
 const localStorageMock = (() => {
-  let ls: Record<string, string> = {};
-  return {
-    getItem: (key: string) => ls[key] ?? null,
-    setItem: (key: string, value: string) => {
-      ls[key] = value.toString();
+  const METHODS = new Set(["getItem", "setItem", "removeItem", "clear"]);
+  const api: Record<string, unknown> = {
+    getItem(key: string): string | null {
+      const v = api[key];
+      return typeof v === "string" ? v : null;
     },
-    removeItem: (key: string) => {
-      delete ls[key];
+    setItem(key: string, value: string): void {
+      api[key] = value.toString();
     },
-    clear: () => {
-      ls = {};
+    removeItem(key: string): void {
+      delete api[key];
+    },
+    clear(): void {
+      for (const k of Object.keys(api)) {
+        if (!METHODS.has(k)) delete api[k];
+      }
     },
   };
+  return api;
 })();
 
 Object.defineProperty(window, "localStorage", { value: localStorageMock });
@@ -101,6 +108,17 @@ describe("hydrateAsync — undetermined", () => {
     expect(store.getState().settings.profile.displayName).not.toBe("Ghost Guest");
     // No /api/auth/me call in undetermined mode.
     expect(mockFetch).not.toHaveBeenCalledWith("/api/auth/me");
+  });
+
+  it("hydrateAsync in undetermined mode writes no bucket at all", async () => {
+    await hydrateAsync();
+    const written = Object.keys(localStorage);
+    expect(
+      written.filter((k) => k.includes(":guest")),
+      "undetermined hydration must not create a guest bucket",
+    ).toEqual([]);
+    expect(written.filter((k) => k.startsWith("cockpit.settings.v2:"))).toEqual([]);
+    expect(written.filter((k) => k.startsWith("cockpit.threads.v1:"))).toEqual([]);
   });
 });
 
