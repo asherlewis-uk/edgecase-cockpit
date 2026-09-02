@@ -352,6 +352,38 @@ test.describe("V1 local OpenAI-compatible endpoint loop", () => {
     await expect(page.getByTestId("v1-local-capability-models")).toContainText("recovered-model");
     await expectNoForbiddenRequests(forbiddenRequests);
   });
+
+  test("first run shows the whole provider catalog, not just the local endpoint", async ({
+    page,
+  }) => {
+    await openSettingsAsFreshGuest(page, new Map());
+
+    // The V1 acceptance path is the generic local endpoint — but proving it must
+    // not come at the cost of the catalog. Named presets are not the proof set.
+    const cards = page.getByTestId("provider-card");
+    await expect(cards).toHaveCount(15);
+
+    // Keyed on data-provider-id, not display text: "OpenAI" also appears in the
+    // custom/vllm/llama.cpp cards' "OpenAI-compatible" text and "Ollama" in the
+    // "Ollama Cloud" card, so a substring filter would over-match an intact catalog.
+    const namedProviders = [
+      ["OpenAI", "openai"],
+      ["Anthropic", "anthropic"],
+      ["Ollama", "ollama"],
+      ["LM Studio", "lmstudio"],
+    ] as const;
+
+    for (const [name, id] of namedProviders) {
+      await expect(
+        page.locator(`[data-testid="provider-card"][data-provider-id="${id}"]`),
+        `${name} must remain in the catalog on first run`,
+      ).toHaveCount(1);
+    }
+
+    // And the generic endpoint is reachable without any of them being configured.
+    await expect(v1Section(page)).toContainText("Generic local OpenAI-compatible endpoint");
+    await expect(checkModelsButton(page)).toBeVisible();
+  });
 });
 
 test.describe("V1 local endpoint browser boundary states", () => {

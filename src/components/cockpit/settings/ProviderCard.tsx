@@ -326,6 +326,8 @@ export function ProviderCard({
 
   return (
     <div
+      data-testid="provider-card"
+      data-provider-id={p.id}
       className={`flex flex-col gap-3 rounded-2xl border p-4 transition ${
         isActive ? "border-white/30 bg-white/[0.06]" : "border-white/10 bg-white/[0.02]"
       }`}
