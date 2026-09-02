@@ -608,7 +608,18 @@ let state: State = {
   accountMode: "undetermined",
   localProfileId: null,
 };
-let hydrated = false;
+/**
+ * Two independent hydration gates.
+ *
+ * syncHydrated  — the legacy synchronous path (store.getState()) has run once.
+ * asyncHydrated — hydrateAsync() has completed identity resolution.
+ *
+ * They are deliberately NOT one flag. A component reading the store during the
+ * first render must not be able to satisfy — and thereby cancel — the async
+ * identity resolution that the UI gate is still waiting on.
+ */
+let syncHydrated = false;
+let asyncHydrated = false;
 
 /**
  * For tests: reset hydration state AND restore the clean initial state so a test
@@ -617,7 +628,8 @@ let hydrated = false;
  * against the cleared localStorage.
  */
 export function __resetHydration(): void {
-  hydrated = false;
+  syncHydrated = false;
+  asyncHydrated = false;
   state = {
     settings: defaultSettings,
     threads: [],
@@ -654,8 +666,8 @@ export function __resetHydration(): void {
  * explicitly rather than relying on a default guest-bucket load.
  */
 function hydrate() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
+  if (syncHydrated || typeof window === "undefined") return;
+  syncHydrated = true;
   const mode = readAccountMode();
   const localProfileId = readLocalProfileId();
 
@@ -681,9 +693,9 @@ function hydrate() {
   }
 
   if (mode === "server") {
-    // Do NOT load any bucket synchronously. hydrateAsync() resolves the server
-    // identity via fetchMe and calls enterServerMode/enterLocalMode. Mark
-    // hydrated and wire cross-tab sync only.
+    // Do NOT load any bucket synchronously and do NOT mark asyncHydrated.
+    // Server identity requires the /api/auth/me round-trip that only
+    // hydrateAsync() can make; the UI gate blocks on it.
     state = { ...state, accountMode: "server", localProfileId };
     setupCrossTabSync();
     return;
@@ -904,8 +916,11 @@ export function enterLocalMode(localProfileId: string): void {
  * flashed local data on reload for authenticated users.
  */
 export async function hydrateAsync(): Promise<void> {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
+  if (asyncHydrated || typeof window === "undefined") return;
+  asyncHydrated = true;
+  // Claim the sync gate too: once identity has been resolved asynchronously,
+  // the legacy synchronous path must not run afterwards and re-derive state.
+  syncHydrated = true;
 
   const mode = readAccountMode();
   let localProfileId = readLocalProfileId();
@@ -948,7 +963,9 @@ export async function hydrateAsync(): Promise<void> {
   }
 
   setupCrossTabSync();
-  persist();
+  // persist() is already a no-op without a resolved scope (Task 1), but calling
+  // it in the undetermined branch is still meaningless work — skip it outright.
+  if (getActiveScope()) persist();
 }
 
 // ── Local → server data migration helpers (copy / move / keep-separate) ─────

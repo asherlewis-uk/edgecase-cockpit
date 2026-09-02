@@ -449,3 +449,23 @@ describe("account mode keys", () => {
     expect(LOCAL_PROFILE_ID_KEY).toBe("cockpit.local-profile.id");
   });
 });
+
+it("a getState() before hydrateAsync does not cancel async identity resolution", async () => {
+  // Persisted state says "server", but the session is gone (fetchMe 401).
+  // Correct landing: the local profile. Never a half-resolved server mode.
+  localStorage.setItem("cockpit.account.mode", "server");
+  localStorage.setItem("cockpit.local-profile.id", "lp-1");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response("{}", { status: 401 })),
+  );
+
+  // Simulate a component reading the store during first render.
+  store.getState();
+
+  await hydrateAsync();
+
+  expect(store.getState().accountMode).toBe("local-only");
+  expect(store.getState().localProfileId).toBe("lp-1");
+  expect(store.getState().user).toBeNull();
+});
