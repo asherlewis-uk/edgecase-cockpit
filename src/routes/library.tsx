@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useStore, store } from "@/lib/cockpit-store";
+import { useStore, store } from "@/lib/store";
 import { ArrowLeft, FileText } from "lucide-react";
 import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
 

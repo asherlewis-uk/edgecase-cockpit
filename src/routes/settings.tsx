@@ -16,19 +16,18 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useStore,
   store,
-  PROVIDERS,
   resolveProvider,
   isProviderReady,
-  refreshProviderKeyStatus,
   getProviderStats,
   subscribeProviderStats,
   resetProviderStats,
   deriveInitials,
   getProviderValidationStatus,
   deriveV1LocalEndpointCapabilityState,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 import { apiFetch } from "@/lib/api-base";
 import {
+  PROVIDERS,
   detectProvider,
   probeLocalOpenAICompatibleModels,
   V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID,
@@ -39,7 +38,7 @@ import {
   type ModelListProbeResult,
 } from "@/lib/providers";
 import { toast } from "sonner";
-import { csrfHeaders } from "@/lib/cockpit-store";
+import { csrfHeaders } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -890,7 +889,7 @@ function ProviderCard({
         }),
       });
       setKeyDraft("");
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
     } finally {
       setSaving(false);
     }
@@ -904,7 +903,7 @@ function ProviderCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ providerId: p.id }),
       });
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
     } finally {
       setSaving(false);
     }

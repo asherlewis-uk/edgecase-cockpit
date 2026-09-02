@@ -25,7 +25,7 @@ import {
   copyLocalToServer,
   moveLocalToServer,
   type UserPublic,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 import {
   DataMigrationDialog,
   type MigrationChoice,

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Cockpit } from "./index";
-import { store, useStore } from "@/lib/cockpit-store";
+import { store, useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/thread/$id")({
   head: ({ params }) => ({

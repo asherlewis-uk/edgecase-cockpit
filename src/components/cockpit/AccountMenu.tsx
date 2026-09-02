@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { LogIn, LogOut, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useStore, store, deriveInitials, ensureLocalProfileId } from "@/lib/cockpit-store";
+import { useStore, store, deriveInitials, ensureLocalProfileId } from "@/lib/store";
 
 type Props = {
   variant?: "drawer" | "settings";

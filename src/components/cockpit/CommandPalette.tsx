@@ -21,8 +21,8 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
-import { store, useStore, PROVIDERS } from "@/lib/cockpit-store";
-import type { ProviderDef } from "@/lib/providers";
+import { store, useStore } from "@/lib/store";
+import { PROVIDERS, type ProviderDef } from "@/lib/providers";
 
 type Props = {
   open: boolean;

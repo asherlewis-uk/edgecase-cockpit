@@ -19,12 +19,11 @@ import {
 import {
   useStore,
   store,
-  refreshProviderKeyStatus,
   isProviderReady,
   csrfHeaders,
   getProviderValidationStatus,
   setProviderValidationStatus,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 import {
   type ProviderDef,
   type Capability,
@@ -246,7 +245,7 @@ export function ProviderCard({
         throw new Error(json.error ?? "Failed to save key");
       }
       setKeyDraft("");
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
     } finally {
       setSaving(false);
     }
@@ -260,7 +259,7 @@ export function ProviderCard({
         headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({ providerId: p.id }),
       });
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
       clearValidationStatus();
     } finally {
       setSaving(false);

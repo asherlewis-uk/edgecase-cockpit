@@ -54,5 +54,28 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    files: ["src/routes/**/*.tsx", "src/components/**/*.tsx", "src/hooks/**/*.ts"],
+    ignores: ["src/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "server-only",
+              message:
+                "TanStack Start does not use the Next.js `server-only` package. Rename the module to `*.server.ts` or mark it with `@tanstack/react-start/server-only`.",
+            },
+            {
+              name: "@/lib/cockpit-store",
+              message:
+                "Import from @/lib/store instead. cockpit-store internals (auth session, persistence, bucket keys, stats/pricing/RAG plumbing) are not part of the UI contract.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   eslintPluginPrettier,
 );

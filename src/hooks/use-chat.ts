@@ -7,7 +7,7 @@ import {
   recordTokenUsage,
   type Message,
   type Settings,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 import {
   callProviderChat,
   callProviderChatViaProxy,
@@ -35,7 +35,7 @@ import { embedTexts } from "@/lib/embeddings";
 import { addVectorDocs, searchVectorStore, chunkText } from "@/lib/vector-store";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api-base";
-import { csrfHeaders } from "@/lib/cockpit-store";
+import { csrfHeaders } from "@/lib/store";
 
 // ── Offline queue localStorage persistence ──────────────────────────────────
 const OFFLINE_QUEUE_KEY = "cockpit.offline-queue.v1";

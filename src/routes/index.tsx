@@ -36,10 +36,10 @@ import { ShortcutHelp } from "@/components/cockpit/ShortcutHelp";
 import { OnboardingModal } from "@/components/cockpit/OnboardingModal";
 import { StatusBar } from "@/components/cockpit/StatusBar";
 import { ThreadOverflowMenu as ExtractedThreadOverflowMenu } from "@/components/cockpit/ThreadOverflowMenu";
-import { useStore, store, PROVIDERS, resolveProvider, type Message } from "@/lib/cockpit-store";
+import { useStore, store, resolveProvider, type Message } from "@/lib/store";
 import { useChat } from "@/hooks/use-chat";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { transcribeAudioViaProxy } from "@/lib/providers";
+import { PROVIDERS, transcribeAudioViaProxy } from "@/lib/providers";
 import {
   DropdownMenu,
   DropdownMenuContent,

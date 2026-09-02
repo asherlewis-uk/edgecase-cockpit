@@ -1,6 +1,6 @@
 import { type RefObject } from "react";
 import { AlertCircle, Clock, RefreshCw } from "lucide-react";
-import type { Message } from "@/lib/cockpit-store";
+import type { Message } from "@/lib/store";
 import { MessageRow } from "@/components/cockpit/MessageRow";
 
 import type { ToolCall } from "@/lib/tools";

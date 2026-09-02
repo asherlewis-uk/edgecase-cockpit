@@ -11,7 +11,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { Message } from "@/lib/cockpit-store";
+import type { Message } from "@/lib/store";
 import type { ToolCall } from "@/lib/tools";
 import { MarkdownContent } from "./MarkdownContent";
 

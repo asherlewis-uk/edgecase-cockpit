@@ -1,5 +1,5 @@
 import { RotateCcw } from "lucide-react";
-import { useStore, store } from "@/lib/cockpit-store";
+import { useStore, store } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import {
   TextField,

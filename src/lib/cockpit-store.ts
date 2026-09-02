@@ -1114,6 +1114,9 @@ export const store = {
   async logout() {
     await logout();
   },
+  async refreshProviderKeyStatus() {
+    await refreshProviderKeyStatus();
+  },
   updateSettings(patch: Partial<Settings>) {
     state = {
       ...state,
@@ -1502,7 +1505,7 @@ export const store = {
 };
 
 type AuthRequestOpts = {
-  /** When false, the server skips claiming guest session data. Defaults to true. */
+  /** When true, the server claims guest session data. Defaults to false — an omitted flag means "do not claim". */
   claimGuestData?: boolean;
   /**
    * Hook fired after credentials are validated but before the runtime switches

@@ -1,5 +1,5 @@
-import { deriveInitials, useStore, store, PROVIDERS } from "@/lib/cockpit-store";
-import { getProvider } from "@/lib/providers";
+import { deriveInitials, useStore, store } from "@/lib/store";
+import { PROVIDERS, getProvider } from "@/lib/providers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "@tanstack/react-router";
 import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
