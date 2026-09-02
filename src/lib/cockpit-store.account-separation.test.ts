@@ -18,6 +18,9 @@ import {
   getLocalProfileSettingsKey,
   getLocalProfileThreadsKey,
   getLocalProfileStatsKey,
+  bumpProviderStat,
+  setProviderValidationStatus,
+  getProviderValidationStatus,
   ACCOUNT_MODE_KEY,
   LOCAL_PROFILE_ID_KEY,
   type UserPublic,
@@ -26,6 +29,7 @@ import {
   getAllVectorDocsForUser,
   saveVectorStoreForUser,
   addVectorDocsForUser,
+  searchVectorStore,
 } from "./vector-store";
 
 // Mock localStorage. Stored keys are own enumerable properties so
@@ -80,6 +84,9 @@ function getLocalJson(key: string): unknown {
 }
 
 beforeEach(() => {
+  // The file-level test at the bottom stubs global fetch and never unstubs it;
+  // clear any inherited global stubs so each test starts self-consistent.
+  vi.unstubAllGlobals();
   __resetHydration();
   window.localStorage.clear();
   // Default fetch: unauthenticated me + empty server settings/key status.
@@ -468,4 +475,105 @@ it("a getState() before hydrateAsync does not cancel async identity resolution",
   expect(store.getState().accountMode).toBe("local-only");
   expect(store.getState().localProfileId).toBe("lp-1");
   expect(store.getState().user).toBeNull();
+});
+
+describe("mode switch carries the whole V1 surface", () => {
+  it("restores threads, stats, cost overrides and RAG together for each bucket", () => {
+    // Seed a local profile bucket with one of every surface.
+    enterLocalMode("lp-1");
+    store.updateSettings({ costOverrides: { openai: { input: 9.99, output: 9.99 } } });
+    const localThread = store.newThread();
+    store.renameThread(localThread, "local thread");
+    bumpProviderStat("openai", "call");
+    addVectorDocsForUser("lp-1", [{ id: "d-local", text: "local memory", embedding: [1, 0, 0] }]);
+
+    // Switch to a server account with its own data.
+    enterServerMode({
+      id: "u-a",
+      email: "a@b.co",
+      display_name: null,
+      created_at: 0,
+      updated_at: 0,
+    });
+
+    expect(store.getState().threads.map((t) => t.title)).not.toContain("local thread");
+    expect(store.getState().settings.costOverrides ?? {}).toEqual({});
+    expect(store.getState().stats.openai).toBeUndefined();
+    expect(searchVectorStore([1, 0, 0], 3)).toEqual([]);
+
+    // Switch back: the local surface returns intact.
+    enterLocalMode("lp-1");
+    expect(store.getState().threads.map((t) => t.title)).toContain("local thread");
+    expect(store.getState().settings.costOverrides?.openai?.input).toBe(9.99);
+    expect(store.getState().stats.openai?.calls).toBe(1);
+    expect(searchVectorStore([1, 0, 0], 1).map((d) => d.id)).toEqual(["d-local"]);
+  });
+
+  it("clears the offline queue and provider status on every switch", () => {
+    enterLocalMode("lp-1");
+    localStorage.setItem("cockpit.offline-queue.v1", JSON.stringify([{ prompt: "leak me" }]));
+    setProviderValidationStatus("openai", { status: "valid" });
+
+    enterServerMode({
+      id: "u-a",
+      email: "a@b.co",
+      display_name: null,
+      created_at: 0,
+      updated_at: 0,
+    });
+
+    expect(localStorage.getItem("cockpit.offline-queue.v1")).toBeNull();
+    expect(getProviderValidationStatus("openai").status).toBe("idle");
+    expect(store.getState().providerKeyStatus).toEqual({});
+  });
+
+  it("discards a server response that arrives after the account switched", async () => {
+    // A deferred fetch: enterServerMode fires it, we switch accounts, THEN resolve.
+    // The store reaches the network only through apiFetch, which this file mocks
+    // as mockFetch — so the deferred promise must gate mockFetch, not global fetch
+    // (a stubbed global fetch is inert for store code paths).
+    let releaseSettings!: (value: Response) => void;
+    const settingsResponse = new Promise<Response>((resolve) => {
+      releaseSettings = resolve;
+    });
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/settings")) return settingsResponse;
+      if (url.includes("/api/keys/status")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ providers: { openai: { hasKey: true } } })),
+        );
+      }
+      return Promise.resolve(new Response("{}", { status: 404 }));
+    });
+
+    enterServerMode({
+      id: "u-a",
+      email: "a@b.co",
+      display_name: null,
+      created_at: 0,
+      updated_at: 0,
+    });
+
+    // User logs out mid-flight. The local profile is now the active bucket.
+    enterLocalMode("lp-1");
+    const settingsBefore = JSON.stringify(store.getState().settings);
+
+    // User A's settings finally arrive. They must go nowhere.
+    releaseSettings(
+      new Response(
+        JSON.stringify({ profile: { displayName: "User A" }, activeProviderId: "anthropic" }),
+      ),
+    );
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(store.getState().accountMode).toBe("local-only");
+    expect(store.getState().user).toBeNull();
+    expect(store.getState().settings.profile.displayName).not.toBe("User A");
+    expect(JSON.stringify(store.getState().settings)).toBe(settingsBefore);
+    expect(store.getState().providerKeyStatus).toEqual({});
+    // ...and nothing was written into the local profile's bucket either.
+    const persisted = JSON.parse(localStorage.getItem("cockpit.settings.v2:lp-1") ?? "{}");
+    expect(persisted.profile?.displayName).not.toBe("User A");
+  });
 });

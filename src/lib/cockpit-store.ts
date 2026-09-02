@@ -622,6 +622,21 @@ let syncHydrated = false;
 let asyncHydrated = false;
 
 /**
+ * Incremented on every account switch.
+ *
+ * Async writers capture it before their fetch and discard their result if it
+ * changed. A response that arrives after the user has switched accounts must
+ * never write state or call persist() — persist() writes to whatever bucket is
+ * active NOW, so a late response from User A lands in the local profile.
+ */
+let switchGeneration = 0;
+
+/** The generation an async writer should capture before awaiting. */
+function currentSwitchGeneration(): number {
+  return switchGeneration;
+}
+
+/**
  * For tests: reset hydration state AND restore the clean initial state so a test
  * starts from a known neutral slate (no stale threads/settings/account mode from
  * a prior test). Subsequent store.getState() re-runs identity-safe hydrate()
@@ -779,12 +794,25 @@ function setupCrossTabSync() {
 // load the correct account bucket, clear runtime caches that could leak state
 // across accounts, persist the account mode, and switch the vector store.
 
-function clearRuntimeCaches(): void {
+/**
+ * Reset every runtime cache that is keyed by account rather than by bucket.
+ *
+ * These live outside localStorage — in module state, in memory, or in a global
+ * localStorage key with no scope — so a bucket swap alone does not clear them.
+ * A leftover entry here is one account's data showing up under another.
+ */
+function clearCrossModeCaches(): void {
   state = {
     ...state,
     providerKeyStatus: {},
     providerValidationStatus: {},
   };
+  clearOfflineQueue();
+  clearVectorStoreCache();
+  setCostOverrides({});
+  // The tool schema registry is deliberately NOT cleared here. It holds only
+  // static built-ins, which belong to every caller; durable per-user tools live
+  // in D1 and are owned by real-verification.md Task 7. See Task 6.
 }
 
 /** One-time migration of the legacy hardcoded ":guest" bucket into a local profile bucket. */
@@ -840,36 +868,57 @@ function returnToLocalProfile(): void {
   enterLocalMode(id);
 }
 
-/** Switch the runtime to a server account. Loads the user bucket and clears caches. */
-export function enterServerMode(user: UserPublic): void {
-  const settingsKey = getSettingsKeyForUser(user.id);
-  const threadsKey = getThreadsKeyForUser(user.id);
-  const statsKey = getStatsKeyForUser(user.id);
-  const userLocalSettings = readJson(settingsKey);
-  const accountSettings = normalizeSettings(userLocalSettings);
-  const accountThreads = readArr<Thread>(threadsKey);
+type BucketTarget = { user: UserPublic | null; scope: string };
 
-  clearRuntimeCaches();
+/**
+ * The single account switch. Both enterServerMode and enterLocalMode go through
+ * here so the two paths cannot drift apart in which caches they reset.
+ *
+ * Order is load-bearing: clear the outgoing account's caches BEFORE loading the
+ * incoming bucket, so nothing clears what was just loaded.
+ */
+function switchAccountBucket(target: BucketTarget): void {
+  // Invalidate every in-flight async writer BEFORE anything else. A response
+  // from the outgoing account must not land in the incoming account's bucket.
+  switchGeneration++;
+  clearCrossModeCaches();
+
+  const accountSettings = normalizeSettings(readJson(bucketSettingsKey(target.scope)));
+  const accountThreads = readArr<Thread>(bucketThreadsKey(target.scope));
+  const accountStats = loadStatsForKey(bucketStatsKey(target.scope));
+
   state = {
     ...state,
-    user,
-    accountMode: "server",
+    user: target.user,
+    accountMode: target.user ? "server" : "local-only",
+    localProfileId: target.user ? state.localProfileId : target.scope,
     settings: accountSettings,
     threads: accountThreads,
     activeThreadId: null,
-    stats: loadStatsForKey(statsKey),
+    stats: accountStats,
   };
-  writeAccountMode("server");
+
+  writeAccountMode(state.accountMode);
+  if (!target.user) writeLocalProfileId(target.scope);
+
+  // emit() re-applies costOverrides from the freshly loaded settings, undoing
+  // the setCostOverrides({}) above with the incoming account's real rates.
   emit();
   persist();
-  loadVectorStoreForUser(user.id);
-  clearOfflineQueue();
-  // One-time legacy v1→v2 migration: if this user has no account-scoped
-  // settings yet but a legacy global settings blob with apiKeys exists, push
-  // those keys to the server session and keep local settings stripped.
-  if (userLocalSettings === undefined) {
-    const legacy = readJson(SETTINGS_KEY_BASE);
-    const legacyKeys = extractLegacyProviderKeys(legacy);
+  loadVectorStoreForUser(target.scope);
+}
+
+/** Switch the runtime to a server account. Loads the user bucket and clears caches. */
+export function enterServerMode(user: UserPublic): void {
+  const hadAccountSettings = readJson(getSettingsKeyForUser(user.id)) !== undefined;
+
+  switchAccountBucket({ user, scope: user.id });
+
+  // One-time legacy v1→v2 migration: if this user has no account-scoped settings
+  // yet but a legacy global settings blob with apiKeys exists, push those keys to
+  // the server session and keep local settings stripped.
+  if (!hadAccountSettings) {
+    const legacyKeys = extractLegacyProviderKeys(readJson(SETTINGS_KEY_BASE));
     if (legacyKeys.length) {
       void migrateLocalKeysToServer(legacyKeys);
     }
@@ -883,30 +932,7 @@ export function enterServerMode(user: UserPublic): void {
 
 /** Switch the runtime to the on-device local profile. Loads the local bucket and clears caches. */
 export function enterLocalMode(localProfileId: string): void {
-  const settingsKey = getLocalProfileSettingsKey(localProfileId);
-  const threadsKey = getLocalProfileThreadsKey(localProfileId);
-  const statsKey = getLocalProfileStatsKey(localProfileId);
-  const accountSettings = normalizeSettings(readJson(settingsKey));
-  const accountThreads = readArr<Thread>(threadsKey);
-
-  clearRuntimeCaches();
-  state = {
-    ...state,
-    user: null,
-    accountMode: "local-only",
-    localProfileId,
-    settings: accountSettings,
-    threads: accountThreads,
-    activeThreadId: null,
-    stats: loadStatsForKey(statsKey),
-  };
-  writeAccountMode("local-only");
-  writeLocalProfileId(localProfileId);
-  emit();
-  persist();
-  loadVectorStoreForUser(localProfileId);
-  clearVectorStoreCache();
-  clearOfflineQueue();
+  switchAccountBucket({ user: null, scope: localProfileId });
   // Local-only profiles never call server settings/key sync.
 }
 
@@ -1022,7 +1048,7 @@ export const store = {
       const statsKey = getStatsKeyForUser(user.id);
       const accountSettings = normalizeSettings(readJson(settingsKey));
       const accountThreads = readArr<Thread>(threadsKey);
-      clearRuntimeCaches();
+      clearCrossModeCaches();
       state = {
         ...state,
         user,
@@ -1048,7 +1074,7 @@ export const store = {
     const legacy = legacyGuestKeys();
     const guestSettings = normalizeSettings(readJson(legacy.settings));
     const guestThreads = readArr<Thread>(legacy.threads);
-    clearRuntimeCaches();
+    clearCrossModeCaches();
     state = {
       ...state,
       user: null,
@@ -1580,6 +1606,7 @@ export async function logout(): Promise<void> {
 
 async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
   if (entries.length === 0) return;
+  const generation = currentSwitchGeneration();
   await Promise.all(
     entries.map((cfg) =>
       apiFetch("/api/keys/set", {
@@ -1594,12 +1621,16 @@ async function migrateLocalKeysToServer(entries: LegacyProviderKey[]) {
       }).catch(() => null),
     ),
   );
+  // Keys were pushed to the server for the account that requested it; if the
+  // user has since switched, do not touch the new account's local state.
+  if (generation !== currentSwitchGeneration()) return;
   persist();
   emit();
   await refreshProviderKeyStatus();
 }
 
 async function syncSettingsToServer(patch: Partial<Settings>): Promise<void> {
+  const generation = currentSwitchGeneration();
   const body: Record<string, unknown> = {};
   if (patch.profile !== undefined) body.profile = patch.profile;
   if (patch.personalization !== undefined) body.personalization = patch.personalization;
@@ -1611,6 +1642,9 @@ async function syncSettingsToServer(patch: Partial<Settings>): Promise<void> {
   if (patch.onboardingCompleted !== undefined) body.onboardingCompleted = patch.onboardingCompleted;
 
   if (Object.keys(body).length === 0) return;
+  // The account may have changed while the patch was being built; do not push a
+  // departed account's settings to the server.
+  if (generation !== currentSwitchGeneration()) return;
 
   try {
     await apiFetch("/api/settings", {
@@ -1625,10 +1659,14 @@ async function syncSettingsToServer(patch: Partial<Settings>): Promise<void> {
 
 async function loadSettingsFromServer(): Promise<void> {
   if (!state.user) return;
+  const generation = currentSwitchGeneration();
   try {
     const res = await apiFetch("/api/settings");
+    // The account may have changed while this was in flight.
+    if (generation !== currentSwitchGeneration()) return;
     if (!res.ok) return;
     const json = (await res.json()) as Partial<Settings>;
+    if (generation !== currentSwitchGeneration()) return;
     const patch: Partial<Settings> = {};
     if (json.profile !== undefined) patch.profile = json.profile;
     if (json.personalization !== undefined) patch.personalization = json.personalization;
@@ -1653,12 +1691,16 @@ async function loadSettingsFromServer(): Promise<void> {
   }
 }
 export async function refreshProviderKeyStatus() {
+  const generation = currentSwitchGeneration();
   try {
     const res = await apiFetch("/api/keys/status");
+    // The account may have changed while this was in flight.
+    if (generation !== currentSwitchGeneration()) return;
     if (!res.ok) return;
     const json = (await res.json()) as {
       providers: Record<string, { hasKey: boolean; baseUrl?: string; model?: string }>;
     };
+    if (generation !== currentSwitchGeneration()) return;
     const map: Record<string, boolean> = {};
     const providersPatch: Record<string, ProviderConfig> = {};
     for (const [id, v] of Object.entries(json.providers ?? {})) {
