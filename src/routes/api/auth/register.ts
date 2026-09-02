@@ -9,11 +9,10 @@ const Body = z.object({
   email: z.string().email().min(1).max(256),
   password: z.string().min(8).max(128),
   displayName: z.string().max(128).optional(),
-  // When false, the server skips claiming guest session data into the new user
-  // account. Defaults to true for backward compatibility. Local → server
-  // migrations send false for Copy/Keep-Separate so server-side guest data is
-  // not moved/deleted; Move sends true.
-  claimGuestData: z.boolean().optional().default(true),
+  // Whether the server should claim guest session data into this account.
+  // Defaults to FALSE: an unstated intent must never merge one identity's data
+  // into another. The local → server migration dialog sends true only for Move.
+  claimGuestData: z.boolean().optional().default(false),
 });
 
 export const Route = createFileRoute("/api/auth/register")({

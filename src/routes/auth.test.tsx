@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "./auth";
+import { enterLocalMode } from "@/lib/cockpit-store";
 
 const mockRegister = vi.fn();
 const mockLogin = vi.fn();
@@ -89,7 +90,11 @@ describe("/auth route", () => {
     await userEvent.type(screen.getByPlaceholderText("••••••••"), "password123");
     await userEvent.click(screen.getByRole("button", { name: /Sign in$/i }));
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith("a@b.com", "password123");
+      expect(mockLogin).toHaveBeenCalledWith(
+        "a@b.com",
+        "password123",
+        expect.objectContaining({ claimGuestData: false }),
+      );
     });
     expect(mockNavigate).toHaveBeenCalledWith(expect.objectContaining({ to: "/settings" }));
   });
@@ -110,7 +115,12 @@ describe("/auth route", () => {
     await userEvent.type(screen.getByPlaceholderText("At least 8 characters"), "password123");
     await userEvent.click(screen.getByRole("button", { name: /Create account$/i }));
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith("a@b.com", "password123", "Me");
+      expect(mockRegister).toHaveBeenCalledWith(
+        "a@b.com",
+        "password123",
+        "Me",
+        expect.objectContaining({ claimGuestData: false }),
+      );
     });
     expect(mockNavigate).toHaveBeenCalledWith(expect.objectContaining({ to: "/settings" }));
   });
@@ -124,5 +134,41 @@ describe("/auth route", () => {
     await waitFor(() => {
       expect(screen.getByText("Invalid email or password")).toBeInTheDocument();
     });
+  });
+
+  it("signing in from a local-only profile requires a migration choice first", async () => {
+    mockLogin.mockResolvedValueOnce({
+      ok: true,
+      user: { id: "u1", email: "a@b.co", display_name: null, created_at: 1, updated_at: 1 },
+    });
+    enterLocalMode("lp-1");
+    renderAuthRoute();
+
+    await userEvent.type(screen.getByLabelText(/email/i), "a@b.co");
+    await userEvent.type(screen.getByLabelText(/password/i), "password123");
+    await userEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    expect(await screen.findByTestId("data-migration-dialog")).toBeInTheDocument();
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  it("choosing keep-separate on sign-in sends claimGuestData false", async () => {
+    mockLogin.mockResolvedValueOnce({
+      ok: true,
+      user: { id: "u1", email: "a@b.co", display_name: null, created_at: 1, updated_at: 1 },
+    });
+    enterLocalMode("lp-1");
+    renderAuthRoute();
+
+    await userEvent.type(screen.getByLabelText(/email/i), "a@b.co");
+    await userEvent.type(screen.getByLabelText(/password/i), "password123");
+    await userEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await userEvent.click(await screen.findByTestId("migration-choice-keep-separate"));
+
+    expect(mockLogin).toHaveBeenCalledWith(
+      "a@b.co",
+      "password123",
+      expect.objectContaining({ claimGuestData: false }),
+    );
   });
 });
