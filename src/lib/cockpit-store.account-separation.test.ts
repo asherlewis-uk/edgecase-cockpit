@@ -527,6 +527,57 @@ describe("mode switch carries the whole V1 surface", () => {
     expect(store.getState().providerKeyStatus).toEqual({});
   });
 
+  it("provider validation status survives a bucket round trip", () => {
+    enterLocalMode("lp-1");
+    setProviderValidationStatus("custom", { status: "valid" });
+    // setProviderValidationStatus stamps lastValidated itself; capture the
+    // stamped value so the round trip can assert it is preserved.
+    const lastValidated = getProviderValidationStatus("custom").lastValidated;
+    expect(getProviderValidationStatus("custom").status).toBe("valid");
+
+    enterServerMode({
+      id: "u-a",
+      email: "a@b.co",
+      display_name: null,
+      created_at: 0,
+      updated_at: 0,
+    });
+    // User A must not inherit the local profile's validation state.
+    expect(getProviderValidationStatus("custom").status).toBe("idle");
+
+    enterLocalMode("lp-1");
+    // ...and the local profile gets its own state back.
+    expect(getProviderValidationStatus("custom").status).toBe("valid");
+    expect(getProviderValidationStatus("custom").lastValidated).toBe(lastValidated);
+
+    // A fresh page load must restore the status from the bucket too, not just
+    // a switch back. Reload simulation: __resetHydration() then re-hydrate.
+    __resetHydration();
+    store.getState();
+    expect(getProviderValidationStatus("custom").status).toBe("valid");
+  });
+
+  it("store.setUser buckets validation status across the switch", () => {
+    enterLocalMode("lp-1");
+    setProviderValidationStatus("custom", { status: "valid" });
+    expect(getProviderValidationStatus("custom").status).toBe("valid");
+
+    store.setUser({
+      id: "u-a",
+      email: "a@b.co",
+      display_name: null,
+      created_at: 0,
+      updated_at: 0,
+    });
+    // User A must not inherit the local profile's validation state.
+    expect(getProviderValidationStatus("custom").status).toBe("idle");
+
+    store.setUser(null);
+    // setUser(null) prefers the local profile when one is established.
+    expect(store.getState().accountMode).toBe("local-only");
+    expect(getProviderValidationStatus("custom").status).toBe("valid");
+  });
+
   it("discards a server response that arrives after the account switched", async () => {
     // A deferred fetch: enterServerMode fires it, we switch accounts, THEN resolve.
     // The store reaches the network only through apiFetch, which this file mocks

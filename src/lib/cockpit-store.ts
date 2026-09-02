@@ -24,6 +24,7 @@ import {
   settingsKey as bucketSettingsKey,
   threadsKey as bucketThreadsKey,
   statsKey as bucketStatsKey,
+  validationKey as bucketValidationKey,
   legacyGuestKeys,
   SETTINGS_KEY_BASE,
 } from "@/lib/account-buckets";
@@ -187,6 +188,33 @@ function getStatsKey(): string | null {
 /** Return a stats key for a specific user id (used during account switch restore). */
 function getStatsKeyForUser(userId: string): string {
   return bucketStatsKey(userId);
+}
+
+type ValidationMap = State["providerValidationStatus"];
+
+/** Load validation status for a specific account bucket without mutating state. */
+function loadValidationForKey(key: string): ValidationMap {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(key) || "{}") as ValidationMap;
+  } catch {
+    return {};
+  }
+}
+
+/** Persist the current validation status into the active bucket. */
+function saveValidationStatus(): void {
+  if (typeof window === "undefined") return;
+  const scope = getActiveScope();
+  if (!scope) return;
+  try {
+    localStorage.setItem(
+      bucketValidationKey(scope),
+      JSON.stringify(state.providerValidationStatus),
+    );
+  } catch {
+    /* quota exceeded or unavailable */
+  }
 }
 
 // ── Account mode + local profile identity ──────────────────────────────────
@@ -697,7 +725,7 @@ function hydrate() {
       accountMode: "local-only",
       localProfileId,
       providerKeyStatus: {},
-      providerValidationStatus: {},
+      providerValidationStatus: loadValidationForKey(bucketValidationKey(localProfileId)),
       stats: loadStatsForKey(getLocalProfileStatsKey(localProfileId)),
     };
     setupCrossTabSync();
@@ -886,6 +914,7 @@ function switchAccountBucket(target: BucketTarget): void {
   const accountSettings = normalizeSettings(readJson(bucketSettingsKey(target.scope)));
   const accountThreads = readArr<Thread>(bucketThreadsKey(target.scope));
   const accountStats = loadStatsForKey(bucketStatsKey(target.scope));
+  const accountValidation = loadValidationForKey(bucketValidationKey(target.scope));
 
   state = {
     ...state,
@@ -896,6 +925,7 @@ function switchAccountBucket(target: BucketTarget): void {
     threads: accountThreads,
     activeThreadId: null,
     stats: accountStats,
+    providerValidationStatus: accountValidation,
   };
 
   writeAccountMode(state.accountMode);
@@ -1042,26 +1072,10 @@ export const store = {
       // Low-level server bucket switch. Deliberately fetch-free: server
       // settings/key sync are handled by the authRequest/fetchMe/hydrateAsync
       // paths via enterServerMode. This keeps setUser usable from contexts
-      // (and tests) that must not trigger network calls.
-      const settingsKey = getSettingsKeyForUser(user.id);
-      const threadsKey = getThreadsKeyForUser(user.id);
-      const statsKey = getStatsKeyForUser(user.id);
-      const accountSettings = normalizeSettings(readJson(settingsKey));
-      const accountThreads = readArr<Thread>(threadsKey);
-      clearCrossModeCaches();
-      state = {
-        ...state,
-        user,
-        accountMode: "server",
-        settings: accountSettings,
-        threads: accountThreads,
-        activeThreadId: null,
-        stats: loadStatsForKey(statsKey),
-      };
-      writeAccountMode("server");
-      clearOfflineQueue();
-      emit();
-      loadVectorStoreForUser(user.id);
+      // (and tests) that must not trigger network calls. switchAccountBucket
+      // bumps switchGeneration so an in-flight async writer from the outgoing
+      // account cannot land in the incoming bucket.
+      switchAccountBucket({ user, scope: user.id });
       return;
     }
     // null: prefer the local profile if one is established; otherwise return to
@@ -1825,6 +1839,7 @@ export function setProviderValidationStatus(
     },
   };
   emit();
+  saveValidationStatus();
 }
 
 export function clearProviderValidationStatus(id: string) {
@@ -1832,6 +1847,7 @@ export function clearProviderValidationStatus(id: string) {
   delete newStatus[id];
   state = { ...state, providerValidationStatus: newStatus };
   emit();
+  saveValidationStatus();
 }
 
 export function csrfHeaders(): Record<string, string> {
