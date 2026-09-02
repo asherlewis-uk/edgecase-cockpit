@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Video } from "lucide-react";
 import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
 import { useStore, store, resolveProvider } from "@/lib/store";
-import { PROVIDERS } from "@/lib/providers";
+import { PROVIDERS } from "@/lib/provider-api";
 
 export const Route = createFileRoute("/videos")({
   head: () => ({

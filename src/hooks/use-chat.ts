@@ -13,7 +13,7 @@ import {
   callProviderChatViaProxy,
   ProviderError,
   type ChatMessage,
-} from "@/lib/providers";
+} from "@/lib/provider-api";
 import { retryWithBackoff } from "@/lib/retry";
 import { estimateTokens, extractProviderUsage, primeTokenizer } from "@/lib/tokens";
 import {

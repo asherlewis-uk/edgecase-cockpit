@@ -36,7 +36,7 @@ import {
   type DetectResult,
   type LocalCapabilityStatus,
   type ModelListProbeResult,
-} from "@/lib/providers";
+} from "@/lib/provider-api";
 import { toast } from "sonner";
 import { csrfHeaders } from "@/lib/store";
 import { Input } from "@/components/ui/input";

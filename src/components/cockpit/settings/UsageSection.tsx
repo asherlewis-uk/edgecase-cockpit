@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getProviderStats, subscribeProviderStats, resetProviderStats } from "@/lib/store";
-import { PROVIDERS } from "@/lib/providers";
+import { PROVIDERS } from "@/lib/provider-api";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/cockpit/settings/SharedFields";
 import { estimateCost, formatCost, formatTokens } from "@/lib/tokens";

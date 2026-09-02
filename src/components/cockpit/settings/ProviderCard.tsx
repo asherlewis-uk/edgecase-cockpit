@@ -29,7 +29,7 @@ import {
   type Capability,
   type DetectResult,
   type LocalCapabilityState,
-} from "@/lib/providers";
+} from "@/lib/provider-api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 

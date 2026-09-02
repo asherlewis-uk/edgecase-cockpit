@@ -22,7 +22,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { store, useStore } from "@/lib/store";
-import { PROVIDERS, type ProviderDef } from "@/lib/providers";
+import { PROVIDERS, type ProviderDef } from "@/lib/provider-api";
 
 type Props = {
   open: boolean;

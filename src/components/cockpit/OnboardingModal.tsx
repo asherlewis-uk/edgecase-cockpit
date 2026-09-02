@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { X, ArrowRight, Settings as SettingsIcon, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, store } from "@/lib/store";
-import { PROVIDERS, V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID } from "@/lib/providers";
+import { PROVIDERS, V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID } from "@/lib/provider-api";
 import {
   Dialog,
   DialogContent,

@@ -39,7 +39,7 @@ import { ThreadOverflowMenu as ExtractedThreadOverflowMenu } from "@/components/
 import { useStore, store, resolveProvider, type Message } from "@/lib/store";
 import { useChat } from "@/hooks/use-chat";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { PROVIDERS, transcribeAudioViaProxy } from "@/lib/providers";
+import { PROVIDERS, transcribeAudioViaProxy } from "@/lib/provider-api";
 import {
   DropdownMenu,
   DropdownMenuContent,

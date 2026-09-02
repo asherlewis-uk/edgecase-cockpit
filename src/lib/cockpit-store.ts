@@ -1863,8 +1863,6 @@ export function csrfHeaders(): Record<string, string> {
   return token ? { "X-CSRF-Token": decodeURIComponent(token) } : {};
 }
 
-export { PROVIDERS };
-
 export function useOnboardingState() {
   return useStore((s) => s.settings.onboardingCompleted);
 }

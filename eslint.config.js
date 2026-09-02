@@ -72,6 +72,11 @@ export default tseslint.config(
               message:
                 "Import from @/lib/store instead. cockpit-store internals (auth session, persistence, bucket keys, stats/pricing/RAG plumbing) are not part of the UI contract.",
             },
+            {
+              name: "@/lib/providers",
+              message:
+                "Import from @/lib/provider-api instead. providers.ts transport internals are not part of the UI contract.",
+            },
           ],
         },
       ],
