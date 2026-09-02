@@ -30,7 +30,7 @@ describe("ToolPermissionsSection account isolation", () => {
       enterLocalMode("lp-1");
     });
 
-    const { rerender } = render(<ToolPermissionsSection />);
+    render(<ToolPermissionsSection />);
     expect(await screen.findByText("a_tool")).toBeInTheDocument();
 
     // Switch to a server account: the section must refetch, not keep A's list.
@@ -44,7 +44,6 @@ describe("ToolPermissionsSection account isolation", () => {
         updated_at: 0,
       });
     });
-    rerender(<ToolPermissionsSection />);
 
     expect(await screen.findByText("b_tool")).toBeInTheDocument();
     expect(screen.queryByText("a_tool")).not.toBeInTheDocument();
