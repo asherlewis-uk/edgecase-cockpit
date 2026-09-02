@@ -71,9 +71,94 @@ export function logCustomProviderPolicy(): void {
   );
 }
 
+/** Parse a hostname that may be a decimal, hex, or octal-encoded IPv4 literal. */
+function normalizeIpv4Literal(host: string): string | null {
+  // Dotted quad, possibly with octal or hex components.
+  const parts = host.split(".");
+  if (parts.length === 4) {
+    const octets = parts.map((p) => {
+      if (/^0[xX][0-9a-fA-F]+$/.test(p)) return parseInt(p, 16);
+      if (/^0[0-7]+$/.test(p)) return parseInt(p, 8);
+      if (/^\d+$/.test(p)) return parseInt(p, 10);
+      return NaN;
+    });
+    if (octets.every((o) => Number.isInteger(o) && o >= 0 && o <= 255)) {
+      return octets.join(".");
+    }
+    return null;
+  }
+  // Bare integer forms: 2130706433, 0x7f000001, 017700000001.
+  let value: number | null = null;
+  if (/^0[xX][0-9a-fA-F]+$/.test(host)) value = parseInt(host, 16);
+  else if (/^0[0-7]+$/.test(host)) value = parseInt(host, 8);
+  else if (/^\d+$/.test(host)) value = parseInt(host, 10);
+  if (value === null || !Number.isInteger(value) || value < 0 || value > 0xffffffff) return null;
+  return [(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join(".");
+}
+
+function isBlockedIpv4(dotted: string): boolean {
+  const [a, b] = dotted.split(".").map(Number);
+  if (a === 0) return true; // 0.0.0.0/8
+  if (a === 10) return true; // RFC1918
+  if (a === 127) return true; // loopback
+  if (a === 169 && b === 254) return true; // link-local, incl. 169.254.169.254
+  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+  if (a === 192 && b === 168) return true; // RFC1918
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64/10
+  if (a === 192 && b === 0) return true; // 192.0.0/24 protocol assignments
+  if (a === 198 && (b === 18 || b === 19)) return true; // 198.18/15 benchmarking
+  if (a >= 224) return true; // 224/4 multicast + 240/4 reserved
+  return false;
+}
+
+/**
+ * Is this URL pointed at an IP literal in a range that must never be reached
+ * from the server?
+ *
+ * NAME-based hosts are deliberately NOT resolved here: local providers
+ * allowlist "localhost" and "127.0.0.1" by name on purpose, and resolving
+ * names would both break that and be unavailable on Workers. This blocks the
+ * encodings an attacker uses to smuggle an internal address past a name-based
+ * allowlist. DNS rebinding remains open — it cannot be closed without
+ * resolve-then-connect, which Workers does not offer.
+ */
+export function isBlockedNetworkTarget(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return true; // unparseable is not safe
+  }
+
+  // IPv6 literals arrive bracketed from URL.hostname ("[::1]",
+  // "[::ffff:7f00:1]"), and IPv4-mapped addresses are canonicalized to hex.
+  // Strip the brackets so the range checks below see the bare form.
+  if (host.startsWith("[") && host.endsWith("]")) {
+    host = host.slice(1, -1);
+  }
+  if (host.includes(":")) {
+    const v6 = host.toLowerCase();
+    if (v6 === "::" || v6 === "::1") return true;
+    if (/^f[cd][0-9a-f]{2}:/.test(v6)) return true; // fc00::/7
+    if (/^fe[89ab][0-9a-f]:/.test(v6)) return true; // fe80::/10
+    const mapped = /^::ffff:(.+)$/.exec(v6);
+    if (mapped) {
+      const inner = normalizeIpv4Literal(mapped[1]);
+      return inner ? isBlockedIpv4(inner) : true;
+    }
+    return false;
+  }
+
+  const dotted = normalizeIpv4Literal(host);
+  // Not an IP literal at all — a name. Leave it to the allowlist.
+  if (!dotted) return false;
+  return isBlockedIpv4(dotted);
+}
+
 export function urlAllowedForProvider(providerId: string, url: string): boolean {
   const p = PROVIDERS.find((x) => x.id === providerId);
   if (!p) return false;
+  if (isBlockedNetworkTarget(url)) return false;
   const allowed = p.allowedHosts ?? [];
   if (allowed.length === 0) return false;
   let host = "";
@@ -106,8 +191,18 @@ export function urlAllowedAnyProvider(url: string): string | null {
   } catch {
     return null;
   }
+  // An IP literal in a blocked range is never allowed, whatever matches it.
+  if (isBlockedNetworkTarget(url)) return null;
+
   for (const p of PROVIDERS) {
-    if ((p.allowedHosts ?? []).some((pat) => matchHost(pat, host))) return p.id;
+    const patterns = p.allowedHosts ?? [];
+    for (const pattern of patterns) {
+      // A wildcard requires the same production opt-in urlAllowedForProvider
+      // enforces. Without this, the `custom` provider's "*" made every host
+      // reachable from /api/proxy/detect.
+      if (pattern === "*" && !isWildcardHostAllowed()) continue;
+      if (matchHost(pattern, host)) return p.id;
+    }
   }
   return null;
 }
