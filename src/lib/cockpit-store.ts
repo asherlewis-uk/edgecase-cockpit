@@ -943,8 +943,20 @@ function switchAccountBucket(target: BucketTarget): void {
   loadVectorStoreForUser(target.scope);
 }
 
-/** Switch the runtime to a server account. Loads the user bucket and clears caches. */
-export function enterServerMode(user: UserPublic): void {
+/**
+ * Switch the runtime to a server account. Loads the user bucket and clears caches.
+ *
+ * `skipSettingsLoad` suppresses the initial GET /api/settings for this entry.
+ * Pass it only when the caller has just written the account bucket from a source
+ * it knows to be authoritative — the copy/move migration entry, where the user
+ * has explicitly chosen to move their local data into the account. Without it,
+ * the fire-and-forget load applies the account's existing server row over the
+ * bucket the migration just wrote and persists it, and on Move the local bucket
+ * is already deleted. Suppressing the read is the only way to remove the race;
+ * awaiting a push first would only reorder it, at the cost of serializing a
+ * network round trip onto sign-in. Provider key status still refreshes.
+ */
+export function enterServerMode(user: UserPublic, opts?: { skipSettingsLoad?: boolean }): void {
   const hadAccountSettings = readJson(getSettingsKeyForUser(user.id)) !== undefined;
 
   switchAccountBucket({ user, scope: user.id });
@@ -961,7 +973,10 @@ export function enterServerMode(user: UserPublic): void {
   // Pull server-side settings first, then refresh provider key status. Ordering
   // matters: settings sync must consume the first post-auth response so legacy
   // callers/tests that mock a single settings payload still see it applied.
-  void loadSettingsFromServer();
+  if (!opts?.skipSettingsLoad) void loadSettingsFromServer();
+  // Key status is never suppressed: it is server-authoritative (which providers
+  // hold a key is not something a local bucket can know) and it does not write
+  // the migrated settings fields.
   void refreshProviderKeyStatus();
 }
 

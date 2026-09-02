@@ -163,6 +163,10 @@ function AuthPage() {
 
     const user = result.user as UserPublic;
     const localProfileId = store.getState().localProfileId;
+    // True exactly when local data was written into the account bucket. Derived
+    // once so the settings-load suppression below and the push below it cannot
+    // drift apart: both are conditioned on the same fact.
+    const migratedLocalData = choice !== "keep-separate" && localProfileId !== null;
     if (localProfileId) {
       if (choice === "copy") {
         copyLocalToServer(user.id, localProfileId);
@@ -171,16 +175,20 @@ function AuthPage() {
       }
       // keep-separate: local data untouched; the account bucket starts clean.
     }
-    // Enter server mode first. loadSettingsFromServer now treats the
-    // fresh-account empty shape as "use local", so the account bucket the
-    // copy/move just wrote survives the load on its own — the push no longer has
-    // to win that race, and sign-in is not blocked on a settings POST.
-    enterServerMode(user);
+    // On a migration entry the account bucket we just wrote is authoritative by
+    // construction — the user chose to put it there. Suppress the initial
+    // settings GET for this entry rather than racing it: this is a sign-in path
+    // too, so the account may already hold a real settings row, and that row
+    // would otherwise land on top of the migrated bucket and be persisted into
+    // it (with the local bucket already deleted, on Move). keep-separate passes
+    // no option and loads from the server normally.
+    enterServerMode(user, migratedLocalData ? { skipSettingsLoad: true } : undefined);
     // Fire the push AFTER entering server mode: switchAccountBucket bumps
     // switchGeneration, and syncSettingsToServer skips pushes issued under an
-    // old generation — a pre-entry push would be silently dropped. Under the new
-    // generation it is genuinely best-effort: local stays authoritative.
-    if (choice !== "keep-separate" && localProfileId) {
+    // old generation — a pre-entry push would be silently dropped. It stays
+    // fire-and-forget so no network round trip is serialized onto sign-in;
+    // local remains the source of truth if it fails.
+    if (migratedLocalData) {
       void pushAccountSettingsToServer(user.id);
     }
     setMigrationSubmitting(false);

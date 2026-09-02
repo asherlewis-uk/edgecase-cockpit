@@ -10,6 +10,7 @@ import {
   migrateGuestBucketToLocalProfile,
   copyLocalToServer,
   moveLocalToServer,
+  pushAccountSettingsToServer,
   readAccountMode,
   writeAccountMode,
   readLocalProfileId,
@@ -327,6 +328,127 @@ describe("server settings load keeps the local bucket authoritative", () => {
     expect(store.getState().settings.activeProviderId).toBe("anthropic");
     expect(store.getState().settings.pinnedProviderIds).toEqual(["openai", "anthropic"]);
     expect(store.getState().settings.onboardingCompleted).toBe(true);
+  });
+});
+
+describe("migration entry into an account that already has server settings", () => {
+  /**
+   * A stateful settings server. GET answers with the row AS IT STANDS WHEN THE
+   * REQUEST IS HANDLED: the body is snapshotted here, not read lazily inside
+   * `json()`. A lazy `json: async () => row` closure would let the migration
+   * POST mutate the very object the in-flight GET is about to serialize, and the
+   * test would then pass under either ordering — a false pass that hides the bug.
+   */
+  function statefulSettingsServer(initialRow: Record<string, unknown>) {
+    const server = { row: initialRow };
+    mockFetch.mockImplementation(
+      async (path: string, init?: { method?: string; body?: string }) => {
+        if (path === "/api/settings") {
+          if (init?.method === "POST") {
+            const patch = JSON.parse(init.body ?? "{}") as Record<string, unknown>;
+            server.row = { ...server.row, ...patch };
+            return { ok: true, json: async () => ({}) };
+          }
+          const snapshot = JSON.parse(JSON.stringify(server.row)) as unknown;
+          return { ok: true, json: async () => snapshot };
+        }
+        if (path === "/api/keys/status") return { ok: true, json: async () => ({ providers: {} }) };
+        return { ok: true, json: async () => ({}) };
+      },
+    );
+    return server;
+  }
+
+  it("keeps the copied local settings when the account already holds a different server row", async () => {
+    const lpId = "lp-into-existing-account";
+    // The local bucket the user has just chosen to copy into the account. On a
+    // migration entry this bucket is authoritative by construction.
+    setLocalJson(getLocalProfileSettingsKey(lpId), {
+      profile: { displayName: "Migrated Me", handle: "migrated-me" },
+      costOverrides: { openai: { input: 42.5, output: 42.5 } },
+      activeProviderId: "anthropic",
+      pinnedProviderIds: ["openai", "anthropic"],
+      onboardingCompleted: true,
+    });
+
+    // The account is NOT fresh. handleLogin routes sign-in — not just
+    // registration — through performMigrationAuth, so copying into an account
+    // that already has a settings row is reachable. The fresh-account sentinel
+    // guards in loadSettingsFromServer do nothing here: every field is real data.
+    const server = statefulSettingsServer({
+      profile: { displayName: "Old Account", handle: "old-account" },
+      personalization: { tone: "terse" },
+      keyboardShortcuts: { send: "mod+enter" },
+      rag: { topK: 9 },
+      activeProviderId: "openai",
+      pinnedProviderIds: ["openai"],
+      costOverrides: { openai: { input: 1, output: 1 } },
+      onboardingCompleted: true,
+    });
+
+    // The exact sequence performMigrationAuth runs on the copy branch.
+    copyLocalToServer(mockUserA.id, lpId);
+    enterServerMode(mockUserA, { skipSettingsLoad: true });
+    void pushAccountSettingsToServer(mockUserA.id);
+
+    // Flush the fire-and-forget GET/POST round trips.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const settings = store.getState().settings;
+    expect(settings.profile.displayName).toBe("Migrated Me");
+    expect(settings.profile.handle).toBe("migrated-me");
+    expect(settings.costOverrides?.openai?.input).toBe(42.5);
+    expect(settings.activeProviderId).toBe("anthropic");
+    expect(settings.pinnedProviderIds).toEqual(["openai", "anthropic"]);
+
+    // ...and the account bucket on disk must not have been rewritten with the
+    // account's old server values either. On Move the local bucket is already
+    // gone by this point, so a clobber here would be unrecoverable data loss.
+    const persisted = getLocalJson("cockpit.settings.v2:user-a") as {
+      profile?: { displayName?: string };
+      costOverrides?: { openai?: { input?: number } };
+    };
+    expect(persisted.profile?.displayName).toBe("Migrated Me");
+    expect(persisted.costOverrides?.openai?.input).toBe(42.5);
+
+    // Suppressing the load must not suppress the push: the server ends up
+    // holding the migrated values, so the next sign-in loads them normally.
+    expect((server.row as { profile?: { displayName?: string } }).profile?.displayName).toBe(
+      "Migrated Me",
+    );
+    // No GET was issued for this entry at all — there is nothing to race.
+    expect(mockFetch).not.toHaveBeenCalledWith("/api/settings");
+  });
+
+  it("still refreshes provider key status when the settings load is skipped", async () => {
+    mockFetch.mockImplementation(async (path: string) => {
+      if (path === "/api/keys/status") {
+        return { ok: true, json: async () => ({ providers: { openai: { hasKey: true } } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    enterServerMode(mockUserA, { skipSettingsLoad: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/keys/status");
+    expect(store.getState().providerKeyStatus.openai).toBe(true);
+  });
+
+  it("loads server settings normally when the option is absent (keep-separate)", async () => {
+    statefulSettingsServer({
+      profile: { displayName: "Old Account" },
+      costOverrides: { openai: { input: 1, output: 1 } },
+    });
+
+    // keep-separate passes no option: local data never reaches the account, so
+    // the account's own server settings are the right source of truth.
+    enterServerMode(mockUserA);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(store.getState().settings.profile.displayName).toBe("Old Account");
+    expect(store.getState().settings.costOverrides?.openai?.input).toBe(1);
   });
 });
 

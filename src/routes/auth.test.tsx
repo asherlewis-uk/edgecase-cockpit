@@ -7,6 +7,9 @@ import { enterLocalMode } from "@/lib/cockpit-store";
 const mockRegister = vi.fn();
 const mockLogin = vi.fn();
 const mockNavigate = vi.fn();
+const mockEnterServerMode = vi.fn();
+const mockCopyLocalToServer = vi.fn();
+const mockPushAccountSettingsToServer = vi.fn();
 const mockSearch = vi.hoisted(() => ({
   redirect: "/settings",
   mode: "signin" as "signin" | "register",
@@ -27,6 +30,12 @@ vi.mock("@/lib/cockpit-store", async (importOriginal) => {
     ...actual,
     register: (...args: Parameters<typeof actual.register>) => mockRegister(...args),
     login: (...args: Parameters<typeof actual.login>) => mockLogin(...args),
+    enterServerMode: (...args: Parameters<typeof actual.enterServerMode>) =>
+      mockEnterServerMode(...args),
+    copyLocalToServer: (...args: Parameters<typeof actual.copyLocalToServer>) =>
+      mockCopyLocalToServer(...args),
+    pushAccountSettingsToServer: (...args: Parameters<typeof actual.pushAccountSettingsToServer>) =>
+      mockPushAccountSettingsToServer(...args),
   };
 });
 
@@ -170,5 +179,56 @@ describe("/auth route", () => {
       "password123",
       expect.objectContaining({ claimGuestData: false }),
     );
+  });
+
+  // Copying into an account that ALREADY has a settings row is reachable — this
+  // is the sign-in path, not just registration. enterServerMode fires a
+  // fire-and-forget GET /api/settings; if that GET runs on a migration entry it
+  // applies the account's old server settings over the bucket copy/move just
+  // wrote, then persists them into it. On Move the local bucket is already gone.
+  // The local bucket is authoritative by construction here, so the load must be
+  // suppressed for this entry rather than raced against.
+  it("suppresses the initial server settings load when copying local data in", async () => {
+    mockLogin.mockResolvedValueOnce({
+      ok: true,
+      user: { id: "u1", email: "a@b.co", display_name: null, created_at: 1, updated_at: 1 },
+    });
+    enterLocalMode("lp-1");
+    renderAuthRoute();
+
+    await userEvent.type(screen.getByLabelText(/email/i), "a@b.co");
+    await userEvent.type(screen.getByLabelText(/password/i), "password123");
+    await userEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await userEvent.click(await screen.findByTestId("migration-choice-copy"));
+
+    await waitFor(() => expect(mockEnterServerMode).toHaveBeenCalled());
+    expect(mockCopyLocalToServer).toHaveBeenCalled();
+    expect(mockEnterServerMode).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "u1" }),
+      expect.objectContaining({ skipSettingsLoad: true }),
+    );
+    // The push is still fired — suppressing the load must not drop the upload.
+    expect(mockPushAccountSettingsToServer).toHaveBeenCalledWith("u1");
+  });
+
+  it("keeps loading server settings normally on keep-separate", async () => {
+    mockLogin.mockResolvedValueOnce({
+      ok: true,
+      user: { id: "u1", email: "a@b.co", display_name: null, created_at: 1, updated_at: 1 },
+    });
+    enterLocalMode("lp-1");
+    renderAuthRoute();
+
+    await userEvent.type(screen.getByLabelText(/email/i), "a@b.co");
+    await userEvent.type(screen.getByLabelText(/password/i), "password123");
+    await userEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await userEvent.click(await screen.findByTestId("migration-choice-keep-separate"));
+
+    await waitFor(() => expect(mockEnterServerMode).toHaveBeenCalled());
+    // keep-separate's whole point is that local data never reaches the account,
+    // so the account's own server settings stay the source of truth.
+    const opts = mockEnterServerMode.mock.calls[0][1] as { skipSettingsLoad?: boolean } | undefined;
+    expect(opts?.skipSettingsLoad).toBeFalsy();
+    expect(mockPushAccountSettingsToServer).not.toHaveBeenCalled();
   });
 });
