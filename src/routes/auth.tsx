@@ -171,13 +171,18 @@ function AuthPage() {
       }
       // keep-separate: local data untouched; the account bucket starts clean.
     }
-    // Push the migrated settings to the server BEFORE entering server mode so
-    // the post-auth settings load returns them instead of the fresh-account
-    // empty state clobbering the copy/move.
-    if (choice !== "keep-separate" && localProfileId) {
-      await pushAccountSettingsToServer(user.id);
-    }
+    // Enter server mode first. loadSettingsFromServer now treats the
+    // fresh-account empty shape as "use local", so the account bucket the
+    // copy/move just wrote survives the load on its own — the push no longer has
+    // to win that race, and sign-in is not blocked on a settings POST.
     enterServerMode(user);
+    // Fire the push AFTER entering server mode: switchAccountBucket bumps
+    // switchGeneration, and syncSettingsToServer skips pushes issued under an
+    // old generation — a pre-entry push would be silently dropped. Under the new
+    // generation it is genuinely best-effort: local stays authoritative.
+    if (choice !== "keep-separate" && localProfileId) {
+      void pushAccountSettingsToServer(user.id);
+    }
     setMigrationSubmitting(false);
     setPendingAuth(null);
     toast.success(pending.kind === "register" ? "Account created" : "Signed in successfully");

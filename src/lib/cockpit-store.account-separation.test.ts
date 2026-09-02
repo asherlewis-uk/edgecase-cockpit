@@ -283,6 +283,53 @@ describe("enterServerMode / enterLocalMode", () => {
   });
 });
 
+describe("server settings load keeps the local bucket authoritative", () => {
+  it("ignores the fresh-account 'no settings' sentinel shape and keeps the account bucket's real values", async () => {
+    // The account bucket already holds real settings — as a copy/move writes, or
+    // as a previously-dropped sync (offline, 429, 5xx) leaves behind. The server,
+    // however, has no row yet and answers with the "no settings" sentinel shape.
+    setLocalJson("cockpit.settings.v2:user-a", {
+      profile: { displayName: "Server A", handle: "server-a" },
+      costOverrides: { openai: { input: 42.5, output: 42.5 } },
+      activeProviderId: "anthropic",
+      pinnedProviderIds: ["openai", "anthropic"],
+      onboardingCompleted: true,
+    });
+
+    mockFetch.mockImplementation(async (path: string) => {
+      if (path === "/api/settings") {
+        return {
+          ok: true,
+          json: async () => ({
+            profile: {},
+            personalization: {},
+            keyboardShortcuts: {},
+            rag: {},
+            activeProviderId: null,
+            pinnedProviderIds: [],
+            costOverrides: null,
+            onboardingCompleted: false,
+          }),
+        };
+      }
+      if (path === "/api/keys/status") return { ok: true, json: async () => ({ providers: {} }) };
+      return { ok: true, json: async () => ({}) };
+    });
+
+    enterServerMode(mockUserA);
+    // Flush the void loadSettingsFromServer / refreshProviderKeyStatus calls.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(store.getState().settings.costOverrides?.openai?.input).toBe(42.5);
+    expect(store.getState().settings.costOverrides?.openai?.output).toBe(42.5);
+    expect(store.getState().settings.profile.displayName).toBe("Server A");
+    expect(store.getState().settings.profile.handle).toBe("server-a");
+    expect(store.getState().settings.activeProviderId).toBe("anthropic");
+    expect(store.getState().settings.pinnedProviderIds).toEqual(["openai", "anthropic"]);
+    expect(store.getState().settings.onboardingCompleted).toBe(true);
+  });
+});
+
 describe("logout returns to local profile", () => {
   it("returns to the local profile, not an ambiguous guest state", async () => {
     const lpId = "lp-logout";

@@ -390,6 +390,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** A record that actually carries data. `{}` is the server's no-value sentinel. */
+function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && Object.keys(value).length > 0;
+}
+
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
@@ -1706,16 +1711,29 @@ async function loadSettingsFromServer(): Promise<void> {
     if (!res.ok) return;
     const json = (await res.json()) as Partial<Settings>;
     if (generation !== currentSwitchGeneration()) return;
+    // A fresh account has no settings row, and GET /api/settings answers with
+    // sentinels for every field (profile: {}, costOverrides: null, ...) rather
+    // than omitting them. Guard each field on the presence of an actual value so
+    // those sentinels mean "use local" — the local cache is authoritative
+    // (updateSettings' invariant) and must not be patched over by an empty server.
     const patch: Partial<Settings> = {};
-    if (json.profile !== undefined) patch.profile = json.profile;
-    if (json.personalization !== undefined) patch.personalization = json.personalization;
-    if (json.keyboardShortcuts !== undefined) patch.keyboardShortcuts = json.keyboardShortcuts;
-    if (json.rag !== undefined) patch.rag = json.rag;
-    if (json.activeProviderId !== undefined) patch.activeProviderId = json.activeProviderId;
-    if (json.pinnedProviderIds !== undefined) patch.pinnedProviderIds = json.pinnedProviderIds;
-    if (json.costOverrides !== undefined) patch.costOverrides = json.costOverrides;
-    if (json.onboardingCompleted !== undefined)
-      patch.onboardingCompleted = json.onboardingCompleted;
+    if (isNonEmptyRecord(json.profile)) patch.profile = json.profile;
+    if (isNonEmptyRecord(json.personalization)) patch.personalization = json.personalization;
+    if (isNonEmptyRecord(json.keyboardShortcuts)) patch.keyboardShortcuts = json.keyboardShortcuts;
+    if (isNonEmptyRecord(json.rag)) patch.rag = json.rag;
+    // null (absent row) means no value; a real id is a string, and "" is still
+    // applied (normalizeSettings falls back to the default provider for it).
+    if (json.activeProviderId != null) patch.activeProviderId = json.activeProviderId;
+    // [] is the sentinel and would also be a plausible empty pin set; applying it
+    // would clobber the local cache, so only a non-empty list is treated as data.
+    if (Array.isArray(json.pinnedProviderIds) && json.pinnedProviderIds.length > 0)
+      patch.pinnedProviderIds = json.pinnedProviderIds;
+    // null marks "no row"; {} is a legitimately stored empty override set.
+    if (json.costOverrides != null) patch.costOverrides = json.costOverrides;
+    // false is BOTH the sentinel and a legitimate stored value (resetOnboarding),
+    // indistinguishable on the wire — treat it as use-local so a fresh account
+    // cannot flip a completed account back to onboarding.
+    if (json.onboardingCompleted) patch.onboardingCompleted = json.onboardingCompleted;
 
     if (Object.keys(patch).length === 0) return;
 
