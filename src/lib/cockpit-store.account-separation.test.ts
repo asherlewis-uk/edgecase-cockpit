@@ -832,7 +832,9 @@ describe("validation hydration protection", () => {
     setProviderValidationStatus("openai", { status: "valid" });
 
     // Assert only server bucket changed
-    const serverVal = getLocalJson(serverKey) as { openai: { status?: string; lastValidated?: number } };
+    const serverVal = getLocalJson(serverKey) as {
+      openai: { status?: string; lastValidated?: number };
+    };
     expect(serverVal.openai.status).toBe("valid");
     expect(serverVal.openai.lastValidated).toBeDefined();
 
