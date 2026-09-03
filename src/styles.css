@@ -67,8 +67,20 @@
   --color-provider-unavailable: var(--provider-unavailable-fill);
   --color-provider-local-ready: var(--provider-local-ready-fill);
   --color-provider-cloud-ready: var(--provider-cloud-ready-fill);
-  --color-warning: var(--warning-fill);
-  --color-success: var(--success-fill);
+
+  /* Severity is registered twice per role. Tailwind derives every utility for a
+     colour from a single variable, so one registration cannot make `text-warning`
+     legible AND `bg-warning` a wash. The bare name therefore carries the readable
+     foreground — on --canvas-void, text-warning 13.1:1, text-error 10.1:1,
+     text-success 13.9:1 — and the `-fill` name carries the 12%-alpha wash for
+     `bg-warning-fill`. Registering the wash under the bare name, as this block
+     first did, rendered `text-warning` at 2.0:1: invisible. */
+  --color-warning: var(--warning-text);
+  --color-warning-fill: var(--warning-fill);
+  --color-error: var(--error-text);
+  --color-error-fill: var(--error-fill);
+  --color-success: var(--success-text);
+  --color-success-fill: var(--success-fill);
 }
 
 :root {

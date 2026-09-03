@@ -47,11 +47,19 @@
 
   /* ── Provider status ─────────────────────────────────────────────────── */
   /* Local-ready and cloud-ready are deliberately distinguishable: the user
-     needs to know which side of the routing boundary a ready provider is on. */
+     needs to know which side of the routing boundary a ready provider is on.
+
+     --provider-missing-credentials-border sits at hue 45, not the amber 75 it
+     was first given. At 75 it was ΔE2000 3.14 from --focus-ring and an exact
+     match for --warning-border, so "this provider needs an API key" and "this
+     element is focused" were the same colour on the same row. Hue 45 is ΔE2000
+     18.6 from --focus-ring and still ΔE2000 15.9 from the --error-* family:
+     it reads as attention, not as failure. --focus-ring keeps hue 72 because
+     that is a measurement from the frame catalogue, not a preference. */
   --provider-active-fill: oklch(0.72 0.17 155);
   --provider-inactive-fill: oklch(0.55 0.01 265);
   --provider-unavailable-fill: oklch(0.45 0.02 265);
-  --provider-missing-credentials-border: oklch(0.75 0.15 75);
+  --provider-missing-credentials-border: oklch(0.7 0.19 45);
   --provider-local-ready-fill: oklch(0.75 0.15 190);
   --provider-cloud-ready-fill: oklch(0.7 0.15 250);
 
