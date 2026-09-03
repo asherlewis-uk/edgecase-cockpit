@@ -76,6 +76,9 @@ jobs:
       - name: Install Playwright browser
         run: bun run test:e2e:install
 
+      - name: Apply local D1 migrations for preview
+        run: bunx wrangler d1 migrations apply DB --local
+
       - name: Run asserting E2E suite
         run: bun run test:e2e:ci
 
