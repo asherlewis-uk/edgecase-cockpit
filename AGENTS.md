@@ -4,9 +4,9 @@
 
 Before following any project documentation, read these canonical files in order:
 
-1. `SURFACE_AUDIT.md`
-2. `RECONSTRUCTION_PLAN.md`
-3. `ACCOUNT_SEPARATION_PLAN.md`
+1. `docs/archive/SURFACE_AUDIT.md`
+2. `docs/archive/RECONSTRUCTION_PLAN.md`
+3. `docs/archive/ACCOUNT_SEPARATION_PLAN.md`
 
 These three files are the active project documentation baseline. All other Markdown is subordinate.
 

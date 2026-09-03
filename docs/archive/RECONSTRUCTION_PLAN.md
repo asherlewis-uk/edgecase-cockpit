@@ -1,6 +1,8 @@
 # Edgecase Account Separation — Reconstruction Plan
 
-This plan follows `ACCOUNT_SEPARATION_PLAN.md` and is corrected by `SURFACE_AUDIT.md`. It contains concrete file paths, exact function signatures, and a phased implementation order. No implementation code is written here; this is the authoritative reconstruction brief.
+> **Archived.** Superseded by `docs/superpowers/plans/2026-09-02-v1-isolation-and-contract.md`. Kept for the reasoning, not as current instruction.
+
+This plan follows `docs/archive/ACCOUNT_SEPARATION_PLAN.md` and is corrected by `docs/archive/SURFACE_AUDIT.md`. It contains concrete file paths, exact function signatures, and a phased implementation order. No implementation code is written here; this is the authoritative reconstruction brief.
 
 ## Verified Context from Audit
 
@@ -679,7 +681,7 @@ Actually `navigate` is a hook; the component should call `useNavigate()`. The st
 
 ## Phase 6: E2E Acceptance Revalidation
 
-Re-run the 17-step flow from `ACCOUNT_SEPARATION_PLAN.md` against the real browser after all phases. Key checkpoints:
+Re-run the 17-step flow from `docs/archive/ACCOUNT_SEPARATION_PLAN.md` against the real browser after all phases. Key checkpoints:
 
 1. Fresh install → `accountMode = "undetermined"`, identity modal blocks UI.
 2. Local choice → `localProfileId` generated, onboarding shown.
@@ -736,7 +738,7 @@ Required preview proof:
 - Fresh browser profile starts in `accountMode = "undetermined"` and blocks on identity choice.
 - Local-only profile creates a stable `localProfileId` and does not load server-account buckets.
 - Register from local-only mode shows `DataMigrationDialog`.
-- Copy, move, and keep-separate behavior matches `ACCOUNT_SEPARATION_PLAN.md`.
+- Copy, move, and keep-separate behavior matches `docs/archive/ACCOUNT_SEPARATION_PLAN.md`.
 - Logout returns to the local profile.
 - Reload/hard refresh never flashes the wrong account bucket before `hydrateAsync` resolves.
 - User A and User B cannot see each other's provider configs, settings, stats, threads, vector docs, or server-owned data.
@@ -791,7 +793,7 @@ Required deployed proof:
 - Anonymous `/api/auth/me` returns the expected unauthenticated response.
 - `/auth` loads and can obtain the CSRF cookie.
 - Create-account, sign-in, session persistence, `/settings` redirect/access, logout, and post-logout `/api/auth/me` all pass on the deployed domain.
-- The 17-step account-separation flow from `ACCOUNT_SEPARATION_PLAN.md` passes against the deployed URL, including reload/hard-refresh checks.
+- The 17-step account-separation flow from `docs/archive/ACCOUNT_SEPARATION_PLAN.md` passes against the deployed URL, including reload/hard-refresh checks.
 - Runtime-audit artifacts are captured under the deployed Playwright output path and referenced in the release report.
 
 ### 7.7 Release report

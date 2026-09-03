@@ -1,5 +1,7 @@
 # Edgecase Account Separation — Implementation Plan
 
+> **Archived.** Superseded by `docs/superpowers/plans/2026-09-02-v1-isolation-and-contract.md`. Kept for the reasoning, not as current instruction.
+
 ## Executive Summary
 
 No path or system blockers were found. The existing architecture already supports per-account localStorage scoping (`user.id` buckets) and server-side D1 isolation (`user_id` vs `session_id`). The gaps are purely **behavioral and UX-level**:

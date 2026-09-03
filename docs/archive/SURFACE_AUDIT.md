@@ -1,6 +1,8 @@
 # Edgecase Account Separation — Surface Audit
 
-This document ground-truths the claims in `ACCOUNT_SEPARATION_PLAN.md` against the actual repo. It captures what is correct, what is slightly off, and what is unknown before reconstruction begins.
+> **Archived.** Superseded by `docs/superpowers/plans/2026-09-02-v1-isolation-and-contract.md`. Kept for the reasoning, not as current instruction.
+
+This document ground-truths the claims in `docs/archive/ACCOUNT_SEPARATION_PLAN.md` against the actual repo. It captures what is correct, what is slightly off, and what is unknown before reconstruction begins.
 
 ## Scope of Audit
 
@@ -186,7 +188,7 @@ The plan says settings sync only fires when `state.user` is set.
 
 ## Pre-Reconstruction Recommendations
 
-Before writing `RECONSTRUCTION_PLAN.md`, answer the six unknowns above. The most critical are:
+Before writing `docs/archive/RECONSTRUCTION_PLAN.md`, answer the six unknowns above. The most critical are:
 
 - Confirm the OnboardingModal render site.
 - Confirm the register/login page components and paths.
@@ -207,4 +209,4 @@ These answers will determine whether the identity gate lives in `index.tsx`, a l
 
 ---
 
-_Generated as the next document after `ACCOUNT_SEPARATION_PLAN.md`. Feed its unknowns into `RECONSTRUCTION_PLAN.md` once resolved._
+_Generated as the next document after `docs/archive/ACCOUNT_SEPARATION_PLAN.md`. Feed its unknowns into `docs/archive/RECONSTRUCTION_PLAN.md` once resolved._
