@@ -205,6 +205,7 @@ function loadValidationForKey(key: string): ValidationMap {
 /** Persist the current validation status into the active bucket. */
 function saveValidationStatus(): void {
   if (typeof window === "undefined") return;
+  if (state.accountMode === "server" && !state.user) return;
   const scope = getActiveScope();
   if (!scope) return;
   try {

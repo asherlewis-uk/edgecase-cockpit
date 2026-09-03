@@ -797,3 +797,46 @@ describe("mode switch carries the whole V1 surface", () => {
     expect(persisted.profile?.displayName).not.toBe("User A");
   });
 });
+
+describe("validation hydration protection", () => {
+  it("does not write validation to the local profile bucket while hydration is in flight", () => {
+    // Force the internal state to simulate a hydration-in-flight scenario
+    // where accountMode is server, localProfileId is known, but user is null
+    enterLocalMode("lp-hydrate");
+    store.getState(); // force state.localProfileId to be set
+    
+    // Now pretend we are mid-hydration into server mode
+    // (We mock writeAccountMode etc, but here we just need state.accountMode = "server")
+    // Wait, enterLocalMode already sets it.
+    // Let's use __resetHydration and some local storage mocks to hydrate into "server" mode
+    // where user is null but localProfileId is set.
+    __resetHydration();
+    writeAccountMode("server");
+    writeLocalProfileId("lp-hydrate");
+    store.getState(); // Hydrates synchronously. In server mode, it sets localProfileId but leaves user null.
+
+    const lpKey = "cockpit.provider-validation.v1:lp-hydrate";
+    const serverKey = "cockpit.provider-validation.v1:user-a";
+
+    setLocalJson(lpKey, { openai: { status: "idle" } });
+    setLocalJson(serverKey, { openai: { status: "error" } });
+
+    // With user still null, call setProviderValidationStatus
+    setProviderValidationStatus("openai", { status: "valid" });
+
+    // Assert the local-profile validation key is unchanged
+    expect(getLocalJson(lpKey)).toEqual({ openai: { status: "idle" } });
+
+    // Enter server mode (finishing hydration)
+    enterServerMode(mockUserA);
+    setProviderValidationStatus("openai", { status: "valid" });
+
+    // Assert only server bucket changed
+    const serverVal = getLocalJson(serverKey) as any;
+    expect(serverVal.openai.status).toBe("valid");
+    expect(serverVal.openai.lastValidated).toBeDefined();
+    
+    // Assert the local-profile validation key remains unchanged
+    expect(getLocalJson(lpKey)).toEqual({ openai: { status: "idle" } });
+  });
+});
