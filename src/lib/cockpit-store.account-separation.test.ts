@@ -345,7 +345,7 @@ describe("migration entry into an account that already has server settings", () 
       async (path: string, init?: { method?: string; body?: string }) => {
         if (path === "/api/settings") {
           if (init?.method === "POST") {
-            const patch = JSON.parse(init.body ?? "{}") as Record<string, unknown>;
+            const patch = JSON.parse(init.body ?? "{}") as { openai?: { status?: string } };
             server.row = { ...server.row, ...patch };
             return { ok: true, json: async () => ({}) };
           }
@@ -832,7 +832,7 @@ describe("validation hydration protection", () => {
     setProviderValidationStatus("openai", { status: "valid" });
 
     // Assert only server bucket changed
-    const serverVal = getLocalJson(serverKey) as Record<string, unknown>;
+    const serverVal = getLocalJson(serverKey) as { openai: { status?: string; lastValidated?: number } };
     expect(serverVal.openai.status).toBe("valid");
     expect(serverVal.openai.lastValidated).toBeDefined();
 
