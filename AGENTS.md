@@ -2,22 +2,31 @@
 
 # Documentation Authority
 
-Before following any project documentation, read these canonical files in order:
+Before following any project documentation, read the active plan:
 
-1. `docs/archive/SURFACE_AUDIT.md`
-2. `docs/archive/RECONSTRUCTION_PLAN.md`
-3. `docs/archive/ACCOUNT_SEPARATION_PLAN.md`
+1. `docs/superpowers/plans/2026-09-02-v1-isolation-and-contract.md`
 
-These three files are the active project documentation baseline. All other Markdown is subordinate.
+That plan is the active project documentation baseline. `README.md` routes to the current reference pages under `docs/`. All other Markdown is subordinate.
+
+The three account-separation documents that previously held this position are now archived. They record the reasoning behind that work; they are not current instruction:
+
+- `docs/archive/SURFACE_AUDIT.md`
+- `docs/archive/RECONSTRUCTION_PLAN.md`
+- `docs/archive/ACCOUNT_SEPARATION_PLAN.md`
 
 Archived, deprecated, review-needed, historical, generated, or prompt-handoff Markdown files are not active instructions. Future agents must not follow archived or deprecated Markdown unless the user explicitly names that file as the task target.
 
-If another Markdown file conflicts with the three canonical files, treat the other file as outdated unless current source code, tests, package/config files, or deployment files clearly prove the canonical file is wrong. Report the conflict before changing direction.
+If another Markdown file conflicts with the active plan, treat the other file as outdated unless current source code, tests, package/config files, or deployment files clearly prove the plan is wrong. Report the conflict before changing direction.
 
 Active supporting references are limited to:
 
 - `AGENTS.md`
 - `README.md`
+- `docs/v1-contract.md`
+- `docs/architecture.md`
+- `docs/providers.md`
+- `docs/development.md`
+- `docs/deployment.md`
 - `.claude/skills/gitnexus/*/SKILL.md`
 - `docs/native-release.md`
 - `docs/product-direction.md`
