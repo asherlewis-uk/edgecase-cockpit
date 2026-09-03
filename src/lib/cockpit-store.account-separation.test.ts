@@ -804,7 +804,7 @@ describe("validation hydration protection", () => {
     // where accountMode is server, localProfileId is known, but user is null
     enterLocalMode("lp-hydrate");
     store.getState(); // force state.localProfileId to be set
-    
+
     // Now pretend we are mid-hydration into server mode
     // (We mock writeAccountMode etc, but here we just need state.accountMode = "server")
     // Wait, enterLocalMode already sets it.
@@ -832,10 +832,10 @@ describe("validation hydration protection", () => {
     setProviderValidationStatus("openai", { status: "valid" });
 
     // Assert only server bucket changed
-    const serverVal = getLocalJson(serverKey) as any;
+    const serverVal = getLocalJson(serverKey) as Record<string, unknown>;
     expect(serverVal.openai.status).toBe("valid");
     expect(serverVal.openai.lastValidated).toBeDefined();
-    
+
     // Assert the local-profile validation key remains unchanged
     expect(getLocalJson(lpKey)).toEqual({ openai: { status: "idle" } });
   });
