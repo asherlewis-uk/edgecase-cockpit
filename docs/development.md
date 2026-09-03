@@ -1,6 +1,39 @@
 # Development
 
-Package manager, scripts, the test suites and release gates, and the safe change workflow. Moved verbatim from the root `README.md`.
+First-run setup, the package manager, scripts, the test suites and release gates, and the safe change workflow. Everything below the first-run section was moved verbatim from the root `README.md`.
+
+## First-run setup
+
+A fresh clone needs one environment variable before the dev server will serve
+anything. `src/lib/env.server.ts` (`validateEnv`) requires `SESSION_SECRET` to
+be present and **at least 32 characters**; when it is missing or too short,
+`src/server.ts` returns HTTP 503 `Server misconfigured` for every request.
+
+```bash
+bun install
+cp .env.example .env.local
+```
+
+`.env.example` is a template. Copying it alone is not enough — the
+`SESSION_SECRET` value it ships is 28 characters, which is below the 32
+character minimum. Generate a real value and set it in `.env.local`:
+
+```bash
+openssl rand -base64 32   # 44 characters
+```
+
+Then start the server:
+
+```bash
+bun run dev
+```
+
+`SESSION_SECRET` is the only variable a local dev server requires.
+`ENCRYPTION_KEY` is required as well in production, and whenever a D1 `DB`
+binding is present in the runtime environment. `.env.local` is gitignored;
+never commit real secrets. Deployed app secrets are set with
+`wrangler secret put` (see [deployment.md](deployment.md)), and user provider
+keys are encrypted at rest in D1.
 
 ## 16. Safe change workflow
 

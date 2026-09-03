@@ -72,6 +72,12 @@ Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessi
 
 ## 17. Native release status (non-V1 hardening)
 
+> This section records **status** — what is verified today and what still needs
+> credentials. For the **procedure** — the exact per-target commands, the signing
+> secrets each release needs, and the store submission steps — see
+> [native-release.md](native-release.md). The two overlap; they have not been
+> deduplicated yet.
+
 **Native build scaffolding is verified for iOS and Android; Electron compile and native-shell are verified; full packaging/signing requires external certificates and a GUI/CI environment. Native signing, store submission, and device E2E are not V1 product promises.**
 
 The following native packaging tooling is present in this repository:

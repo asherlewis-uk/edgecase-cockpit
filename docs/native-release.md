@@ -1,5 +1,10 @@
 # Native Release Guide
 
+> This page is the **procedure** for each native target. The **status** of those
+> same targets — what is verified, what is merely configured — lives in
+> [deployment.md §17](deployment.md#17-native-release-status-non-v1-hardening).
+> The two overlap; they have not been deduplicated yet.
+
 This document lists the exact local and release steps for each native target. The code/config paths are complete; the only remaining external actions are inserting credentials or submitting to the stores.
 
 ## macOS (Electron)

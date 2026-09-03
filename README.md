@@ -12,6 +12,24 @@ This project uses **Bun** (`bun.lock`, `bunfig.toml`).
 
 ```bash
 bun install
+cp .env.example .env.local
+```
+
+`.env.example` is a template, and copying it is not sufficient on its own.
+`SESSION_SECRET` must be at least 32 characters; the placeholder that ships in
+`.env.example` is 28, so it does not satisfy the check. Generate a real value
+and set it in `.env.local`:
+
+```bash
+openssl rand -base64 32   # 44 characters
+```
+
+`SESSION_SECRET` is the only variable a local dev server requires.
+`ENCRYPTION_KEY` is additionally required in production and whenever a D1
+binding is present. Without a valid `SESSION_SECRET` the server answers every
+request with HTTP 503 `Server misconfigured`.
+
+```bash
 bun run dev
 ```
 
@@ -32,6 +50,7 @@ provider tests are opt-in; see [docs/development.md](docs/development.md).
 | Add or configure a provider         | [docs/providers.md](docs/providers.md)                 |
 | Set up a dev environment, run tests | [docs/development.md](docs/development.md)             |
 | Deploy, migrate, manage secrets     | [docs/deployment.md](docs/deployment.md)               |
+| Cut a native release                | [docs/native-release.md](docs/native-release.md)       |
 | Know what V1 promises               | [docs/v1-contract.md](docs/v1-contract.md)             |
 | Know where the product is going     | [docs/product-direction.md](docs/product-direction.md) |
 | Work in this repo as an agent       | [AGENTS.md](AGENTS.md)                                 |

@@ -1,6 +1,6 @@
 # Architecture
 
-The app's shape: source layout, data flows, the store and its buckets, tools, RAG, rate limiting, the security model, and the intentional boundaries of the system. Moved verbatim from the root `README.md`.
+The app's shape: the privacy and data model, source layout, data flows, tools, RAG, rate limiting, the security model, settings, usage and cost tracking, and the intentional boundaries of the system. Moved verbatim from the root `README.md`.
 
 ## 1. What is edgecase-cockpit?
 
