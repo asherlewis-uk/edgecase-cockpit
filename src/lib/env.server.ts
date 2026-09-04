@@ -48,3 +48,14 @@ export function validateEnv(source: EnvSource = process.env): void {
 
   console.log("[env] Environment validation passed");
 }
+
+// Origin of the truthful Linux backend API, e.g. http://127.0.0.1:8000.
+// Optional: unset until the backend bridge is wired up, so callers must handle
+// undefined rather than assuming a default. Reads the Worker runtime env first
+// and falls back to process.env, like every other var in this module. A blank
+// value is treated as unset so an empty `BACKEND_ORIGIN=` line in .env does not
+// yield an "" origin.
+export function getBackendOrigin(source: EnvSource = process.env): string | undefined {
+  const value = envString(source, "BACKEND_ORIGIN")?.trim();
+  return value === "" ? undefined : value;
+}
