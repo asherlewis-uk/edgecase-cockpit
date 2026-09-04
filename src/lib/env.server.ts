@@ -4,7 +4,7 @@
 const OPTIONAL = ["NODE_ENV", "LOG_LEVEL"] as const;
 const REQUIRED_SECRET_LENGTH = 32;
 
-type EnvSource = Record<string, unknown>;
+export type EnvSource = Record<string, unknown>;
 
 function envString(source: EnvSource, key: string): string | undefined {
   const value = source[key] ?? process.env[key];
