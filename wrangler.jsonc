@@ -4,6 +4,10 @@
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": ".output/server/index.mjs",
+  // Veritas -- truthful backend origin, reached over the cloudflared tunnel.
+  "vars": {
+    "BACKEND_ORIGIN": "https://veritas.mcplinux.dev",
+  },
   "d1_databases": [
     {
       "binding": "DB",
