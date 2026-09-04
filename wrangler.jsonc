@@ -22,7 +22,7 @@
   },
   "routes": [
     {
-      "pattern": "cockpit.asherlewis.online",
+      "pattern": "veritas.mcplinux.dev",
       "custom_domain": true,
     },
   ],
