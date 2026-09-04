@@ -9,6 +9,8 @@ This is the final review for `fix/v1-isolation-and-contract` against the V1 acco
 `getActiveScope()` resolves its key using `state.user?.id ?? state.localProfileId ?? null`. In the server-mode hydration window (before `hydrateAsync` completes), `state.user` is null but `state.localProfileId` holds the local ID. As a result, a `saveValidationStatus()` call during this window incorrectly writes the server account's validation status into the local profile's bucket.  
 **Actor:** implementer
 
+**Update:** Task 5 is fixed at ea1a6df (this review file predates the fix).
+
 ### R11: Task 4 fixed one bug, not two
 **PASS**  
 Task 4 fixes the in-flight-response bug. No secondary bug resolution is falsely claimed.  
