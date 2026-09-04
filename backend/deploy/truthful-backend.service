@@ -1,0 +1,40 @@
+# Edgecase Cockpit truthful backend.
+# Install to /etc/systemd/system/truthful-backend.service
+#
+# Assumes the checkout lives at /opt/edgecase-cockpit/backend. If you deploy
+# somewhere under /home, drop ProtectHome or the unit cannot read its own code.
+[Unit]
+Description=Edgecase Cockpit truthful backend (BACKEND_ORIGIN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=asher
+Group=asher
+WorkingDirectory=/opt/edgecase-cockpit/backend
+
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8000
+
+# Confirm this path with `command -v node`. A node installed via nvm or fnm
+# lives under the user's home, not /usr/bin.
+ExecStart=/usr/bin/node src/server.js
+
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+# The service reads no files and writes nothing at runtime.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
