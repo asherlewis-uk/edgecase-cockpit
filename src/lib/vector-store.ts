@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api-base";
 import { store } from "@/lib/cockpit-store";
+import { vectorKey, legacyGuestKeys } from "@/lib/account-buckets";
 // Lightweight local vector store using cosine similarity.
 // Persists to localStorage so indexed data survives reloads.
 // Supports sentence-level chunking and server-side sync via D1.
@@ -11,21 +12,20 @@ export type VectorDoc = {
   metadata?: Record<string, unknown>;
 };
 
-const STORE_KEY_BASE = "cockpit.vector-store.v1";
-
-/** Return the localStorage vector-store key for the current account scope. */
-function getStoreKey(): string {
+/** The active vector-store key, or null when identity is unresolved. */
+function getStoreKey(): string | null {
   const s = store.getState();
-  const scope = s.user?.id ?? s.localProfileId ?? "guest";
-  return `${STORE_KEY_BASE}:${scope}`;
+  const scope = s.user?.id ?? s.localProfileId ?? null;
+  return scope ? vectorKey(scope) : null;
 }
 
 function getStoreKeyForUser(userId: string): string {
-  return `${STORE_KEY_BASE}:${userId}`;
+  return vectorKey(userId);
 }
 
-function getGuestStoreKey(): string {
-  return `${STORE_KEY_BASE}:guest`;
+/** Legacy pre-identity bucket. Read for migration; never written by live code. */
+function getLegacyGuestStoreKey(): string {
+  return legacyGuestKeys().vector;
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -43,8 +43,10 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 function loadDocs(): VectorDoc[] {
   if (typeof window === "undefined") return [];
+  const key = getStoreKey();
+  if (!key) return [];
   try {
-    const raw = localStorage.getItem(getStoreKey());
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as VectorDoc[];
     return Array.isArray(parsed) ? parsed : [];
@@ -55,8 +57,10 @@ function loadDocs(): VectorDoc[] {
 
 function saveDocs(docs: VectorDoc[]) {
   if (typeof window === "undefined") return;
+  const key = getStoreKey();
+  if (!key) return;
   try {
-    localStorage.setItem(getStoreKey(), JSON.stringify(docs));
+    localStorage.setItem(key, JSON.stringify(docs));
   } catch {
     /* quota exceeded or unavailable */
   }
@@ -76,7 +80,7 @@ function ensureVectorStoreCrossTabSync() {
   _crossTabSyncSetup = true;
   window.addEventListener("storage", (e) => {
     const activeKey = getStoreKey();
-    if (e.key === activeKey) {
+    if (activeKey && e.key === activeKey) {
       memoryDocs = null; // invalidate so next getDocs() re-reads localStorage
     }
   });
@@ -102,7 +106,7 @@ function loadDocsForKey(key: string): VectorDoc[] {
 
 /** Switch the vector store cache to the account for the given user id. */
 export function loadVectorStoreForUser(userId: string | null) {
-  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  const key = userId ? getStoreKeyForUser(userId) : getLegacyGuestStoreKey();
   memoryDocs = loadDocsForKey(key);
 }
 
@@ -117,7 +121,7 @@ export function searchVectorStoreForUser(
   queryEmbedding: number[],
   topK = 3,
 ): VectorDoc[] {
-  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  const key = userId ? getStoreKeyForUser(userId) : getLegacyGuestStoreKey();
   const docs = loadDocsForKey(key);
   if (docs.length === 0) return [];
   const scored = docs
@@ -128,7 +132,7 @@ export function searchVectorStoreForUser(
 
 /** Add docs directly to a specific account bucket (for tests). */
 export function addVectorDocsForUser(userId: string | null, docs: VectorDoc[]) {
-  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  const key = userId ? getStoreKeyForUser(userId) : getLegacyGuestStoreKey();
   const existing = loadDocsForKey(key);
   const existingIds = new Set(existing.map((d) => d.id));
   const newDocs = docs.filter((d) => !existingIds.has(d.id));
@@ -145,14 +149,14 @@ export function addVectorDocsForUser(userId: string | null, docs: VectorDoc[]) {
 
 /** Read all vector docs from a specific account bucket without touching the shared cache. */
 export function getAllVectorDocsForUser(userId: string | null): VectorDoc[] {
-  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  const key = userId ? getStoreKeyForUser(userId) : getLegacyGuestStoreKey();
   return loadDocsForKey(key);
 }
 
 /** Replace the entire vector-doc set for a specific account bucket (used by copy/move migration). */
 export function saveVectorStoreForUser(userId: string | null, docs: VectorDoc[]): void {
   if (typeof window === "undefined") return;
-  const key = userId ? getStoreKeyForUser(userId) : getGuestStoreKey();
+  const key = userId ? getStoreKeyForUser(userId) : getLegacyGuestStoreKey();
   try {
     localStorage.setItem(key, JSON.stringify(docs));
   } catch {

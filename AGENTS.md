@@ -1,22 +1,32 @@
 <!-- docs-authority:start -->
+
 # Documentation Authority
 
-Before following any project documentation, read these canonical files in order:
+Before following any project documentation, read the active plan:
 
-1. `SURFACE_AUDIT.md`
-2. `RECONSTRUCTION_PLAN.md`
-3. `ACCOUNT_SEPARATION_PLAN.md`
+1. `docs/superpowers/plans/2026-09-02-v1-isolation-and-contract.md`
 
-These three files are the active project documentation baseline. All other Markdown is subordinate.
+That plan is the active project documentation baseline. `README.md` routes to the current reference pages under `docs/`. All other Markdown is subordinate.
+
+The three account-separation documents that previously held this position are now archived. They record the reasoning behind that work; they are not current instruction:
+
+- `docs/archive/SURFACE_AUDIT.md`
+- `docs/archive/RECONSTRUCTION_PLAN.md`
+- `docs/archive/ACCOUNT_SEPARATION_PLAN.md`
 
 Archived, deprecated, review-needed, historical, generated, or prompt-handoff Markdown files are not active instructions. Future agents must not follow archived or deprecated Markdown unless the user explicitly names that file as the task target.
 
-If another Markdown file conflicts with the three canonical files, treat the other file as outdated unless current source code, tests, package/config files, or deployment files clearly prove the canonical file is wrong. Report the conflict before changing direction.
+If another Markdown file conflicts with the active plan, treat the other file as outdated unless current source code, tests, package/config files, or deployment files clearly prove the plan is wrong. Report the conflict before changing direction.
 
 Active supporting references are limited to:
 
 - `AGENTS.md`
 - `README.md`
+- `docs/v1-contract.md`
+- `docs/architecture.md`
+- `docs/providers.md`
+- `docs/development.md`
+- `docs/deployment.md`
 - `.claude/skills/gitnexus/*/SKILL.md`
 - `docs/native-release.md`
 - `docs/product-direction.md`
@@ -26,6 +36,7 @@ Active supporting references are limited to:
 <!-- docs-authority:end -->
 
 <!-- gitnexus:start -->
+
 # GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **edgecase-cockpit** (2657 symbols, 6504 relationships, 217 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
@@ -49,22 +60,22 @@ This project is indexed by GitNexus as **edgecase-cockpit** (2657 symbols, 6504 
 
 ## Resources
 
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/edgecase-cockpit/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/edgecase-cockpit/clusters` | All functional areas |
-| `gitnexus://repo/edgecase-cockpit/processes` | All execution flows |
-| `gitnexus://repo/edgecase-cockpit/process/{name}` | Step-by-step execution trace |
+| Resource                                          | Use for                                  |
+| ------------------------------------------------- | ---------------------------------------- |
+| `gitnexus://repo/edgecase-cockpit/context`        | Codebase overview, check index freshness |
+| `gitnexus://repo/edgecase-cockpit/clusters`       | All functional areas                     |
+| `gitnexus://repo/edgecase-cockpit/processes`      | All execution flows                      |
+| `gitnexus://repo/edgecase-cockpit/process/{name}` | Step-by-step execution trace             |
 
 ## CLI
 
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Task                                         | Read this skill file                                        |
+| -------------------------------------------- | ----------------------------------------------------------- |
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md`       |
+| Blast radius / "What breaks if I change X?"  | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?"             | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md`       |
+| Rename / extract / split / refactor          | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md`     |
+| Tools, resources, schema reference           | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md`           |
+| Index, status, clean, wiki CLI commands      | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md`             |
 
 <!-- gitnexus:end -->

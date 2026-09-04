@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import {
   rateLimit,
   urlAllowedForProvider,
   urlAllowedAnyProvider,
   isWildcardHostAllowed,
+  isBlockedNetworkTarget,
 } from "@/lib/proxy-guard.server";
 
 describe("rateLimit", () => {
@@ -130,6 +131,20 @@ describe("urlAllowedForProvider", () => {
   });
 });
 
+describe("local provider 127.0.0.1 allowlist (regression)", () => {
+  it("allows ollama's explicit 127.0.0.1 allowlist entry", () => {
+    expect(urlAllowedForProvider("ollama", "http://127.0.0.1:11434/v1/models")).toBe(true);
+  });
+
+  it("allows lmstudio's explicit 127.0.0.1 allowlist entry", () => {
+    expect(urlAllowedForProvider("lmstudio", "http://127.0.0.1:1234/v1/models")).toBe(true);
+  });
+
+  it("resolves a 127.0.0.1 URL to a local provider via urlAllowedAnyProvider", () => {
+    expect(urlAllowedAnyProvider("http://127.0.0.1:11434/v1/models")).toBe("ollama");
+  });
+});
+
 describe("urlAllowedAnyProvider", () => {
   it("returns a provider id for allowed URLs", () => {
     const result = urlAllowedAnyProvider("https://api.openai.com/v1");
@@ -208,10 +223,85 @@ describe("custom provider wildcard host policy", () => {
       expect(urlAllowedForProvider("custom", "https://example.com/api")).toBe(true);
     });
 
+    it("still blocks private-range IP literals for the custom wildcard in production with opt-in", () => {
+      process.env.NODE_ENV = "production";
+      process.env.PROXY_ALLOW_CUSTOM_WILDCARD = "true";
+      expect(urlAllowedForProvider("custom", "http://10.0.0.1/")).toBe(false);
+    });
+
     it("still allows explicit hosts for non-custom providers in production", () => {
       process.env.NODE_ENV = "production";
       expect(urlAllowedForProvider("openai", "https://api.openai.com/v1")).toBe(true);
       expect(urlAllowedForProvider("openai", "https://evil.com/api")).toBe(false);
     });
+  });
+});
+
+describe("urlAllowedAnyProvider does not honour the custom wildcard in production", () => {
+  const priorEnv = process.env.NODE_ENV;
+  const priorOptIn = process.env.PROXY_ALLOW_CUSTOM_WILDCARD;
+  afterEach(() => {
+    process.env.NODE_ENV = priorEnv;
+    process.env.PROXY_ALLOW_CUSTOM_WILDCARD = priorOptIn;
+  });
+
+  it("rejects an arbitrary host in production without the opt-in", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.PROXY_ALLOW_CUSTOM_WILDCARD;
+    expect(urlAllowedAnyProvider("https://attacker.example.com/x")).toBeNull();
+  });
+
+  it("rejects the cloud metadata address even with the wildcard opt-in", () => {
+    process.env.NODE_ENV = "production";
+    process.env.PROXY_ALLOW_CUSTOM_WILDCARD = "true";
+    expect(urlAllowedAnyProvider("http://169.254.169.254/latest/meta-data/")).toBeNull();
+  });
+
+  it("still resolves a genuinely allowlisted cloud host", () => {
+    process.env.NODE_ENV = "production";
+    expect(urlAllowedAnyProvider("https://api.openai.com/v1/models")).toBe("openai");
+  });
+});
+
+describe("isBlockedNetworkTarget", () => {
+  // One case per attack. Each name states what it blocks.
+  it.each([
+    ["cloud metadata service", "http://169.254.169.254/latest/meta-data/"],
+    ["link-local range", "http://169.254.1.1/"],
+    ["RFC1918 10/8", "http://10.0.0.1/"],
+    ["RFC1918 192.168/16", "http://192.168.1.1/"],
+    ["RFC1918 172.16/12", "http://172.16.0.1/"],
+    ["carrier-grade NAT 100.64/10", "http://100.64.0.1/"],
+    ["decimal-encoded loopback", "http://2130706433/"],
+    ["hex-encoded loopback", "http://0x7f000001/"],
+    ["octal-encoded loopback", "http://0177.0.0.1/"],
+    ["IPv6 loopback", "http://[::1]/"],
+    ["IPv6 unspecified", "http://[::]/"],
+    ["IPv6 unique-local fc00::/7", "http://[fc00::1]/"],
+    ["IPv6 link-local fe80::/10", "http://[fe80::1]/"],
+    ["IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]/"],
+    ["IPv4-mapped IPv6 metadata", "http://[::ffff:169.254.169.254]/"],
+    ["0.0.0.0/8", "http://0.0.0.0/"],
+  ])("blocks %s", (_label, url) => {
+    expect(isBlockedNetworkTarget(url)).toBe(true);
+  });
+
+  it.each([
+    ["IPv4-compatible IPv6 loopback", "http://[::127.0.0.1]/"],
+    ["6to4-encoded loopback", "http://[2002:7f00:1::]/"],
+    ["NAT64 well-known prefix loopback", "http://[64:ff9b::127.0.0.1]/"],
+  ])("blocks %s", (_label, url) => {
+    expect(isBlockedNetworkTarget(url)).toBe(true);
+  });
+
+  it("does not block a normal public host", () => {
+    expect(isBlockedNetworkTarget("https://api.openai.com/v1/models")).toBe(false);
+  });
+
+  it("does not block plain localhost, which local providers legitimately use", () => {
+    // localhost/127.0.0.1 are allowlisted BY NAME for ollama/lmstudio/vllm/
+    // llama-cpp. Blocking them here would break the product's core promise;
+    // the wildcard gate is what stops `custom` from reaching them uninvited.
+    expect(isBlockedNetworkTarget("http://localhost:11434/api/tags")).toBe(false);
   });
 });

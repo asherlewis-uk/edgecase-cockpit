@@ -10,6 +10,7 @@ description: "Work in the components/cockpit · Drawer area — 40 symbols acros
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/components/cockpit/CommandPalette.tsx`
 - `src/components/cockpit/Drawer.tsx`
 - `src/components/cockpit/Greeting.test.tsx`
@@ -18,13 +19,13 @@ Use this skill when working on files in:
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/components/cockpit/CommandPalette.tsx` | id, navigate, query, id, selectProvider, ... |
-| `src/components/cockpit/Drawer.tsx` | assistantName, Drawer, setFilter, setSearchActive, searchActive, ... |
-| `src/components/cockpit/Greeting.test.tsx` | useNavigate |
-| `src/components/cockpit/Greeting.tsx` | navigate, Greeting |
-| `src/components/cockpit/ShortcutHelp.tsx` | enabled, ShortcutHelp, categories |
+| File                                        | Symbols                                                              |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| `src/components/cockpit/CommandPalette.tsx` | id, navigate, query, id, selectProvider, ...                         |
+| `src/components/cockpit/Drawer.tsx`         | assistantName, Drawer, setFilter, setSearchActive, searchActive, ... |
+| `src/components/cockpit/Greeting.test.tsx`  | useNavigate                                                          |
+| `src/components/cockpit/Greeting.tsx`       | navigate, Greeting                                                   |
+| `src/components/cockpit/ShortcutHelp.tsx`   | enabled, ShortcutHelp, categories                                    |
 
 ## Entry Points
 

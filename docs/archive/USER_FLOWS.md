@@ -10,20 +10,21 @@
 
 ### 1. Signup / login
 
-| Question | Current reality | Evidence |
-| --- | --- | --- |
-| Is there actual user signup today? | **Yes.** Email/password signup and sign-in are exposed through the `/auth` route. | `src/routes/auth.tsx`, `src/components/cockpit/AccountMenu.tsx`, `src/routes/api/auth/register.ts`, `src/routes/api/auth/login.ts`. |
-| Is there email/password signup? | **Yes.** The `/auth` route provides sign-in and create-account tabs backed by `POST /api/auth/register` and `POST /api/auth/login`. | `src/routes/auth.tsx`, `src/routes/api/auth/register.ts`, `src/routes/api/auth/login.ts` |
-| Is there Google Sign-In? | **No.** | No OAuth callback route, no Google client ID, no OAuth library. |
-| Is there Apple Sign-In? | **No.** | No Sign in with Apple configuration, no OAuth callback route. |
-| Is there OAuth at all? | **No.** | Search of `src/` finds no OAuth provider integration. |
-| Is the current session anonymous, account-backed, or hybrid? | **Hybrid.** Every visitor starts as a guest with an encrypted cookie (`session.id` + `guestSessionId`). The `/auth` route and Account menu let them attach a `userId` to the same cookie. | `src/routes/auth.tsx`, `src/components/cockpit/AccountMenu.tsx`, `src/lib/session.server.ts` (`getCockpitSession`, `setAuthSession`). |
-| What creates the user/session identity? | **For guests:** TanStack Start's encrypted cookie session plus a generated `guestSessionId`. **For authenticated users:** the same cookie after `setAuthSession(userId, email)` is called by login/register handlers. | `src/lib/session.server.ts` |
-| What database tables/columns represent user/account identity? | `users(id, email, password_hash, display_name, created_at, updated_at)` and `sessions(id, data, created_at, updated_at)` for the cookie ID. `guest_sessions(id, data_json, expires_at)` for anonymous sessions. | `src/lib/db/schema.sql` |
+| Question                                                      | Current reality                                                                                                                                                                                                       | Evidence                                                                                                                              |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Is there actual user signup today?                            | **Yes.** Email/password signup and sign-in are exposed through the `/auth` route.                                                                                                                                     | `src/routes/auth.tsx`, `src/components/cockpit/AccountMenu.tsx`, `src/routes/api/auth/register.ts`, `src/routes/api/auth/login.ts`.   |
+| Is there email/password signup?                               | **Yes.** The `/auth` route provides sign-in and create-account tabs backed by `POST /api/auth/register` and `POST /api/auth/login`.                                                                                   | `src/routes/auth.tsx`, `src/routes/api/auth/register.ts`, `src/routes/api/auth/login.ts`                                              |
+| Is there Google Sign-In?                                      | **No.**                                                                                                                                                                                                               | No OAuth callback route, no Google client ID, no OAuth library.                                                                       |
+| Is there Apple Sign-In?                                       | **No.**                                                                                                                                                                                                               | No Sign in with Apple configuration, no OAuth callback route.                                                                         |
+| Is there OAuth at all?                                        | **No.**                                                                                                                                                                                                               | Search of `src/` finds no OAuth provider integration.                                                                                 |
+| Is the current session anonymous, account-backed, or hybrid?  | **Hybrid.** Every visitor starts as a guest with an encrypted cookie (`session.id` + `guestSessionId`). The `/auth` route and Account menu let them attach a `userId` to the same cookie.                             | `src/routes/auth.tsx`, `src/components/cockpit/AccountMenu.tsx`, `src/lib/session.server.ts` (`getCockpitSession`, `setAuthSession`). |
+| What creates the user/session identity?                       | **For guests:** TanStack Start's encrypted cookie session plus a generated `guestSessionId`. **For authenticated users:** the same cookie after `setAuthSession(userId, email)` is called by login/register handlers. | `src/lib/session.server.ts`                                                                                                           |
+| What database tables/columns represent user/account identity? | `users(id, email, password_hash, display_name, created_at, updated_at)` and `sessions(id, data, created_at, updated_at)` for the cookie ID. `guest_sessions(id, data_json, expires_at)` for anonymous sessions.       | `src/lib/db/schema.sql`                                                                                                               |
 
 **Password hashing:** PBKDF2-HMAC-SHA256, 600,000 iterations, 128-bit salt (`src/lib/auth.server.ts`). This is **not** bcrypt, despite what earlier docs said.
 
 **What this means for a normal user today:**
+
 - A person opening the production URL lands as a guest and can explore the app immediately.
 - The V1 local proof path must work as a guest: configure or detect a generic local OpenAI-compatible endpoint; explain state/config; run one safe model-list action; show result; recover from failure.
 - To save provider API keys, sync settings, or own server-side data, they create an account (or sign in) through the `/auth` route or the Account menu.
@@ -33,17 +34,18 @@
 
 ### 2. Visibility and access
 
-| Data | Scoped to | Current evidence | Caveat |
-| --- | --- | --- | --- |
-| Provider API keys | Authenticated `user_id` in D1, encrypted | `user_provider_keys` PK is `(user_id, provider_id)`. `setProviderCreds` rejects guests with 401. `/api/keys/status` only lists keys for the current `userId`. Cross-user tests exist. | Reachable after signing in through `/auth`; `ProviderCard` shows an inline auth prompt for guests. |
-| Threads (D1 sync path) | Authenticated `user_id` or guest `session_id` | `ownerWhere()` in `src/lib/db/index.ts` builds `user_id = ?` or `session_id = ? AND user_id IS NULL`. `threads.user_id` FK. | Sync is opt-in and UI does not currently enable it; most threads are `localStorage`-only. |
-| Settings | Authenticated `user_id` | `GET/POST /api/settings` return 401 for guests; `user_settings` table is `user_id` PK. | Reachable after signing in through `/auth`. |
-| Usage records | Authenticated `user_id` or guest `session_id` | `usage_records.user_id` / `usage_records.session_id`; aggregate queries use `ownerWhere`. | Only created when server-side usage tracking is triggered. |
-| Provider stats | Authenticated `user_id` or guest `session_id` | `provider_stats` has partial indexes on `user_id` and `session_id`. | Local stats remain in `localStorage` by default. |
-| Vector docs (server) | Authenticated `user_id` or guest `session_id` | `vector_docs` has `user_id` / `session_id` columns. | Server RAG sync is disabled (`_serverSyncAvailable = false`). |
-| `localStorage` threads/settings/RAG | Single device/browser profile only | `cockpit-store.ts` persists to `cockpit.settings.v2`, `cockpit.threads.v1`, etc. No account gating. | Cross-tab sync works via `storage` events; cross-device sync does not exist. |
+| Data                                | Scoped to                                     | Current evidence                                                                                                                                                                      | Caveat                                                                                             |
+| ----------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Provider API keys                   | Authenticated `user_id` in D1, encrypted      | `user_provider_keys` PK is `(user_id, provider_id)`. `setProviderCreds` rejects guests with 401. `/api/keys/status` only lists keys for the current `userId`. Cross-user tests exist. | Reachable after signing in through `/auth`; `ProviderCard` shows an inline auth prompt for guests. |
+| Threads (D1 sync path)              | Authenticated `user_id` or guest `session_id` | `ownerWhere()` in `src/lib/db/index.ts` builds `user_id = ?` or `session_id = ? AND user_id IS NULL`. `threads.user_id` FK.                                                           | Sync is opt-in and UI does not currently enable it; most threads are `localStorage`-only.          |
+| Settings                            | Authenticated `user_id`                       | `GET/POST /api/settings` return 401 for guests; `user_settings` table is `user_id` PK.                                                                                                | Reachable after signing in through `/auth`.                                                        |
+| Usage records                       | Authenticated `user_id` or guest `session_id` | `usage_records.user_id` / `usage_records.session_id`; aggregate queries use `ownerWhere`.                                                                                             | Only created when server-side usage tracking is triggered.                                         |
+| Provider stats                      | Authenticated `user_id` or guest `session_id` | `provider_stats` has partial indexes on `user_id` and `session_id`.                                                                                                                   | Local stats remain in `localStorage` by default.                                                   |
+| Vector docs (server)                | Authenticated `user_id` or guest `session_id` | `vector_docs` has `user_id` / `session_id` columns.                                                                                                                                   | Server RAG sync is disabled (`_serverSyncAvailable = false`).                                      |
+| `localStorage` threads/settings/RAG | Single device/browser profile only            | `cockpit-store.ts` persists to `cockpit.settings.v2`, `cockpit.threads.v1`, etc. No account gating.                                                                                   | Cross-tab sync works via `storage` events; cross-device sync does not exist.                       |
 
 **Route handlers that enforce ownership:**
+
 - `/api/settings` — 401 if `userId` missing.
 - `/api/keys/set` — returns `401 { error: "Authentication required" }` for guests. The `ProviderCard` UI gates the Save button and shows an inline auth prompt.
 - `/api/keys/status` — returns empty for guests.
@@ -54,11 +56,13 @@
 - `/api/vector-docs` — scoped by `session.id` or `userId`.
 
 **Tests proving isolation:**
+
 - `src/routes/api/-account-separation.test.ts` — mocks prove `setProviderCreds` rejects guests, settings returns 401 for guests, keys/settings are user-scoped.
 - `src/routes/api/-auth.test.ts` — register/login/logout/me lifecycle and guest claim.
 - `src/lib/session.server.test.ts` — session helpers and provider credential storage.
 
 **Areas not yet proven by an end-to-end user flow:**
+
 - Cross-user data denial with real cookies (unit tests mock sessions; no browser E2E for isolation yet).
 - Guest-to-user data claim in production D1.
 - Google/Apple/OAuth identity flows are not implemented and are not V1.
@@ -69,16 +73,17 @@
 
 ### 3. Configuration/provider access
 
-| Question | Current reality | Evidence |
-| --- | --- | --- |
-| Where are provider API keys stored? | Encrypted in D1 `user_provider_keys` when an authenticated user saves them. The client `ProviderConfig.apiKey` field is only used as a transient draft in the UI; it is stripped before `localStorage` persistence. | `src/lib/session.server.ts` `setProviderCreds`, `src/lib/cockpit-store.ts` `persist()` strips `apiKey`. |
-| Are keys encrypted? | Yes, AES-256-GCM with `ENCRYPTION_KEY` (production) or `SESSION_SECRET` fallback. | `src/lib/encryption.server.ts` |
-| Are settings stored locally, remotely, or both? | Both paths are reachable. `cockpit-store.ts` writes to `localStorage` for everyone; `/api/settings` writes to D1 for authenticated users. | `src/lib/cockpit-store.ts`, `src/routes/api/settings.ts`, `src/routes/auth.tsx` |
-| Are provider/tool permissions scoped by user/session/workspace? | User. `user_tool_permissions` table has `user_id`. | `migrations/0003_pricing_and_tool_permissions.sql`, `src/routes/api/tools/permissions.ts` |
-| Are configs shared globally or isolated? | Isolated per user/session. Server-side queries always include `ownerWhere`. | `src/lib/db/index.ts` |
-| What happens on a new browser/device? | A new guest cookie/session is created; `localStorage` threads/settings do not transfer. If the user signs in, server-side keys, settings, and synced threads become available. | `src/lib/session.server.ts` `getGuestSessionId`, `src/lib/cockpit-store.ts` defaults, `src/routes/auth.tsx`. |
+| Question                                                        | Current reality                                                                                                                                                                                                     | Evidence                                                                                                     |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Where are provider API keys stored?                             | Encrypted in D1 `user_provider_keys` when an authenticated user saves them. The client `ProviderConfig.apiKey` field is only used as a transient draft in the UI; it is stripped before `localStorage` persistence. | `src/lib/session.server.ts` `setProviderCreds`, `src/lib/cockpit-store.ts` `persist()` strips `apiKey`.      |
+| Are keys encrypted?                                             | Yes, AES-256-GCM with `ENCRYPTION_KEY` (production) or `SESSION_SECRET` fallback.                                                                                                                                   | `src/lib/encryption.server.ts`                                                                               |
+| Are settings stored locally, remotely, or both?                 | Both paths are reachable. `cockpit-store.ts` writes to `localStorage` for everyone; `/api/settings` writes to D1 for authenticated users.                                                                           | `src/lib/cockpit-store.ts`, `src/routes/api/settings.ts`, `src/routes/auth.tsx`                              |
+| Are provider/tool permissions scoped by user/session/workspace? | User. `user_tool_permissions` table has `user_id`.                                                                                                                                                                  | `migrations/0003_pricing_and_tool_permissions.sql`, `src/routes/api/tools/permissions.ts`                    |
+| Are configs shared globally or isolated?                        | Isolated per user/session. Server-side queries always include `ownerWhere`.                                                                                                                                         | `src/lib/db/index.ts`                                                                                        |
+| What happens on a new browser/device?                           | A new guest cookie/session is created; `localStorage` threads/settings do not transfer. If the user signs in, server-side keys, settings, and synced threads become available.                                      | `src/lib/session.server.ts` `getGuestSessionId`, `src/lib/cockpit-store.ts` defaults, `src/routes/auth.tsx`. |
 
 **V1 local-provider configuration boundary:**
+
 - V1 must prove one concrete local/BYOC runtime path: a user-configured generic local OpenAI-compatible endpoint, not an open-ended provider list.
 - This target is a declared product decision made now, not recovered from prior named-provider evidence.
 - Hermes Agent (`hermes`), OpenClaw (`openclaw`), local Ollama (`ollama`), LM Studio, vLLM, llama.cpp, and other named providers are implementation candidates or future named presets only; they are not the V1 proof set.
@@ -96,6 +101,7 @@
 **Can Apple Sign-In be added?** Yes, same reasoning.
 
 **What would need to change?**
+
 1. **Dependency:** Add an OAuth client library compatible with Cloudflare Workers (e.g., `arctic` for PKCE/OAuth 2.0, or provider-specific SDKs). Avoid heavy Node-only libraries.
 2. **Routes:** Add `/api/auth/google` (initiate), `/api/auth/google/callback`, and equivalents for Apple. Store the provider's `sub`/`email` in a new `user_identities` or `oauth_accounts` table linked to `users.id`.
 3. **DB schema:** Add `oauth_accounts(provider, provider_account_id, user_id)` or extend `users` with `google_id`/`apple_id`. A separate table is safer for multiple identity providers.
@@ -106,6 +112,7 @@
    - Merge or preserve `localStorage` data on the device (currently manual via export/import).
 
 **Risks around existing encrypted keys, thread ownership, and session continuity:**
+
 - **Encrypted keys:** Keys are bound to `user_id`. A user created via OAuth would need a fresh `user_id`; existing keys are zero because the UI cannot save them while unauthenticated. Once OAuth is added, keys saved before account linking would be lost unless claim logic runs first.
 - **Thread ownership:** Server-synced threads are rare today (`sync_enabled` defaults to off). Any guest `threads` rows would be claimed via `claimGuestSession`. `localStorage` threads remain device-local.
 - **Session continuity:** The encrypted cookie already carries `session.id`. `setAuthSession` adds `userId`/`userEmail` without rotating the cookie ID, so CSRF/rate-limit continuity is preserved.
@@ -253,27 +260,27 @@ The sections below describe the broader current app behavior. They include non-V
 
 ### 20. Error states
 
-| State | Current behavior | Evidence |
-| --- | --- | --- |
-| No key | Greeting shows "No API key set for {provider}" button linking to Settings. ProviderStatus shows "set API key". | `src/components/cockpit/Greeting.tsx`, `src/components/cockpit/ProviderStatus.tsx` |
-| Invalid key | `/api/keys/validate` returns `invalid` with `reason: auth_failed`. UI shows red shield/"invalid key". | `src/routes/api/keys/validate.ts`, `src/lib/validate-key.server.ts` |
-| Provider unavailable | `callProviderChatViaProxy` returns 502 with provider message; `use-chat.ts` surfaces error toast. | `src/routes/api/proxy/chat.ts`, `src/hooks/use-chat.ts` |
-| Rate limited | 429 JSON with `retry-after` from rate-limiter or proxy-guard. | `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts` |
-| Storage full | `localStorage` write fails; `use-chat.ts` catches and shows toast. Server storage limits return HTTP 413. | `src/lib/storage-limits.server.ts`, `src/hooks/use-chat.ts` |
-| D1 unavailable | Worker logs warning at cold start; rate limiter falls back to in-memory; D1-backed routes fail for authenticated users (mostly unreachable). | `src/server.ts`, `src/lib/rate-limit.server.ts` |
-| Worker misconfigured | 503 JSON `{ error: "Server misconfigured" }`. | `src/server.ts` |
-| Malformed import | `/api/threads/import` validates body with zod; client `importThreads` tries to normalize input but may drop invalid threads. | `src/routes/api/threads.import.ts`, `src/lib/cockpit-store.ts` |
-| Model/tool unsupported | Provider capability flags determine available features; unknown models fall back to declared defaults. | `src/lib/providers.ts` |
+| State                  | Current behavior                                                                                                                             | Evidence                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| No key                 | Greeting shows "No API key set for {provider}" button linking to Settings. ProviderStatus shows "set API key".                               | `src/components/cockpit/Greeting.tsx`, `src/components/cockpit/ProviderStatus.tsx` |
+| Invalid key            | `/api/keys/validate` returns `invalid` with `reason: auth_failed`. UI shows red shield/"invalid key".                                        | `src/routes/api/keys/validate.ts`, `src/lib/validate-key.server.ts`                |
+| Provider unavailable   | `callProviderChatViaProxy` returns 502 with provider message; `use-chat.ts` surfaces error toast.                                            | `src/routes/api/proxy/chat.ts`, `src/hooks/use-chat.ts`                            |
+| Rate limited           | 429 JSON with `retry-after` from rate-limiter or proxy-guard.                                                                                | `src/lib/rate-limit.server.ts`, `src/lib/proxy-guard.server.ts`                    |
+| Storage full           | `localStorage` write fails; `use-chat.ts` catches and shows toast. Server storage limits return HTTP 413.                                    | `src/lib/storage-limits.server.ts`, `src/hooks/use-chat.ts`                        |
+| D1 unavailable         | Worker logs warning at cold start; rate limiter falls back to in-memory; D1-backed routes fail for authenticated users (mostly unreachable). | `src/server.ts`, `src/lib/rate-limit.server.ts`                                    |
+| Worker misconfigured   | 503 JSON `{ error: "Server misconfigured" }`.                                                                                                | `src/server.ts`                                                                    |
+| Malformed import       | `/api/threads/import` validates body with zod; client `importThreads` tries to normalize input but may drop invalid threads.                 | `src/routes/api/threads.import.ts`, `src/lib/cockpit-store.ts`                     |
+| Model/tool unsupported | Provider capability flags determine available features; unknown models fall back to declared defaults.                                       | `src/lib/providers.ts`                                                             |
 
 For V1, error-state coverage must specifically include local model-list success, no-models, malformed response, unreachable endpoint, bad base URL, timeout/abort, hosted HTTPS local HTTP block, and recovery after configuration change for the canonical local/BYOC runtime path.
 
 ### 21. Native shell behavior
 
-| Target | Status | API base URL behavior | Caveat |
-| --- | --- | --- | --- |
-| macOS DMG (Electron) | Unsigned `.app` builds verified. Signed `.dmg` requires Apple certs. | Native context detected via `file://` or `app://` protocol; `apiFetch` prepends `VITE_NATIVE_API_URL` (defaults to production Worker). | Electron packaging verified unsigned; signed CI path configured but needs secrets. |
-| Android APK (Capacitor) | Debug build verified; release requires keystore. | `Capacitor.isNativePlatform()` returns true; same `VITE_NATIVE_API_URL` routing. | No mobile-specific E2E coverage. |
-| iOS (Capacitor) | Build verified with `CODE_SIGNING_ALLOWED=NO`; distribution needs provisioning profile. | Same native routing. | Not submitted to App Store; no device E2E. |
+| Target                  | Status                                                                                  | API base URL behavior                                                                                                                  | Caveat                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| macOS DMG (Electron)    | Unsigned `.app` builds verified. Signed `.dmg` requires Apple certs.                    | Native context detected via `file://` or `app://` protocol; `apiFetch` prepends `VITE_NATIVE_API_URL` (defaults to production Worker). | Electron packaging verified unsigned; signed CI path configured but needs secrets. |
+| Android APK (Capacitor) | Debug build verified; release requires keystore.                                        | `Capacitor.isNativePlatform()` returns true; same `VITE_NATIVE_API_URL` routing.                                                       | No mobile-specific E2E coverage.                                                   |
+| iOS (Capacitor)         | Build verified with `CODE_SIGNING_ALLOWED=NO`; distribution needs provisioning profile. | Same native routing.                                                                                                                   | Not submitted to App Store; no device E2E.                                         |
 
 **Evidence:** `src/lib/api-base.ts`, `docs/native-release.md`, `.github/workflows/ci.yml`.
 

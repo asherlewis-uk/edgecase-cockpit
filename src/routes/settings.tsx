@@ -16,19 +16,18 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useStore,
   store,
-  PROVIDERS,
   resolveProvider,
   isProviderReady,
-  refreshProviderKeyStatus,
   getProviderStats,
   subscribeProviderStats,
   resetProviderStats,
   deriveInitials,
   getProviderValidationStatus,
   deriveV1LocalEndpointCapabilityState,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 import { apiFetch } from "@/lib/api-base";
 import {
+  PROVIDERS,
   detectProvider,
   probeLocalOpenAICompatibleModels,
   V1_LOCAL_OPENAI_COMPAT_PROVIDER_ID,
@@ -37,9 +36,9 @@ import {
   type DetectResult,
   type LocalCapabilityStatus,
   type ModelListProbeResult,
-} from "@/lib/providers";
+} from "@/lib/provider-api";
 import { toast } from "sonner";
-import { csrfHeaders } from "@/lib/cockpit-store";
+import { csrfHeaders } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -890,7 +889,7 @@ function ProviderCard({
         }),
       });
       setKeyDraft("");
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
     } finally {
       setSaving(false);
     }
@@ -904,7 +903,7 @@ function ProviderCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ providerId: p.id }),
       });
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
     } finally {
       setSaving(false);
     }
@@ -1222,22 +1221,34 @@ function RagSection() {
   );
 }
 
-function ToolPermissionsSection() {
+export function ToolPermissionsSection() {
   const [tools, setTools] = useState<Array<{ name: string; source: string; approved: boolean }>>(
     [],
   );
   const [loading, setLoading] = useState(false);
+  // Approvals are per-account. Re-key the fetch on the active scope so switching
+  // accounts inside the settings page cannot leave the previous list rendered.
+  const accountScope = useStore((s) => s.user?.id ?? s.localProfileId ?? null);
 
   useEffect(() => {
+    let active = true;
+    setTools([]);
     setLoading(true);
     apiFetch("/api/tools/permissions", { headers: csrfHeaders() })
       .then((res) => res.json())
       .then((json: { tools: Array<{ name: string; source: string; approved: boolean }> }) => {
-        setTools(json.tools ?? []);
+        if (active) setTools(json.tools ?? []);
       })
-      .catch(() => setTools([]))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        if (active) setTools([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [accountScope]);
 
   const toggle = async (name: string, action: "grant" | "revoke") => {
     const res = await apiFetch("/api/tools/permissions", {

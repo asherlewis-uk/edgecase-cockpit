@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAllToolSchemas, getToolSchemaCounts, registerLocalTool } from "@/lib/tools";
-import { getCockpitSession } from "@/lib/session.server";
+import { getCockpitSession, getAuthUserId } from "@/lib/session.server";
 import { validateCsrfToken } from "@/lib/csrf.server";
 import { sessionRateLimit, rateLimitResponse } from "@/lib/rate-limit.server";
 
@@ -32,8 +32,14 @@ export const Route = createFileRoute("/api/tools/schemas")({
         const csrfCheck = validateCsrfToken(request);
         if (csrfCheck !== true) return csrfCheck;
 
-        const session = await getCockpitSession();
-        const rl = await sessionRateLimit(`tools-schemas:${session.data.id ?? "anon"}`);
+        // Registering a tool schema mutates process-global state that every
+        // caller reads. Anonymous callers may not write to it.
+        const userId = await getAuthUserId();
+        if (!userId) {
+          return Response.json({ error: "Authentication required" }, { status: 401 });
+        }
+
+        const rl = await sessionRateLimit(`tools-schemas:${userId}`);
         if (!rl.ok) return rateLimitResponse(rl.retryAfter);
 
         let body: unknown;

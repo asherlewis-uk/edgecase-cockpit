@@ -10,12 +10,13 @@ description: "Work in the src/lib · getDocs area — 32 symbols across 1 files 
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/vector-store.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                      | Symbols                                          |
+| ------------------------- | ------------------------------------------------ |
 | `src/lib/vector-store.ts` | b, addVectorDocs, docs, dot, queryEmbedding, ... |
 
 ## Connected Communities

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useStore, store, resolveProvider } from "@/lib/cockpit-store";
+import { useStore, store, resolveProvider } from "@/lib/store";
 import { ArrowLeft, ImageOff } from "lucide-react";
 import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
 

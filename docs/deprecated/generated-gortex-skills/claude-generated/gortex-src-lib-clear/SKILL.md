@@ -10,6 +10,7 @@ description: "Work in the src/lib · clear area — 30 symbols across 5 files (9
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/cockpit-store.test.ts`
 - `src/lib/platform.server.ts`
 - `src/lib/proxy-guard.server.ts`
@@ -18,13 +19,13 @@ Use this skill when working on files in:
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/cockpit-store.test.ts` | clear |
-| `src/lib/platform.server.ts` | D1Database, getPlatformEnv, g, env, getDB, ... |
-| `src/lib/proxy-guard.server.ts` | clearProxyGuardBuckets |
-| `src/lib/rate-limit.server.ts` | now, persistAsync, key, checkLimit, count, ... |
-| `src/lib/tools.ts` | reset, reset |
+| File                            | Symbols                                        |
+| ------------------------------- | ---------------------------------------------- |
+| `src/lib/cockpit-store.test.ts` | clear                                          |
+| `src/lib/platform.server.ts`    | D1Database, getPlatformEnv, g, env, getDB, ... |
+| `src/lib/proxy-guard.server.ts` | clearProxyGuardBuckets                         |
+| `src/lib/rate-limit.server.ts`  | now, persistAsync, key, checkLimit, count, ... |
+| `src/lib/tools.ts`              | reset, reset                                   |
 
 ## How to Explore
 

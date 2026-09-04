@@ -1,5 +1,5 @@
-import { deriveInitials, useStore, store, PROVIDERS } from "@/lib/cockpit-store";
-import { getProvider } from "@/lib/providers";
+import { deriveInitials, useStore, store } from "@/lib/store";
+import { PROVIDERS, getProvider } from "@/lib/provider-api";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "@tanstack/react-router";
 import { ProviderStatus } from "@/components/cockpit/ProviderStatus";
@@ -167,7 +167,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
             placeholder={searchActive ? "Search chats…" : "Filter recent…"}
             className="mb-2 w-full rounded-full bg-white/[0.04] px-5 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none"
           />
-          <div className="max-h-[40vh] overflow-y-auto">
+          <div data-testid="thread-list" className="max-h-[40vh] overflow-y-auto">
             {filtered.length === 0 && (
               <div className="px-5 py-3 text-sm text-white/40">
                 {threads.length === 0 ? "No chats yet." : "No matching chats."}

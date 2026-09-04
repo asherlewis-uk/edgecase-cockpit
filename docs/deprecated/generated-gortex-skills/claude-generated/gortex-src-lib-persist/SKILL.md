@@ -10,17 +10,18 @@ description: "Work in the src/lib · persist area — 80 symbols across 3 files 
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/cockpit-store.test.ts`
 - `src/lib/cockpit-store.ts`
 - `src/lib/tokens.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/cockpit-store.test.ts` | value, setItem, hex, key, randomUUID |
-| `src/lib/cockpit-store.ts` | id, id, store.newThread, target, store.pinThread, ... |
-| `src/lib/tokens.ts` | overrides, setCostOverrides |
+| File                            | Symbols                                               |
+| ------------------------------- | ----------------------------------------------------- |
+| `src/lib/cockpit-store.test.ts` | value, setItem, hex, key, randomUUID                  |
+| `src/lib/cockpit-store.ts`      | id, id, store.newThread, target, store.pinThread, ... |
+| `src/lib/tokens.ts`             | overrides, setCostOverrides                           |
 
 ## Connected Communities
 

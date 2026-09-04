@@ -10,12 +10,13 @@ description: "Work in the src/lib · registerProviderTools area — 28 symbols a
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/tools.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File               | Symbols                                           |
+| ------------------ | ------------------------------------------------- |
 | `src/lib/tools.ts` | now, local, t, getAllToolSchemas, nonBuiltIn, ... |
 
 ## Connected Communities

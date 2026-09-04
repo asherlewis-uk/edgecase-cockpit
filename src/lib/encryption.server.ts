@@ -3,7 +3,7 @@
 // Production encrypts sensitive data with a dedicated ENCRYPTION_KEY.
 
 const AES_ALGORITHM = "AES-GCM";
-const AES_KEY_LENGTH = 256;
+const AES_KEY_LENGTH = 256; // bits; SHA-256 digest length matches exactly
 const IV_LENGTH_BYTES = 12; // 96-bit IV for GCM
 
 function getEncryptionKey(): string {
@@ -23,13 +23,40 @@ function getEncryptionKey(): string {
   return fallback;
 }
 
+/**
+ * Derive a 256-bit AES key from the configured secret.
+ *
+ * The secret is operator-supplied text of arbitrary length >= 32. AES-GCM
+ * accepts only 128/192/256-bit keys, so the raw bytes cannot be used directly:
+ * a 33-character key passed validation and then threw inside importKey. SHA-256
+ * gives a fixed 256-bit key for any input length.
+ *
+ * This changes the derived key for secrets that are not exactly 32 bytes. Those
+ * secrets could never encrypt anything before this fix, so no readable
+ * ciphertext exists under them and there is nothing to migrate. A 32-byte
+ * secret's derived key DOES change — see the migration note below.
+ */
 async function deriveAesKey(secret: string): Promise<CryptoKey> {
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  return crypto.subtle.importKey("raw", keyData, { name: "AES-GCM" }, false, [
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(secret));
+  if (digest.byteLength * 8 !== AES_KEY_LENGTH) {
+    throw new Error("Derived AES key length does not match AES_KEY_LENGTH");
+  }
+  return crypto.subtle.importKey("raw", digest, { name: AES_ALGORITHM }, false, [
     "encrypt",
     "decrypt",
   ]);
+}
+
+/**
+ * Legacy derivation: the secret's raw UTF-8 bytes used directly as the AES
+ * key. Only valid for a secret of exactly 32 bytes. Retained so ciphertext
+ * written before the SHA-256 derivation can still be read once, then rewritten.
+ */
+async function deriveLegacyAesKey(secret: string): Promise<CryptoKey | null> {
+  const raw = new TextEncoder().encode(secret);
+  if (raw.byteLength !== 32) return null;
+  return crypto.subtle.importKey("raw", raw, { name: AES_ALGORITHM }, false, ["decrypt"]);
 }
 
 function encodeHex(bytes: Uint8Array): string {
@@ -92,11 +119,27 @@ export async function decrypt(ciphertext: string): Promise<string> {
   combined.set(encrypted, 0);
   combined.set(authTag, encrypted.length);
 
-  const decrypted = await crypto.subtle.decrypt(
-    { name: AES_ALGORITHM, iv: iv.buffer as ArrayBuffer },
-    key,
-    combined.buffer as ArrayBuffer,
-  );
-
-  return new TextDecoder().decode(decrypted);
+  try {
+    const decrypted = await crypto.subtle.decrypt(
+      { name: AES_ALGORITHM, iv: iv.buffer as ArrayBuffer },
+      key,
+      combined.buffer as ArrayBuffer,
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (error) {
+    // Ciphertext written before the SHA-256 derivation used the secret's raw
+    // UTF-8 bytes as the AES key. Retry with that key when it is valid (a
+    // 32-byte secret) so legacy rows stay readable; every new write uses the
+    // new derivation, so this path drains over time.
+    const legacyKey = await deriveLegacyAesKey(secret);
+    if (legacyKey) {
+      const decrypted = await crypto.subtle.decrypt(
+        { name: AES_ALGORITHM, iv: iv.buffer as ArrayBuffer },
+        legacyKey,
+        combined.buffer as ArrayBuffer,
+      );
+      return new TextDecoder().decode(decrypted);
+    }
+    throw error;
+  }
 }

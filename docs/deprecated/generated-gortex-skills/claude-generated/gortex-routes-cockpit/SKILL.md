@@ -10,12 +10,13 @@ description: "Work in the routes · Cockpit area — 85 symbols across 1 files (
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/routes/index.tsx`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                   | Symbols                                                                  |
+| ---------------------- | ------------------------------------------------------------------------ |
 | `src/routes/index.tsx` | value, setCommandPaletteOpen, intensity, drawerOpen, cloudProviders, ... |
 
 ## Entry Points

@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  PROVIDERS,
-  getProviderStats,
-  subscribeProviderStats,
-  resetProviderStats,
-} from "@/lib/cockpit-store";
+import { getProviderStats, subscribeProviderStats, resetProviderStats } from "@/lib/store";
+import { PROVIDERS } from "@/lib/provider-api";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/cockpit/settings/SharedFields";
 import { estimateCost, formatCost, formatTokens } from "@/lib/tokens";
@@ -43,7 +39,9 @@ export function UsageSection() {
               {totalCalls} call{totalCalls !== 1 ? "s" : ""}
             </span>
             <span>{formatTokens(totalTokens)} tokens</span>
-            <span className="text-white/80">{formatCost(totalCost)}</span>
+            <span data-testid="usage-total-cost" className="text-white/80">
+              {formatCost(totalCost)}
+            </span>
           </div>
 
           {/* Per-provider breakdown */}

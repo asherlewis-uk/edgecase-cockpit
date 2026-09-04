@@ -37,7 +37,7 @@ const webServer =
     : {
         command:
           runtime === "preview"
-            ? `npx wrangler dev --local-protocol=http --port ${port} ${wranglerVars}`
+            ? `bunx wrangler dev --local-protocol=http --port ${port} ${wranglerVars}`
             : `bun run dev -- --host ${host} --port ${port}`,
         url: baseURL,
         env: e2eServerEnv,

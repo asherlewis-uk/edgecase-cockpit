@@ -10,12 +10,13 @@ description: "Work in the api/proxy area — 43 symbols across 1 files (95% cohe
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/routes/api/proxy/chat.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                           | Symbols                        |
+| ------------------------------ | ------------------------------ |
 | `src/routes/api/proxy/chat.ts` | rl, e, h, tools, messages, ... |
 
 ## Entry Points

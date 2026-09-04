@@ -515,6 +515,11 @@ describe("deriveV1LocalEndpointCapabilityState", () => {
 // bumpProviderStat
 // ---------------------------------------------------------------------------
 describe("bumpProviderStat", () => {
+  beforeEach(() => {
+    // Stats are account-scoped; without a resolved identity nothing is written.
+    store.enterLocalMode("test-profile");
+  });
+
   it("increments call count for a new provider", () => {
     bumpProviderStat("openai", "call");
     const stats = getProviderStats();
@@ -548,6 +553,11 @@ describe("bumpProviderStat", () => {
 // recordTokenUsage
 // ---------------------------------------------------------------------------
 describe("recordTokenUsage", () => {
+  beforeEach(() => {
+    // Stats are account-scoped; without a resolved identity nothing is written.
+    store.enterLocalMode("test-profile");
+  });
+
   it("records input and output tokens for a provider", () => {
     recordTokenUsage("openai", 100, 50);
     const stats = getProviderStats();
@@ -652,9 +662,10 @@ describe("cross-tab stats sync", () => {
   });
 
   it("provider keys are not stored in the STATS_KEY localStorage entry", () => {
+    store.enterLocalMode("test-profile");
     bumpProviderStat("openai", "call");
     recordTokenUsage("openai", 100, 50);
-    const raw = storage.get("cockpit.provider-stats.v1:guest");
+    const raw = storage.get("cockpit.provider-stats.v1:test-profile");
     expect(raw).toBeDefined();
     const parsed = JSON.parse(raw!);
     // Stats must only contain call counts and token numbers — no API key material
@@ -666,6 +677,10 @@ describe("cross-tab stats sync", () => {
   });
 
   it("STATS_KEY storage event triggers statsListeners in setupCrossTabSync", () => {
+    // Establish a local profile so the cross-tab listener watches the
+    // local-profile stats key (no identity → no key → no listener match).
+    store.enterLocalMode("test-profile");
+
     // Capture the storage handler by providing a window that records the callback
     let capturedStorageHandler: ((e: StorageEvent) => void) | null = null;
     vi.stubGlobal("window", {
@@ -692,7 +707,7 @@ describe("cross-tab stats sync", () => {
     // Simulate a STATS_KEY change event from another tab
     capturedStorageHandler!(
       new StorageEvent("storage", {
-        key: "cockpit.provider-stats.v1:guest",
+        key: "cockpit.provider-stats.v1:test-profile",
         newValue: JSON.stringify({ openai: { calls: 3, errors: 0 } }),
       }),
     );
@@ -742,10 +757,11 @@ describe("costOverrides", () => {
   });
 
   it("provider keys are not included in costOverrides", () => {
+    store.enterLocalMode("test-profile");
     store.updateSettings({
       costOverrides: { openai: { input: 0.001 } },
     });
-    const raw = storage.get("cockpit.settings.v2:guest");
+    const raw = storage.get("cockpit.settings.v2:test-profile");
     expect(raw).toBeDefined();
     const parsed = JSON.parse(raw!);
     // Cost overrides should not contain API key material

@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { KeyboardShortcuts } from "@/lib/cockpit-store";
+import type { KeyboardShortcuts } from "@/lib/store";
 
 type ShortcutEntry = {
   keys: string;

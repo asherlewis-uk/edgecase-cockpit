@@ -10,6 +10,7 @@ description: "Work in the src/lib · length area — 59 symbols across 7 files (
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/cockpit-store.test.ts`
 - `src/lib/cockpit-store.ts`
 - `src/lib/env.server.ts`
@@ -20,15 +21,15 @@ Use this skill when working on files in:
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/cockpit-store.test.ts` | length |
-| `src/lib/cockpit-store.ts` | store.getMessageCount, store.getThreadCount, store.getTotalTokens |
-| `src/lib/env.server.ts` | warnings, key, missing, validateEnv, key |
-| `src/lib/rag-proxy-integration.test.ts` | sanitizeArgs, args, call, validateToolCall, validateToolName, ... |
-| `src/lib/storage-limits.server.ts` | LimitViolation, threads, t, message, validateMessage, ... |
-| `src/lib/tools.ts` | args, parsed, executeBuiltInTool, sanitizeToolCallArgs, parsed, ... |
-| `src/lib/vector-store.ts` | chunks, text, sent, chunkText, acc, ... |
+| File                                    | Symbols                                                             |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| `src/lib/cockpit-store.test.ts`         | length                                                              |
+| `src/lib/cockpit-store.ts`              | store.getMessageCount, store.getThreadCount, store.getTotalTokens   |
+| `src/lib/env.server.ts`                 | warnings, key, missing, validateEnv, key                            |
+| `src/lib/rag-proxy-integration.test.ts` | sanitizeArgs, args, call, validateToolCall, validateToolName, ...   |
+| `src/lib/storage-limits.server.ts`      | LimitViolation, threads, t, message, validateMessage, ...           |
+| `src/lib/tools.ts`                      | args, parsed, executeBuiltInTool, sanitizeToolCallArgs, parsed, ... |
+| `src/lib/vector-store.ts`               | chunks, text, sent, chunkText, acc, ...                             |
 
 ## Entry Points
 

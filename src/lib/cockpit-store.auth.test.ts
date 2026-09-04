@@ -300,21 +300,21 @@ describe("account-scoped settings", () => {
     expect(store.getState().settings.profile.displayName).toBe("User B");
   });
 
-  it("guest settings stay local and do not leak to signed-in users", async () => {
-    // Set guest settings while no user is signed in.
-    store.setUser(null);
-    store.updateSettings({ profile: { displayName: "Guest User" } });
-    expect(store.getState().settings.profile.displayName).toBe("Guest User");
+  it("local profile settings stay local and do not leak to signed-in users", async () => {
+    // Set local profile settings while no user is signed in.
+    store.enterLocalMode("test-profile");
+    store.updateSettings({ profile: { displayName: "Local User" } });
+    expect(store.getState().settings.profile.displayName).toBe("Local User");
 
-    // Sign in as User A: User A should not inherit the guest display name.
+    // Sign in as User A: User A should not inherit the local display name.
     store.setUser(mockUserA);
-    expect(store.getState().settings.profile.displayName).not.toBe("Guest User");
+    expect(store.getState().settings.profile.displayName).not.toBe("Local User");
     expect(store.getState().user?.id).toBe("user-a");
 
-    // Change User A's settings and log out: the guest bucket should remain untouched.
+    // Change User A's settings and log out: the local profile bucket should remain untouched.
     store.updateSettings({ profile: { displayName: "User A" } });
     await store.logout();
-    expect(store.getState().settings.profile.displayName).toBe("Guest User");
+    expect(store.getState().settings.profile.displayName).toBe("Local User");
   });
 
   it("updateSettings POSTs to /api/settings only when authenticated", async () => {
@@ -449,13 +449,13 @@ describe("account-scoped local chats", () => {
     expect(store.getState().threads[0].messages[0].content).toBe("Hello from B");
   });
 
-  it("guest local chats do not leak into signed-in users", async () => {
-    store.setUser(null);
-    const guestThread = store.newThread();
-    store.addMessage(guestThread, {
-      id: "msg-guest",
+  it("local profile chats do not leak into signed-in users", async () => {
+    store.enterLocalMode("test-profile");
+    const localThread = store.newThread();
+    store.addMessage(localThread, {
+      id: "msg-local",
       role: "user",
-      content: "Guest chat",
+      content: "Local chat",
       ts: Date.now(),
     });
 
@@ -473,7 +473,7 @@ describe("account-scoped local chats", () => {
 
     await store.logout();
     expect(store.getState().threads).toHaveLength(1);
-    expect(store.getState().threads[0].messages[0].content).toBe("Guest chat");
+    expect(store.getState().threads[0].messages[0].content).toBe("Local chat");
   });
 
   it("login loads the correct account chat bucket", async () => {
@@ -563,8 +563,8 @@ describe("account-scoped provider stats", () => {
     expect(getProviderStats().anthropic).toBeUndefined();
   });
 
-  it("guest provider stats do not leak into signed-in users", () => {
-    store.setUser(null);
+  it("local profile provider stats do not leak into signed-in users", () => {
+    store.enterLocalMode("test-profile");
     bumpProviderStat("openai", "call");
     expect(getProviderStats().openai).toEqual({ calls: 1, errors: 0 });
 

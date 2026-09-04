@@ -38,7 +38,7 @@ All items below were once future work and are now implemented. They are preserve
 | Error and offline state handling (offline queue, reconnect sync, storage failure)    | ✅ Implemented | `src/hooks/use-chat.ts`, `src/components/cockpit/StatusBar.tsx`                                                                        |
 | First launch / onboarding (modal, skip/complete, persistence)                        | ✅ Implemented | `src/components/cockpit/OnboardingModal.tsx`, `src/lib/cockpit-store.ts`                                                               |
 | Provider / model setup feedback (status indicators, validation, toast notifications) | ✅ Implemented | `src/lib/cockpit-store.ts` (`providerValidationStatus`), `src/components/cockpit/settings/ProviderCard.tsx`, `src/routes/settings.tsx` |
-| Browser-based automated E2E smoke harness                                            | ✅ Implemented | `playwright.config.ts`, `e2e/smoke.spec.ts`; run `bun run test:e2e:install` then `bun run test:e2e`                                       |
+| Browser-based automated E2E smoke harness                                            | ✅ Implemented | `playwright.config.ts`, `e2e/smoke.spec.ts`; run `bun run test:e2e:install` then `bun run test:e2e`                                    |
 
 ---
 
@@ -92,11 +92,13 @@ These capabilities are implemented locally; the remaining work is external crede
 ### V1 release step 1: macOS native packaging (Electron)
 
 **Local path (verified):**
+
 - `bun run native:desktop:package:unsigned` produces `electron/release/mac-arm64/Edgecase Cockpit.app`.
 - `electron-builder.yml` is configured for signed releases.
 - `docs/native-release.md` lists the exact local and CI commands.
 
 **External remaining action:**
+
 - Add Apple Developer ID Application `.p12` + password and notarization credentials to CI, then run `bun run native:desktop:package:signed`.
 
 ---
@@ -104,11 +106,13 @@ These capabilities are implemented locally; the remaining work is external crede
 ### V1 release step 2: iOS native packaging (Capacitor)
 
 **Local path (verified):**
+
 - `bun run native:ios:sync && bun run native:ios:build` succeeds with `CODE_SIGNING_ALLOWED=NO`.
 - `bun run native:ios:archive` creates an archive ready for distribution.
 - `docs/native-release.md` lists the exact provisioning and submission steps.
 
 **External remaining action:**
+
 - Create a distribution provisioning profile in Apple Developer Portal and submit the archived `.ipa` via Xcode Organizer or App Store Connect.
 
 ---
@@ -116,11 +120,13 @@ These capabilities are implemented locally; the remaining work is external crede
 ### V1 release step 3: Android native packaging (Capacitor)
 
 **Local path (verified):**
+
 - `bun run native:android:sync && cd android && ./gradlew assembleDebug` produces a debug APK.
 - `bun run native:android:assembleRelease` is wired (requires keystore to sign).
 - `docs/native-release.md` documents keystore configuration and Play Console submission.
 
 **External remaining action:**
+
 - Create a release keystore and upload the signed `.aab` to Google Play Console.
 
 ---
@@ -208,6 +214,7 @@ No additional framework decision is required. Do not add Tauri or another framew
 - Google Sign-In, Apple Sign-In, and any other OAuth are **not implemented**.
 
 **Implementation path:**
+
 - Add an `/auth` TanStack route with register/login forms and an account menu.
 - Gate provider key save and server sync behind authenticated state.
 - For OAuth, add PKCE/OAuth 2.0 routes (`/api/auth/google`, `/api/auth/google/callback`, etc.), an `oauth_accounts` table linked to `users.id`, and Cloudflare secrets for client credentials.
@@ -217,12 +224,12 @@ No additional framework decision is required. Do not add Tauri or another framew
 
 ## Accepted stale limitations (no action planned)
 
-| Limitation                                                                               | Reason not actioned                                                                                                                                                            |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tool name safety: unsafe provider names silently dropped (no user notification)          | Silent dropping is intentional to prevent injection. Surfacing as a notification would require UX work; not prioritized.                                                       |
-| Provider capability flags are declarations, not end-to-end verified for all combinations | Live verification requires real credentials per provider. Covered for OpenAI/Anthropic/Gemini via opt-in live tests. Other providers verified manually at integration time.    |
-| Streaming is disabled when tools are active for providers without `streamingTools: true` | Architectural: non-streaming is required to parse complete tool call JSON. Providers must declare streaming tool support explicitly.                                           |
-| Native mobile E2E coverage                                                               | Not included in V1 scope; browser E2E covers auth/settings/provider-key/threads/route smoke. Mobile E2E would require device labs/simulator orchestration.                                              |
+| Limitation                                                                               | Reason not actioned                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tool name safety: unsafe provider names silently dropped (no user notification)          | Silent dropping is intentional to prevent injection. Surfacing as a notification would require UX work; not prioritized.                                                    |
+| Provider capability flags are declarations, not end-to-end verified for all combinations | Live verification requires real credentials per provider. Covered for OpenAI/Anthropic/Gemini via opt-in live tests. Other providers verified manually at integration time. |
+| Streaming is disabled when tools are active for providers without `streamingTools: true` | Architectural: non-streaming is required to parse complete tool call JSON. Providers must declare streaming tool support explicitly.                                        |
+| Native mobile E2E coverage                                                               | Not included in V1 scope; browser E2E covers auth/settings/provider-key/threads/route smoke. Mobile E2E would require device labs/simulator orchestration.                  |
 
 ---
 

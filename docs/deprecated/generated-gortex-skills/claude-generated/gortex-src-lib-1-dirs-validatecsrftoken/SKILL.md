@@ -10,14 +10,15 @@ description: "Work in the src/lib +1 dirs · validateCsrfToken area — 24 symbo
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/csrf.server.ts`
 - `src/routes/api/threads.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/csrf.server.ts` | a, headerToken, header, method, cookieToken, ... |
+| File                        | Symbols                                            |
+| --------------------------- | -------------------------------------------------- |
+| `src/lib/csrf.server.ts`    | a, headerToken, header, method, cookieToken, ...   |
 | `src/routes/api/threads.ts` | deleted, session, rl, parsed, handlers.DELETE, ... |
 
 ## Entry Points

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, Loader2, Check } from "lucide-react";
-import { store, useStore, resolveProvider, PROVIDERS, csrfHeaders } from "@/lib/cockpit-store";
+import { store, useStore, resolveProvider, csrfHeaders } from "@/lib/store";
 import { apiFetch } from "@/lib/api-base";
-import type { ProviderDef } from "@/lib/providers";
+import type { ProviderDef } from "@/lib/provider-api";
 import {
   DropdownMenu,
   DropdownMenuContent,

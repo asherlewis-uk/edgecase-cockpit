@@ -89,10 +89,10 @@ If you add an automated deploy job in the future, it will require these **reposi
 
 ### 7. Local Development vs. Deployment
 
-| Environment | Command           | Notes                                                                                                                |
-| ----------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Local dev   | `bun run dev`     | Uses Vite dev server, D1 simulated locally if configured                                                             |
-| Build       | `bun run build`   | Produces `dist/client/` + `dist/server/`, but **do not deploy the dist files directly**                              |
+| Environment | Command                                 | Notes                                                                                                                                                                 |
+| ----------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local dev   | `bun run dev`                           | Uses Vite dev server, D1 simulated locally if configured                                                                                                              |
+| Build       | `bun run build`                         | Produces `dist/client/` + `dist/server/`, but **do not deploy the dist files directly**                                                                               |
 | Deploy      | `bun run build && bunx wrangler deploy` | Wrangler deploys the nitro-generated `.output/server/index.mjs` and `.output/public` assets configured in `wrangler.jsonc`. This is the ONLY correct deployment path. |
 
 ### 8. Critical: Do NOT Do These

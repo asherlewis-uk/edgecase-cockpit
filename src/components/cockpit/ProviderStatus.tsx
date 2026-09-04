@@ -12,7 +12,7 @@ import {
   resolveProvider,
   isProviderReady,
   getProviderValidationStatus,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 
 type Props = {
   variant?: "pill" | "bar";

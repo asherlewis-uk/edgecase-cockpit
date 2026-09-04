@@ -10,14 +10,15 @@ description: "Work in the db +1 dirs · upsertProviderStat area — 20 symbols a
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/db/index.ts`
 - `src/routes/api/stats.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/db/index.ts` | db, record, db, upsertProviderStat, kind, ... |
+| File                      | Symbols                                            |
+| ------------------------- | -------------------------------------------------- |
+| `src/lib/db/index.ts`     | db, record, db, upsertProviderStat, kind, ...      |
 | `src/routes/api/stats.ts` | csrfCheck, session, parsed, handlers.POST, rl, ... |
 
 ## Entry Points

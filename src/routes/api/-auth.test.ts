@@ -154,6 +154,7 @@ describe("POST /api/auth/register", () => {
           email: "new@example.com",
           password: "password123",
           displayName: "New User",
+          claimGuestData: true,
         }),
       }),
     });
@@ -197,7 +198,68 @@ describe("POST /api/auth/register", () => {
     expect(claimGuestSession).not.toHaveBeenCalled();
   });
 
-  it("defaults claimGuestData to true (backward compatible)", async () => {
+  it("register does not claim guest data when the client is silent", async () => {
+    const mockUser = {
+      id: "user-1",
+      email: "a@b.co",
+      display_name: null,
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(hashPassword).mockResolvedValue("hashed-password");
+    vi.mocked(createUser).mockResolvedValue({ user: mockUser });
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/register");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "a@b.co",
+          password: "password123",
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).not.toHaveBeenCalled();
+  });
+
+  it("register claims guest data only on an explicit opt-in", async () => {
+    const mockUser = {
+      id: "user-1",
+      email: "a@b.co",
+      display_name: null,
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(hashPassword).mockResolvedValue("hashed-password");
+    vi.mocked(createUser).mockResolvedValue({ user: mockUser });
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/register");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "a@b.co",
+          password: "password123",
+          claimGuestData: true,
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).toHaveBeenCalledWith("guest-session", "user-1");
+  });
+
+  it("defaults claimGuestData to false (no silent merge)", async () => {
     const mockUser = {
       id: "user-1",
       email: "default@example.com",
@@ -224,7 +286,7 @@ describe("POST /api/auth/register", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(claimGuestSession).toHaveBeenCalledWith("guest-session", "user-1");
+    expect(claimGuestSession).not.toHaveBeenCalled();
   });
 
   it("rejects duplicate email with 409", async () => {
@@ -346,6 +408,7 @@ describe("POST /api/auth/login", () => {
         body: JSON.stringify({
           email: "login@example.com",
           password: "correct-password",
+          claimGuestData: true,
         }),
       }),
     });
@@ -381,6 +444,37 @@ describe("POST /api/auth/login", () => {
           email: "login@example.com",
           password: "correct-password",
           claimGuestData: false,
+        }),
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(claimGuestSession).not.toHaveBeenCalled();
+  });
+
+  it("login does not claim guest data when the client is silent", async () => {
+    const fullUser = {
+      id: "user-1",
+      email: "a@b.co",
+      password_hash: "hashed",
+      display_name: null,
+      created_at: 123,
+      updated_at: 123,
+    };
+    vi.mocked(getUserByEmail).mockResolvedValue(fullUser as any);
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+    vi.mocked(getGuestSessionId).mockResolvedValue("guest-session");
+
+    const mod = await import("@/routes/api/auth/login");
+    const handler = (mod.Route.options as any).server.handlers.POST;
+
+    const res = await handler({
+      request: new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: CSRF_HEADERS,
+        body: JSON.stringify({
+          email: "a@b.co",
+          password: "password123",
         }),
       }),
     });

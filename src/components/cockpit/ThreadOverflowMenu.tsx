@@ -15,7 +15,7 @@ import {
   FileType,
   Settings as SettingsIcon,
 } from "lucide-react";
-import { store, useStore } from "@/lib/cockpit-store";
+import { store, useStore } from "@/lib/store";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -8,8 +8,19 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "electron/**/*.test.ts", "migrations/**/*.test.ts"],
     css: false,
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/routeTree.gen.ts", "src/**/*.d.ts"],
+      thresholds: {
+        statements: 45,
+        branches: 42,
+        functions: 38,
+        lines: 46,
+      },
+    },
   },
   resolve: {
     alias: {

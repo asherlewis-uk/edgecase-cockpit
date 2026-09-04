@@ -1,5 +1,10 @@
 # Native Release Guide
 
+> This page is the **procedure** for each native target. The **status** of those
+> same targets — what is verified, what is merely configured — lives in
+> [deployment.md §17](deployment.md#17-native-release-status-non-v1-hardening).
+> The two overlap; they have not been deduplicated yet.
+
 This document lists the exact local and release steps for each native target. The code/config paths are complete; the only remaining external actions are inserting credentials or submitting to the stores.
 
 ## macOS (Electron)
@@ -20,13 +25,13 @@ bun run native:desktop:package:signed
 
 Required GitHub Actions / CI secrets:
 
-| Secret | Source |
-|---|---|
-| `CSC_LINK` | Base64-encoded Apple Developer ID Application `.p12` |
-| `CSC_KEY_PASSWORD` | Password for the `.p12` |
-| `APPLE_ID` | Apple ID for notarization |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization |
-| `APPLE_TEAM_ID` | Apple Developer Team ID (10 characters) |
+| Secret                        | Source                                               |
+| ----------------------------- | ---------------------------------------------------- |
+| `CSC_LINK`                    | Base64-encoded Apple Developer ID Application `.p12` |
+| `CSC_KEY_PASSWORD`            | Password for the `.p12`                              |
+| `APPLE_ID`                    | Apple ID for notarization                            |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization               |
+| `APPLE_TEAM_ID`               | Apple Developer Team ID (10 characters)              |
 
 After signed build, verify with:
 
@@ -58,6 +63,7 @@ bun run native:ios:build
 4. Upload to App Store Connect via Xcode Organizer or `xcodebuild -exportArchive`.
 
 Required external artifacts:
+
 - Apple Developer account
 - App ID / bundle ID `uk.asherlewis.edgecase.cockpit`
 - Distribution provisioning profile
@@ -83,6 +89,7 @@ bun run native:android:assembleRelease
 ```
 
 Required external artifact:
+
 - Android signing keystore (`.jks` or `.keystore`)
 - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
 - Play Store developer account

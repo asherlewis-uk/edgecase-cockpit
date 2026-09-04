@@ -10,17 +10,18 @@ description: "Work in the routes/api +1 dirs · handlers.POST area — 29 symbol
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/db/index.ts`
 - `src/routes/api/threads.import.ts`
 - `src/routes/api/threads.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/db/index.ts` | row, getThreadCount, db, sessionId |
-| `src/routes/api/threads.import.ts` | now, t, csrfCheck, handlers.POST, session, ... |
-| `src/routes/api/threads.ts` | rl, thread, messageViolation, csrfCheck, session, ... |
+| File                               | Symbols                                               |
+| ---------------------------------- | ----------------------------------------------------- |
+| `src/lib/db/index.ts`              | row, getThreadCount, db, sessionId                    |
+| `src/routes/api/threads.import.ts` | now, t, csrfCheck, handlers.POST, session, ...        |
+| `src/routes/api/threads.ts`        | rl, thread, messageViolation, csrfCheck, session, ... |
 
 ## Entry Points
 

@@ -10,6 +10,7 @@ description: "Work in the src/lib +5 dirs area — 83 symbols across 7 files (87
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/components/cockpit/settings/ProviderCard.tsx`
 - `src/lib/cockpit-store.ts`
 - `src/lib/vector-store.ts`
@@ -20,15 +21,15 @@ Use this skill when working on files in:
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/components/cockpit/settings/ProviderCard.tsx` | saving, saveKey, clearKey, setSaving, keyDraft, ... |
-| `src/lib/cockpit-store.ts` | map, entries, LegacyProviderKey, v, id, ... |
-| `src/lib/vector-store.ts` | loadVectorDocsFromServer, doc, syncVectorDocToServer, json, res |
-| `src/live/providers.live.test.ts` | data, fetchFromProvider, body, headers, url, ... |
-| `src/routes/api/proxy/detect.ts` | session, res, ctrl, handlers.POST, msg, ... |
-| `src/routes/settings.tsx` | saveKey, pinned, cfg, clearKey, ready, ... |
-| `src/server.ts` | getServerEntry, normalizeCatastrophicSsrResponse, response, payload, isCatastrophicSsrErrorBody, ... |
+| File                                               | Symbols                                                                                              |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/components/cockpit/settings/ProviderCard.tsx` | saving, saveKey, clearKey, setSaving, keyDraft, ...                                                  |
+| `src/lib/cockpit-store.ts`                         | map, entries, LegacyProviderKey, v, id, ...                                                          |
+| `src/lib/vector-store.ts`                          | loadVectorDocsFromServer, doc, syncVectorDocToServer, json, res                                      |
+| `src/live/providers.live.test.ts`                  | data, fetchFromProvider, body, headers, url, ...                                                     |
+| `src/routes/api/proxy/detect.ts`                   | session, res, ctrl, handlers.POST, msg, ...                                                          |
+| `src/routes/settings.tsx`                          | saveKey, pinned, cfg, clearKey, ready, ...                                                           |
+| `src/server.ts`                                    | getServerEntry, normalizeCatastrophicSsrResponse, response, payload, isCatastrophicSsrErrorBody, ... |
 
 ## Entry Points
 

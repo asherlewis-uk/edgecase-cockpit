@@ -24,8 +24,9 @@ import {
   enterServerMode,
   copyLocalToServer,
   moveLocalToServer,
+  pushAccountSettingsToServer,
   type UserPublic,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 import {
   DataMigrationDialog,
   type MigrationChoice,
@@ -66,9 +67,12 @@ function AuthPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"signin" | "register">(mode);
   const [globalError, setGlobalError] = useState<string | null>(null);
-  // When set, a local-only user is registering and must choose a migration
-  // behavior before the register request is sent.
-  const [pendingRegistration, setPendingRegistration] = useState<RegisterForm | null>(null);
+  // When set, a local-only user is authenticating and must choose a migration
+  // behaviour before the request is sent. Holds which flow triggered it so the
+  // dialog drives register and sign-in identically.
+  const [pendingAuth, setPendingAuth] = useState<
+    { kind: "register"; values: RegisterForm } | { kind: "signin"; values: LoginForm } | null
+  >(null);
   const [migrationSubmitting, setMigrationSubmitting] = useState(false);
 
   useEffect(() => {
@@ -87,7 +91,13 @@ function AuthPage() {
 
   const handleLogin = async (values: LoginForm) => {
     setGlobalError(null);
-    const result = await login(values.email, values.password);
+    if (store.getState().accountMode === "local-only") {
+      // Local → server sign-in: require an explicit migration choice BEFORE the
+      // request so claimGuestData matches intent and no local data is eaten.
+      setPendingAuth({ kind: "signin", values });
+      return;
+    }
+    const result = await login(values.email, values.password, { claimGuestData: false });
     if (result.ok) {
       toast.success("Signed in successfully");
       navigate({ to: redirect });
@@ -103,10 +113,12 @@ function AuthPage() {
       // Local → server registration: intercept and require an explicit
       // migration choice BEFORE the register request is sent so claimGuestData
       // matches the choice and no local data silently leaks into the new account.
-      setPendingRegistration(values);
+      setPendingAuth({ kind: "register", values });
       return;
     }
-    const result = await register(values.email, values.password, values.displayName);
+    const result = await register(values.email, values.password, values.displayName, {
+      claimGuestData: false,
+    });
     if (result.ok) {
       toast.success("Account created");
       navigate({ to: redirect });
@@ -115,39 +127,73 @@ function AuthPage() {
     setGlobalError(result.error);
   };
 
-  const performMigrationRegister = async (values: RegisterForm, choice: MigrationChoice) => {
+  const performMigrationAuth = async (
+    pending: NonNullable<typeof pendingAuth>,
+    choice: MigrationChoice,
+  ) => {
     setGlobalError(null);
     setMigrationSubmitting(true);
-    // claimGuestData is true only for Move (server claims server-side guest
-    // data). Copy and Keep-Separate send false so server-side guest data is not
-    // moved/deleted by the server.
+    // claimGuestData is true only for Move — the one choice where the user asked
+    // for their data to be relocated into the account. Copy and Keep Separate
+    // leave server-side guest rows where they are.
     const claimGuestData = choice === "move";
-    const result = await register(values.email, values.password, values.displayName, {
+    const opts = {
       claimGuestData,
-      // Do not auto-enter server mode; we perform the client-side migration
-      // first, then enter server mode against the correctly-populated bucket.
+      // Do not auto-enter server mode; run the client-side migration first, then
+      // enter server mode against the correctly-populated bucket.
       onBeforeEnterServer: () => false,
-    });
+    };
+
+    const result =
+      pending.kind === "register"
+        ? await register(
+            pending.values.email,
+            pending.values.password,
+            pending.values.displayName,
+            opts,
+          )
+        : await login(pending.values.email, pending.values.password, opts);
+
     if (!result.ok) {
       setMigrationSubmitting(false);
       setGlobalError(result.error);
-      setPendingRegistration(null);
+      setPendingAuth(null);
       return;
     }
+
     const user = result.user as UserPublic;
     const localProfileId = store.getState().localProfileId;
+    // True exactly when local data was written into the account bucket. Derived
+    // once so the settings-load suppression below and the push below it cannot
+    // drift apart: both are conditioned on the same fact.
+    const migratedLocalData = choice !== "keep-separate" && localProfileId !== null;
     if (localProfileId) {
       if (choice === "copy") {
         copyLocalToServer(user.id, localProfileId);
       } else if (choice === "move") {
         moveLocalToServer(user.id, localProfileId);
       }
-      // keep-separate: leave local data untouched; server account starts clean.
+      // keep-separate: local data untouched; the account bucket starts clean.
     }
-    enterServerMode(user);
+    // On a migration entry the account bucket we just wrote is authoritative by
+    // construction — the user chose to put it there. Suppress the initial
+    // settings GET for this entry rather than racing it: this is a sign-in path
+    // too, so the account may already hold a real settings row, and that row
+    // would otherwise land on top of the migrated bucket and be persisted into
+    // it (with the local bucket already deleted, on Move). keep-separate passes
+    // no option and loads from the server normally.
+    enterServerMode(user, migratedLocalData ? { skipSettingsLoad: true } : undefined);
+    // Fire the push AFTER entering server mode: switchAccountBucket bumps
+    // switchGeneration, and syncSettingsToServer skips pushes issued under an
+    // old generation — a pre-entry push would be silently dropped. It stays
+    // fire-and-forget so no network round trip is serialized onto sign-in;
+    // local remains the source of truth if it fails.
+    if (migratedLocalData) {
+      void pushAccountSettingsToServer(user.id);
+    }
     setMigrationSubmitting(false);
-    setPendingRegistration(null);
-    toast.success("Account created");
+    setPendingAuth(null);
+    toast.success(pending.kind === "register" ? "Account created" : "Signed in successfully");
     navigate({ to: redirect });
   };
 
@@ -314,15 +360,15 @@ function AuthPage() {
         </p>
       </div>
 
-      {pendingRegistration && (
+      {pendingAuth && (
         <DataMigrationDialog
           submitting={migrationSubmitting}
           onCancel={() => {
             setGlobalError(null);
-            setPendingRegistration(null);
+            setPendingAuth(null);
           }}
           onChoose={(choice) => {
-            void performMigrationRegister(pendingRegistration, choice);
+            void performMigrationAuth(pendingAuth, choice);
           }}
         />
       )}

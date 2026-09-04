@@ -19,18 +19,17 @@ import {
 import {
   useStore,
   store,
-  refreshProviderKeyStatus,
   isProviderReady,
   csrfHeaders,
   getProviderValidationStatus,
   setProviderValidationStatus,
-} from "@/lib/cockpit-store";
+} from "@/lib/store";
 import {
   type ProviderDef,
   type Capability,
   type DetectResult,
   type LocalCapabilityState,
-} from "@/lib/providers";
+} from "@/lib/provider-api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -246,7 +245,7 @@ export function ProviderCard({
         throw new Error(json.error ?? "Failed to save key");
       }
       setKeyDraft("");
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
     } finally {
       setSaving(false);
     }
@@ -260,7 +259,7 @@ export function ProviderCard({
         headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({ providerId: p.id }),
       });
-      await refreshProviderKeyStatus();
+      await store.refreshProviderKeyStatus();
       clearValidationStatus();
     } finally {
       setSaving(false);
@@ -327,6 +326,8 @@ export function ProviderCard({
 
   return (
     <div
+      data-testid="provider-card"
+      data-provider-id={p.id}
       className={`flex flex-col gap-3 rounded-2xl border p-4 transition ${
         isActive ? "border-white/30 bg-white/[0.06]" : "border-white/10 bg-white/[0.02]"
       }`}

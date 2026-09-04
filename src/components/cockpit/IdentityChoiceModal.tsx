@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Server, LogIn, HardDrive } from "lucide-react";
 import { Sparkle } from "@/components/cockpit/Sparkle";
-import { ensureLocalProfileId, enterLocalMode, type AccountMode } from "@/lib/cockpit-store";
+import { ensureLocalProfileId, enterLocalMode, type AccountMode } from "@/lib/store";
 
 type Props = {
   /** Current account mode; the modal only renders when this is "undetermined". */

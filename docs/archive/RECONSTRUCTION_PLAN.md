@@ -1,6 +1,8 @@
 # Edgecase Account Separation — Reconstruction Plan
 
-This plan follows `ACCOUNT_SEPARATION_PLAN.md` and is corrected by `SURFACE_AUDIT.md`. It contains concrete file paths, exact function signatures, and a phased implementation order. No implementation code is written here; this is the authoritative reconstruction brief.
+> **Archived.** Superseded by `docs/superpowers/plans/2026-09-02-v1-isolation-and-contract.md`. Kept for the reasoning, not as current instruction.
+
+This plan follows `docs/archive/ACCOUNT_SEPARATION_PLAN.md` and is corrected by `docs/archive/SURFACE_AUDIT.md`. It contains concrete file paths, exact function signatures, and a phased implementation order. No implementation code is written here; this is the authoritative reconstruction brief.
 
 ## Verified Context from Audit
 
@@ -36,14 +38,17 @@ Guest bucket keys (`:guest`) are migrated to local profile keys (`:<localProfile
 ### Server `claimGuestData` Parameter
 
 Add `claimGuestData?: boolean` (default `true`) to both:
+
 - `src/routes/api/auth/register.ts`
 - `src/routes/api/auth/login.ts`
 
 Semantics:
+
 - `true` (default): server runs `claimGuestSession(guestId, userId)` as today.
 - `false`: server does NOT run `claimGuestSession`.
 
 For local-to-server transitions:
+
 - **Copy** → send `claimGuestData: false`. Client copies local data into user bucket.
 - **Move** → send `claimGuestData: true`. Server claims any server-side guest data; client also moves local data.
 - **Keep Separate** → send `claimGuestData: false`. Client does not touch local data; server account starts empty.
@@ -322,13 +327,16 @@ Also add `clearOfflineQueue()` calls inside `setUser()` and `clearUser()` for sa
 Refactor `setUser(user)` to delegate to `enterServerMode(user)` when `user` is non-null.
 
 Refactor `clearUser()` to:
+
 - if `state.localProfileId` exists, call `enterLocalMode(state.localProfileId)`;
 - else generate a new `localProfileId`, migrate guest bucket if needed, and call `enterLocalMode(localProfileId)`.
 
 Refactor `logout()`:
+
 - after the `/api/auth/logout` call, do the same fallback logic as `clearUser()`.
 
 Refactor `fetchMe()`:
+
 - on 401 / no user / network error, do not load guest bucket. Instead, fall back to local profile via `enterLocalMode()` if `state.localProfileId` exists, otherwise remain in `undetermined`.
 
 ### 0.9 `authRequest()` supports `claimGuestData`
@@ -342,7 +350,7 @@ async function authRequest(
 ): Promise<{ ok: true; user: UserPublic } | { ok: false; error: string }>;
 ```
 
- stays, but callers pass `claimGuestData: boolean` in `body`.
+stays, but callers pass `claimGuestData: boolean` in `body`.
 
 After successful response, do NOT immediately switch buckets. Instead return the user and let the caller decide whether to show `DataMigrationDialog`.
 
@@ -375,6 +383,7 @@ If `opts?.onMigrate` is provided, do not call `enterServerMode` automatically. I
 But `login()` should not normally show a migration dialog; login is for existing accounts. Only register from local mode triggers the dialog.
 
 Decision:
+
 - `register()` gains `opts?: { onBeforeEnterServer?: (user: UserPublic) => boolean }`.
   - If `onBeforeEnterServer` returns `true`, proceed to `enterServerMode(user)`.
   - If it returns `false`, stop and return the user without switching state.
@@ -574,16 +583,18 @@ Add local state `const [pendingMigrationUser, setPendingMigrationUser] = useStat
 Render:
 
 ```tsx
-{pendingMigrationUser && (
-  <DataMigrationDialog
-    user={pendingMigrationUser}
-    onDone={() => {
-      setPendingMigrationUser(null);
-      toast.success("Account created");
-      navigate({ to: redirect });
-    }}
-  />
-)}
+{
+  pendingMigrationUser && (
+    <DataMigrationDialog
+      user={pendingMigrationUser}
+      onDone={() => {
+        setPendingMigrationUser(null);
+        toast.success("Account created");
+        navigate({ to: redirect });
+      }}
+    />
+  );
+}
 ```
 
 ## Phase 4: Account Menu & Switching
@@ -670,7 +681,7 @@ Actually `navigate` is a hook; the component should call `useNavigate()`. The st
 
 ## Phase 6: E2E Acceptance Revalidation
 
-Re-run the 17-step flow from `ACCOUNT_SEPARATION_PLAN.md` against the real browser after all phases. Key checkpoints:
+Re-run the 17-step flow from `docs/archive/ACCOUNT_SEPARATION_PLAN.md` against the real browser after all phases. Key checkpoints:
 
 1. Fresh install → `accountMode = "undetermined"`, identity modal blocks UI.
 2. Local choice → `localProfileId` generated, onboarding shown.
@@ -727,7 +738,7 @@ Required preview proof:
 - Fresh browser profile starts in `accountMode = "undetermined"` and blocks on identity choice.
 - Local-only profile creates a stable `localProfileId` and does not load server-account buckets.
 - Register from local-only mode shows `DataMigrationDialog`.
-- Copy, move, and keep-separate behavior matches `ACCOUNT_SEPARATION_PLAN.md`.
+- Copy, move, and keep-separate behavior matches `docs/archive/ACCOUNT_SEPARATION_PLAN.md`.
 - Logout returns to the local profile.
 - Reload/hard refresh never flashes the wrong account bucket before `hydrateAsync` resolves.
 - User A and User B cannot see each other's provider configs, settings, stats, threads, vector docs, or server-owned data.
@@ -782,7 +793,7 @@ Required deployed proof:
 - Anonymous `/api/auth/me` returns the expected unauthenticated response.
 - `/auth` loads and can obtain the CSRF cookie.
 - Create-account, sign-in, session persistence, `/settings` redirect/access, logout, and post-logout `/api/auth/me` all pass on the deployed domain.
-- The 17-step account-separation flow from `ACCOUNT_SEPARATION_PLAN.md` passes against the deployed URL, including reload/hard-refresh checks.
+- The 17-step account-separation flow from `docs/archive/ACCOUNT_SEPARATION_PLAN.md` passes against the deployed URL, including reload/hard-refresh checks.
 - Runtime-audit artifacts are captured under the deployed Playwright output path and referenced in the release report.
 
 ### 7.7 Release report
@@ -801,20 +812,21 @@ The final report for the pass must include:
 
 ## Implementation Order Summary
 
-| Phase | Focus | Files Touched |
-|-------|-------|---------------|
-| 0 | Primitives: state, helpers, migration, async hydration | `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts` |
-| 1 | Server API `claimGuestData` | `src/routes/api/auth/register.ts`, `src/routes/api/auth/login.ts`, `src/routes/api/auth/logout.ts` |
-| 2 | Identity choice UI | `src/routes/index.tsx`, `src/components/cockpit/IdentityChoiceModal.tsx`, `src/components/cockpit/AccountLoadingSkeleton.tsx` |
-| 3 | Migration dialog | `src/routes/auth.tsx`, `src/components/cockpit/DataMigrationDialog.tsx` |
-| 4 | Account menu switching | `src/components/cockpit/AccountMenu.tsx` |
-| 5 | Tests | `src/lib/cockpit-store.test.ts`, `src/routes/api/-auth.test.ts`, `src/components/cockpit/IdentityChoiceModal.test.tsx`, `src/components/cockpit/DataMigrationDialog.test.tsx`, `src/components/cockpit/AccountMenu.test.tsx`, `src/components/cockpit/OnboardingModal.test.tsx` |
-| 6 | E2E validation | browser / Playwright |
-| 7 | Release / deployment gate | `wrangler.jsonc`, D1 migrations only if added, Cloudflare deployed runtime, release report |
+| Phase | Focus                                                  | Files Touched                                                                                                                                                                                                                                                                   |
+| ----- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Primitives: state, helpers, migration, async hydration | `src/lib/cockpit-store.ts`, `src/lib/vector-store.ts`                                                                                                                                                                                                                           |
+| 1     | Server API `claimGuestData`                            | `src/routes/api/auth/register.ts`, `src/routes/api/auth/login.ts`, `src/routes/api/auth/logout.ts`                                                                                                                                                                              |
+| 2     | Identity choice UI                                     | `src/routes/index.tsx`, `src/components/cockpit/IdentityChoiceModal.tsx`, `src/components/cockpit/AccountLoadingSkeleton.tsx`                                                                                                                                                   |
+| 3     | Migration dialog                                       | `src/routes/auth.tsx`, `src/components/cockpit/DataMigrationDialog.tsx`                                                                                                                                                                                                         |
+| 4     | Account menu switching                                 | `src/components/cockpit/AccountMenu.tsx`                                                                                                                                                                                                                                        |
+| 5     | Tests                                                  | `src/lib/cockpit-store.test.ts`, `src/routes/api/-auth.test.ts`, `src/components/cockpit/IdentityChoiceModal.test.tsx`, `src/components/cockpit/DataMigrationDialog.test.tsx`, `src/components/cockpit/AccountMenu.test.tsx`, `src/components/cockpit/OnboardingModal.test.tsx` |
+| 6     | E2E validation                                         | browser / Playwright                                                                                                                                                                                                                                                            |
+| 7     | Release / deployment gate                              | `wrangler.jsonc`, D1 migrations only if added, Cloudflare deployed runtime, release report                                                                                                                                                                                      |
 
 ## Open Decision: Local Profile vs Guest Session Continuity
 
 The server `guestSessionId` currently serves two purposes:
+
 1. Anonymous rate-limit identity.
 2. Server-side guest data ownership (for `claimGuestSession`).
 
@@ -835,4 +847,4 @@ Recommended: Option A. Local profile identity stays client-side. Rate-limit iden
 
 ---
 
-*This document now carries the work from implementation through deployed runtime proof. Create a separate persistence or remediation document only if a Phase dependency exposes a new risk that cannot be resolved inside this pass ladder.*
+_This document now carries the work from implementation through deployed runtime proof. Create a separate persistence or remediation document only if a Phase dependency exposes a new risk that cannot be resolved inside this pass ladder._

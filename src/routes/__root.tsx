@@ -9,7 +9,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { hydrateAsync, store, type AccountMode } from "@/lib/cockpit-store";
+import { hydrateAsync, store, type AccountMode } from "@/lib/store";
 import { AccountLoadingSkeleton } from "@/components/cockpit/AccountLoadingSkeleton";
 import { IdentityChoiceModal } from "@/components/cockpit/IdentityChoiceModal";
 

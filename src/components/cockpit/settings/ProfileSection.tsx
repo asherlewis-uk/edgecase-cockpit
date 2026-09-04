@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Upload, RotateCcw } from "lucide-react";
-import { useStore, store, deriveInitials } from "@/lib/cockpit-store";
+import { useStore, store, deriveInitials } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/cockpit/settings/SharedFields";
 import { Section } from "@/components/cockpit/settings/SharedFields";

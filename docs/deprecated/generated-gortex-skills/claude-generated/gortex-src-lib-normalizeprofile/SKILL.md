@@ -10,12 +10,13 @@ description: "Work in the src/lib · normalizeProfile area — 54 symbols across
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/cockpit-store.ts`
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
+| File                       | Symbols                                          |
+| -------------------------- | ------------------------------------------------ |
 | `src/lib/cockpit-store.ts` | UserProfile, model, displayName, allowed, T, ... |
 
 ## How to Explore

@@ -10,6 +10,7 @@ description: "Work in the api/keys +3 dirs area — 112 symbols across 10 files 
 ## When to Use
 
 Use this skill when working on files in:
+
 - `src/lib/session.server.ts`
 - `src/routes/api/keys/clear.ts`
 - `src/routes/api/keys/set.ts`
@@ -23,18 +24,18 @@ Use this skill when working on files in:
 
 ## Key Files
 
-| File | Symbols |
-|------|---------|
-| `src/lib/session.server.ts` | getCockpitSession, s, getProviderCreds, setProviderCreds, s, ... |
-| `src/routes/api/keys/clear.ts` | session, csrfCheck, body, handlers.POST, providerId, ... |
-| `src/routes/api/keys/set.ts` | raw, parsed, sessionId, csrfCheck, rl, ... |
-| `src/routes/api/keys/status.ts` | cfg, id, handlers.GET, s, providers |
-| `src/routes/api/keys/validate.$providerId.ts` | session, providerId, rl, body, provider, ... |
-| `src/routes/api/proxy/detect.ts` | rl, ok, handlers.POST, url, t, ... |
-| `src/routes/api/proxy/embeddings.ts` | embeddings, upstreamBody, session, body, timer, ... |
-| `src/routes/api/proxy/transcribe.ts` | txt, csrfCheck, sessionId, ctrl, headers, ... |
-| `src/routes/api/stats.ts` | rl, session, session, handlers.DELETE, handlers.GET, ... |
-| `src/routes/api/threads.ts` | session, threads, handlers.GET |
+| File                                          | Symbols                                                          |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| `src/lib/session.server.ts`                   | getCockpitSession, s, getProviderCreds, setProviderCreds, s, ... |
+| `src/routes/api/keys/clear.ts`                | session, csrfCheck, body, handlers.POST, providerId, ...         |
+| `src/routes/api/keys/set.ts`                  | raw, parsed, sessionId, csrfCheck, rl, ...                       |
+| `src/routes/api/keys/status.ts`               | cfg, id, handlers.GET, s, providers                              |
+| `src/routes/api/keys/validate.$providerId.ts` | session, providerId, rl, body, provider, ...                     |
+| `src/routes/api/proxy/detect.ts`              | rl, ok, handlers.POST, url, t, ...                               |
+| `src/routes/api/proxy/embeddings.ts`          | embeddings, upstreamBody, session, body, timer, ...              |
+| `src/routes/api/proxy/transcribe.ts`          | txt, csrfCheck, sessionId, ctrl, headers, ...                    |
+| `src/routes/api/stats.ts`                     | rl, session, session, handlers.DELETE, handlers.GET, ...         |
+| `src/routes/api/threads.ts`                   | session, threads, handlers.GET                                   |
 
 ## Entry Points
 

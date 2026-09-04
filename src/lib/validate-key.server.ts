@@ -1,4 +1,5 @@
 import type { ProviderDef } from "./providers";
+import { urlAllowedForProvider } from "./proxy-guard.server";
 
 export type ValidateResult = {
   valid: boolean;
@@ -21,6 +22,12 @@ export async function validateProviderKey(
   }
 
   const url = buildValidationUrl(provider, baseUrl);
+  // This is a server-side fetch to a caller-supplied base URL. It gets the same
+  // allowlist the /api/proxy/* routes use.
+  if (!urlAllowedForProvider(provider.id, url)) {
+    return { valid: false, error: "host_not_allowed" };
+  }
+
   const headers = buildAuthHeaders(provider, apiKey);
 
   const controller = new AbortController();

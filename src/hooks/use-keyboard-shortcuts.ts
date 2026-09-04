@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { KeyboardShortcuts } from "@/lib/cockpit-store";
+import type { KeyboardShortcuts } from "@/lib/store";
 
 export type ShortcutCallbacks = {
   onNewThread?: () => void;

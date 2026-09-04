@@ -113,6 +113,11 @@ function createWindow(): void {
       contextIsolation: true,
       // nodeIntegration must stay false — renderer talks to the CF Worker, not Node.
       nodeIntegration: false,
+      // Both of the following are the Electron default. Stated explicitly so a
+      // future edit that flips one is visible in review rather than implied by
+      // an omission.
+      sandbox: true,
+      webSecurity: true,
       // Partition keeps session cookies persistent between launches.
       partition: "persist:cockpit",
     },
@@ -163,6 +168,40 @@ function createWindow(): void {
     callback({ responseHeaders, cancel: false });
   });
 
+  // Content-Security-Policy for renderer documents. The renderer only ever
+  // talks to the deployed Worker and to local provider ports, so connect-src is
+  // the one directive that must stay permissive about http://localhost.
+  // Production-only: in dev the Vite server needs 'unsafe-eval' for HMR, and
+  // weakening the production policy to match dev would defeat the purpose.
+  if (!DEV) {
+    win.webContents.session.webRequest.onHeadersReceived(
+      { urls: ["app://*/*", "file://*/*"] },
+      (details, callback) => {
+        const responseHeaders = { ...details.responseHeaders };
+        responseHeaders["Content-Security-Policy"] = [
+          [
+            "default-src 'self' app:",
+            // The native shell (scripts/native-shell.mjs) injects a small
+            // window.$_TSR bootstrap as an inline <script> in the built
+            // index.html; without 'unsafe-inline' the CSP would block the
+            // app's own bundle. This is the one inline-script allowance.
+            "script-src 'self' app: 'unsafe-inline'",
+            // Tailwind and the app inject styles at runtime.
+            "style-src 'self' app: 'unsafe-inline'",
+            "img-src 'self' app: data: blob:",
+            "font-src 'self' app: data:",
+            `connect-src 'self' app: ${NATIVE_API_URL} http://localhost:* http://127.0.0.1:*`,
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'none'",
+          ].join("; "),
+        ];
+        callback({ responseHeaders, cancel: false });
+      },
+    );
+  }
+
   // Capture renderer console messages so packaging/runtime errors are visible.
   // Use the Event<WebContentsConsoleMessageEventParams> object (the only non-deprecated API).
   win.webContents.on("console-message", (details) => {
@@ -210,6 +249,19 @@ function createWindow(): void {
       shell.openExternal(url);
     }
     return { action: "deny" };
+  });
+
+  // Renderer-initiated navigation (window.location =, a link with no target)
+  // must not be able to leave the app origin. setWindowOpenHandler only covers
+  // new windows; this covers the current one.
+  win.webContents.on("will-navigate", (event, url) => {
+    const allowedPrefix = DEV ? DEV_URL : "app://";
+    if (!url.startsWith(allowedPrefix)) {
+      event.preventDefault();
+      if (url.startsWith("http")) {
+        shell.openExternal(url);
+      }
+    }
   });
 }
 
