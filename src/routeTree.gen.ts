@@ -24,6 +24,7 @@ import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiSessionRouteImport } from './routes/api/session'
 import { Route as ApiPricingRouteImport } from './routes/api/pricing'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiBackendHealthRouteImport } from './routes/api/backend-health'
 import { Route as ApiUsageThreadIdRouteImport } from './routes/api/usage.$threadId'
 import { Route as ApiToolsSchemasRouteImport } from './routes/api/tools/schemas'
 import { Route as ApiToolsPermissionsRouteImport } from './routes/api/tools/permissions'
@@ -122,6 +123,11 @@ const ApiPricingRoute = ApiPricingRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBackendHealthRoute = ApiBackendHealthRouteImport.update({
+  id: '/api/backend-health',
+  path: '/api/backend-health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiUsageThreadIdRoute = ApiUsageThreadIdRouteImport.update({
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/api/backend-health': typeof ApiBackendHealthRoute
   '/api/health': typeof ApiHealthRoute
   '/api/pricing': typeof ApiPricingRoute
   '/api/session': typeof ApiSessionRoute
@@ -294,6 +301,7 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/api/backend-health': typeof ApiBackendHealthRoute
   '/api/health': typeof ApiHealthRoute
   '/api/pricing': typeof ApiPricingRoute
   '/api/session': typeof ApiSessionRoute
@@ -336,6 +344,7 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/settings': typeof SettingsRoute
   '/videos': typeof VideosRoute
+  '/api/backend-health': typeof ApiBackendHealthRoute
   '/api/health': typeof ApiHealthRoute
   '/api/pricing': typeof ApiPricingRoute
   '/api/session': typeof ApiSessionRoute
@@ -379,6 +388,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/settings'
     | '/videos'
+    | '/api/backend-health'
     | '/api/health'
     | '/api/pricing'
     | '/api/session'
@@ -420,6 +430,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/settings'
     | '/videos'
+    | '/api/backend-health'
     | '/api/health'
     | '/api/pricing'
     | '/api/session'
@@ -461,6 +472,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/settings'
     | '/videos'
+    | '/api/backend-health'
     | '/api/health'
     | '/api/pricing'
     | '/api/session'
@@ -503,6 +515,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   SettingsRoute: typeof SettingsRoute
   VideosRoute: typeof VideosRoute
+  ApiBackendHealthRoute: typeof ApiBackendHealthRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPricingRoute: typeof ApiPricingRoute
   ApiSessionRoute: typeof ApiSessionRoute
@@ -636,6 +649,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/backend-health': {
+      id: '/api/backend-health'
+      path: '/api/backend-health'
+      fullPath: '/api/backend-health'
+      preLoaderRoute: typeof ApiBackendHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/usage/$threadId': {
@@ -870,6 +890,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   SettingsRoute: SettingsRoute,
   VideosRoute: VideosRoute,
+  ApiBackendHealthRoute: ApiBackendHealthRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiPricingRoute: ApiPricingRoute,
   ApiSessionRoute: ApiSessionRoute,

@@ -54,6 +54,7 @@ const RUNTIME_ENV_KEYS = [
   "RATE_LIMIT_BACKEND",
   "ALLOW_IN_MEMORY_RATE_LIMIT",
   "PROXY_ALLOW_CUSTOM_WILDCARD",
+  "BACKEND_ORIGIN",
 ] as const;
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
