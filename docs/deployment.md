@@ -43,6 +43,55 @@ Tables: `users`, `user_provider_keys`, `user_settings`, `guest_sessions`, `sessi
 4. **`warnInMemoryRateLimitInProduction()`** — emits `console.error` if in-memory is used in production without acknowledgement
 5. **`logCustomProviderPolicy()`** — logs whether custom-provider wildcard hosts are allowed or blocked
 
+### Production routing (frontend / backend split)
+
+Two hostnames, two entirely different systems. They are deliberately separate so
+the Worker and the Linux backend cannot collide on one name.
+
+| Hostname               | Serves                          | Managed by                                   |
+| ---------------------- | ------------------------------- | -------------------------------------------- |
+| `veritas.mcplinux.dev` | Frontend Worker `edgecase-cockpit` | `wrangler.jsonc` `routes` (custom domain)   |
+| `vapi.mcplinux.dev`    | Truthful Linux backend          | cloudflared tunnel `806a4250-…` (dashboard)  |
+
+Request path for a diagnostic call:
+
+```text
+client
+  -> https://veritas.mcplinux.dev/api/backend-health     (Worker)
+     -> BACKEND_ORIGIN = https://vapi.mcplinux.dev       (Worker env var)
+        -> Cloudflare tunnel 806a4250-e3dc-4e0e-9e2e-784ed92a76e4
+           -> http://172.18.0.1:8010                     (coolify bridge gateway)
+              -> systemd unit `truthful-backend` on prod-web-01
+```
+
+Healthy response merges the backend's own payload with the edge's bridge flags:
+
+```json
+{
+  "status": "healthy",
+  "service": "truthful-backend",
+  "timestamp": "…",
+  "edge_bridged": true,
+  "backend_status": 200
+}
+```
+
+Two traps this layout exists to avoid, both of which have bitten before:
+
+- **The backend binds `172.18.0.1` only** (`HOST` in the systemd drop-in), not
+  loopback and not the LAN. `127.0.0.1` inside the cloudflared container is the
+  *container's* loopback, so it can never reach the host service. The drop-in
+  also carries `After=docker.service`, because that bridge IP does not exist
+  until dockerd creates it.
+- **The tunnel's ingress is dashboard-managed.** `/home/asher/.cloudflared/linux-rdp-config.yml`
+  is not read for routing, and `cloudflared tunnel ingress validate` inspects
+  that dead file rather than the live config. Add or change public hostnames in
+  Zero Trust → Networks → Tunnels → Public Hostnames.
+
+`wrangler deploy` reconciles `routes` declaratively: **any hostname the Worker
+must serve has to be listed in `wrangler.jsonc`**, or the next deploy removes it
+along with its auto-managed DNS record.
+
 ### Environment variables
 
 | Name                          | Required                 | Purpose                                                            |

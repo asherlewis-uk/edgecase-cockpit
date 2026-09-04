@@ -10,6 +10,10 @@ proceed unless the action is a destructive force-push/history rewrite on a
 shared remote, a destructive production-database operation, deleting the only
 copy of data, or publishing to a third party as the user.
 
+**Done means done** — no feature, fix, or infra change is complete without
+documentation updates and test coverage; guard config with a test so drift fails
+CI, not a deploy.
+
 Verification is unchanged: confirm behaviour, not appearances.
 
 

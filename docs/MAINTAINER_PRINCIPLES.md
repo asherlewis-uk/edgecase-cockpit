@@ -35,6 +35,22 @@ confirmation are narrow:
 
 Everything else: proceed.
 
+## 5. Done Means Done
+
+No feature, fix, or infrastructure change is complete without corresponding
+documentation updates and test coverage. "It works in production" is not done.
+
+For an infrastructure change specifically:
+
+- The topology it creates is written down where the next person will look
+  (`docs/deployment.md`, `docs/architecture.md`), including hostnames, ports,
+  and which process owns what.
+- The configuration it depends on is guarded by a test, so drift fails CI
+  rather than a deploy.
+
+If you cannot test it directly, test the thing that would have caught the
+failure — a config assertion beats no assertion.
+
 ## What this does not change
 
 Being proactive is not being careless. Verification still matters — this repo has
