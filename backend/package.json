@@ -1,0 +1,14 @@
+{
+  "name": "edgecase-cockpit-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Truthful Linux backend service that answers at BACKEND_ORIGIN",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js"
+  }
+}
