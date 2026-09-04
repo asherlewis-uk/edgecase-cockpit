@@ -772,8 +772,13 @@ bunx wrangler deploy
 
 The public web target for this repo is:
 
+> **Errata (2026-09-04):** the public domain moved from
+> `cockpit.asherlewis.online` to `veritas.mcplinux.dev`, and the Worker's
+> `BACKEND_ORIGIN` now points at `https://vapi.mcplinux.dev`. The historical
+> reasoning below is unchanged; the runnable commands use the current domain.
+
 ```text
-https://cockpit.asherlewis.online
+https://veritas.mcplinux.dev
 ```
 
 ### 7.6 Deployed runtime proof
@@ -781,10 +786,10 @@ https://cockpit.asherlewis.online
 After deploy, prove the live runtime, not just the build artifact:
 
 ```bash
-curl -I https://cockpit.asherlewis.online/
-curl -i https://cockpit.asherlewis.online/api/auth/me
-E2E_RUNTIME=deployed E2E_BASE_URL=https://cockpit.asherlewis.online bun run test:e2e:deployed
-E2E_RUNTIME=deployed E2E_BASE_URL=https://cockpit.asherlewis.online bunx playwright test e2e/runtime-audit.spec.ts
+curl -I https://veritas.mcplinux.dev/
+curl -i https://veritas.mcplinux.dev/api/auth/me
+E2E_RUNTIME=deployed E2E_BASE_URL=https://veritas.mcplinux.dev bun run test:e2e:deployed
+E2E_RUNTIME=deployed E2E_BASE_URL=https://veritas.mcplinux.dev bunx playwright test e2e/runtime-audit.spec.ts
 ```
 
 Required deployed proof:
