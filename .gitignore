@@ -76,3 +76,6 @@ electron/release/
 # Capacitor native assets
 ios/App/App/public/
 android/app/src/main/assets/public/
+
+# Salvage snapshots (one-off working-tree dumps, not source)
+/salvage.full-working-tree.*
