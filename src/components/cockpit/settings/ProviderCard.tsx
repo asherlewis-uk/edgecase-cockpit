@@ -439,7 +439,7 @@ export function ProviderCard({
                   hasServerKey ? "•••••••• (saved server-side)" : (p.setupHint ?? "API key")
                 }
                 autoComplete="off"
-                className="h-9 flex-1 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+                className="h-9 flex-1 border-white/10 bg-white/5 text-base text-white placeholder:text-white/30"
               />
               <Button
                 size="sm"
@@ -511,7 +511,7 @@ export function ProviderCard({
               value={cfg.baseUrl ?? ""}
               onChange={(e) => store.updateProviderConfig(p.id, { baseUrl: e.target.value })}
               placeholder={p.defaultBaseUrl}
-              className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+              className="h-9 border-white/10 bg-white/5 text-base text-white placeholder:text-white/30"
             />
             {isNativeContext() && (cfg.baseUrl ?? "").match(/localhost|127\.0\.0\.1/) && (
               <span className="inline-flex items-center gap-1 text-[10px] text-amber-300">
@@ -526,7 +526,7 @@ export function ProviderCard({
           value={cfg.model ?? ""}
           onChange={(e) => store.updateProviderConfig(p.id, { model: e.target.value })}
           placeholder={`Model · default ${p.defaultModel}`}
-          className="h-9 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/30"
+          className="h-9 border-white/10 bg-white/5 text-base text-white placeholder:text-white/30"
         />
       </div>
 

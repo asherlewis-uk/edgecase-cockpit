@@ -201,3 +201,17 @@
     --cockpit-hue: 360deg;
   }
 }
+
+/* iOS auto-zooms the WKWebView when a focused control renders below 16px, and
+   in an SPA the input can unmount on navigation before the blur that would
+   undo it — stranding the whole app zoomed with no way back. The viewport meta
+   in scripts/native-shell.mjs locks scale for the native shell; this is the
+   web-side guard so a sub-16px control cannot reintroduce the trap on touch
+   devices. Pointer-coarse only, so desktop density is untouched. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1rem);
+  }
+}
