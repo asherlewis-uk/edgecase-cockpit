@@ -190,7 +190,7 @@ function SettingsPage() {
 
   return (
     <div className="min-h-[100dvh] bg-black text-white">
-      <header className="flex items-center gap-3 px-4 pt-5">
+      <header className="flex items-center gap-3 px-4 pt-[calc(1.25rem_+_env(safe-area-inset-top))]">
         <Link
           to="/"
           className="grid size-10 place-items-center rounded-full bg-white/[0.06] hover:bg-white/[0.12]"

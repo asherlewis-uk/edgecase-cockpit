@@ -405,7 +405,7 @@ export function Cockpit() {
       <CockpitErrorBoundary>
         <StatusBar isOnline={isOnline} queueSize={queueSize} ragError={ragError} />
 
-        <header className="relative z-10 flex items-center justify-between px-3 pt-3">
+        <header className="relative z-10 flex items-center justify-between px-3 pt-[calc(0.75rem_+_env(safe-area-inset-top))]">
           <button
             onClick={() => setDrawerOpen(true)}
             className="relative grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"

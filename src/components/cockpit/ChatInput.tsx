@@ -263,7 +263,7 @@ export function ChatInput({
           )}
         </div>
       </div>
-      <p className="mt-2 text-center text-[11px] text-white/35">
+      <p className="mt-2 text-center text-[11px] text-white/55">
         {assistantName} may hallucinate. Verify critical info.
       </p>
     </div>
