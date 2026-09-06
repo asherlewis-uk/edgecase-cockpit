@@ -215,3 +215,16 @@
     font-size: max(16px, 1rem);
   }
 }
+
+/* Device chrome insets.
+   iOS reports env(safe-area-inset-*) as 0 inside the Capacitor WKWebView even
+   with viewport-fit=cover — verified on an iPhone 17 Pro simulator, and setting
+   ios.contentInset="never" did not change it. Every surface therefore needs a
+   floor that clears the status bar / Dynamic Island and the home indicator.
+   Declared once here so there is a single value to change; the max() still
+   prefers env() automatically if a future Capacitor or iOS starts reporting it,
+   and on the web build env() is real so these collapse to correct values. */
+:root {
+  --app-safe-top: max(env(safe-area-inset-top), 3.25rem);
+  --app-safe-bottom: max(env(safe-area-inset-bottom), 1.25rem);
+}

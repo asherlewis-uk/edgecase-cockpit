@@ -90,7 +90,7 @@ export function ChatInput({
   reduceMotion: boolean;
 }) {
   return (
-    <div className="relative z-10 px-3 pb-6 pt-2">
+    <div className="relative z-10 px-3 pb-[calc(var(--app-safe-bottom)_+_0.5rem)] pt-2">
       <div
         className={`mx-auto flex max-w-3xl flex-col gap-2 rounded-3xl px-2 py-2 ${visualSurface.input}`}
       >

@@ -376,7 +376,9 @@ export function Cockpit() {
         <div
           className="absolute inset-x-0 top-0 h-[60vh] blur-3xl"
           style={{
-            background: `radial-gradient(ellipse 60% 40% at 50% 0%,
+            // Anchored to the middle of the safe-area inset so the halo sits on
+            // the Dynamic Island rather than bleeding off the top of the screen.
+            background: `radial-gradient(ellipse 60% 40% at 50% calc(var(--app-safe-top) / 2),
               hsl(var(--cockpit-hue) 95% 65% / ${pulse.glow}) 0%, transparent 70%)`,
             animation: reduceMotion
               ? "none"
@@ -405,10 +407,10 @@ export function Cockpit() {
       <CockpitErrorBoundary>
         <StatusBar isOnline={isOnline} queueSize={queueSize} ragError={ragError} />
 
-        <header className="relative z-10 flex items-center justify-between px-3 pt-[max(0.75rem_+_env(safe-area-inset-top),3.75rem)]">
+        <header className="relative z-10 flex items-center justify-between px-3 pt-[calc(var(--app-safe-top)_+_0.5rem)]">
           <button
             onClick={() => setDrawerOpen(true)}
-            className="relative grid size-11 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
+            className="relative grid size-11 shrink-0 place-items-center rounded-full bg-white/[0.06] backdrop-blur transition hover:bg-white/[0.12]"
             aria-label="Open menu"
           >
             <Menu className="size-5 text-white/90" strokeWidth={1.8} />
@@ -427,14 +429,14 @@ export function Cockpit() {
           <div className="flex min-w-0 items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-2 text-[15px] backdrop-blur transition hover:bg-white/[0.08]">
+                <button className="flex min-w-0 items-center gap-2 rounded-full bg-white/[0.04] px-3 py-2 text-[15px] backdrop-blur transition hover:bg-white/[0.08]">
                   <span
-                    className={`grid size-6 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${provider.accent}`}
+                    className={`grid size-6 shrink-0 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-black ${provider.accent}`}
                   >
                     {provider.badge}
                   </span>
-                  <span className="font-medium text-white">{provider.name}</span>
-                  <ChevronDown className="size-4 text-white/70" />
+                  <span className="truncate whitespace-nowrap font-medium text-white">{provider.name}</span>
+                  <ChevronDown className="size-4 shrink-0 text-white/70" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-72 border-white/10 bg-zinc-950 text-white">
@@ -477,7 +479,7 @@ export function Cockpit() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={captureScreenshot}
               className={`grid size-11 place-items-center rounded-full transition ${visualSurface.button}`}

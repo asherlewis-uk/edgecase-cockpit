@@ -61,7 +61,7 @@ export function Drawer({ open, onOpenChange, onOpenSettings }: Props) {
         side="left"
         className="w-[88vw] max-w-[420px] border-0 bg-black p-0 text-white [&>button]:hidden"
       >
-        <SheetHeader className="flex flex-row items-center justify-between px-6 pb-2 pt-6">
+        <SheetHeader className="flex flex-row items-center justify-between px-6 pb-2 pt-[calc(var(--app-safe-top)_+_0.5rem)]">
           <SheetTitle className="text-2xl font-normal tracking-tight text-white">
             {assistantName}
           </SheetTitle>
