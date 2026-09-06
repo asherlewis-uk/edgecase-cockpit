@@ -18,7 +18,7 @@ const LOCAL_PROVIDER_PORTS = [11434, 1234, 8000, 8080, 8081, 8787];
 // Matches the default in src/lib/api-base.ts; can be overridden via env.
 const NATIVE_API_URL =
   process.env.VITE_NATIVE_API_URL?.replace(/\/+$/, "") ||
-  "https://edgecase-cockpit.asher-lewis-knight.workers.dev";
+  "https://veritas.mcplinux.dev";
 
 // Privilege the custom app:// scheme so it behaves like a standard secure origin
 // (required for module scripts, fetch, and relative asset resolution).

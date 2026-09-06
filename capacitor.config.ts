@@ -10,7 +10,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * so the app can construct absolute API URLs at runtime.
  */
 const NATIVE_API_URL =
-  process.env.NATIVE_API_URL ?? "https://edgecase-cockpit.asher-lewis-knight.workers.dev";
+  process.env.NATIVE_API_URL ?? "https://veritas.mcplinux.dev";
 
 const config: CapacitorConfig = {
   appId: "uk.asherlewis.edgecase.cockpit",

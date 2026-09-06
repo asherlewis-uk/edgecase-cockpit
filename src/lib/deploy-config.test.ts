@@ -75,3 +75,58 @@ describe("wrangler.jsonc deploy configuration", () => {
     expect(routes.map((r) => r.pattern)).not.toContain(backendHost);
   });
 });
+
+/**
+ * The native shells (Capacitor iOS/Android, Electron) cannot use a relative
+ * "/api/..." path: they load from capacitor:// or file://, where same-origin
+ * resolves to the local bundle and every API call 404s. They therefore bake an
+ * absolute origin in at BUILD time via api-base.ts.
+ *
+ * That origin is a second copy of the frontend hostname, and it has already
+ * drifted once: the Worker route moved to veritas.mcplinux.dev while
+ * DEFAULT_NATIVE_API_URL still pointed at the retired
+ * edgecase-cockpit.*.workers.dev. The web app was fine — it is same-origin —
+ * so nothing caught it until a device build showed "Request failed" on every
+ * request. These assertions pin the copies to the deployed route.
+ */
+describe("native shell API origin", () => {
+  const FRONTEND_ORIGIN = `https://${FRONTEND_HOST}`;
+
+  function readRepoFile(relativePath: string): string {
+    return readFileSync(resolve(REPO_ROOT, relativePath), "utf8");
+  }
+
+  it("points DEFAULT_NATIVE_API_URL at the deployed frontend route", () => {
+    const source = readRepoFile("src/lib/api-base.ts");
+    const match = source.match(
+      /const\s+DEFAULT_NATIVE_API_URL\s*=\s*["']([^"']+)["']/,
+    );
+
+    // A missing constant means the fallback was renamed or removed; the guard
+    // must fail loudly rather than silently pass on a regex miss.
+    expect(match?.[1]).toBeDefined();
+    expect(match?.[1]).toBe(FRONTEND_ORIGIN);
+  });
+
+  it("documents VITE_NATIVE_API_URL as the deployed frontend route", () => {
+    const example = readRepoFile(".env.example");
+    const match = example.match(/^VITE_NATIVE_API_URL=(.+)$/m);
+
+    // .env.example is what a fresh checkout copies to .env.local, so a stale
+    // value here reproduces the outage on every new machine.
+    expect(match?.[1]).toBeDefined();
+    expect(match?.[1]?.trim()).toBe(FRONTEND_ORIGIN);
+  });
+  it("keeps the Electron shell origin in step with api-base.ts", () => {
+    const main = readRepoFile("electron/main.ts");
+    const match = main.match(
+      /const\s+NATIVE_API_URL\s*=\s*[\s\S]*?\|\|\s*["']([^"']+)["']/,
+    );
+
+    // This value is not just a fetch base: it is interpolated into the CSP
+    // connect-src and the webRequest filter. A stale value does not merely
+    // point at the wrong host, it BLOCKS the right one.
+    expect(match?.[1]).toBeDefined();
+    expect(match?.[1]).toBe(FRONTEND_ORIGIN);
+  });
+});

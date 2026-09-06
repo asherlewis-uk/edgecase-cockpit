@@ -9,10 +9,10 @@
  *
  * Vite injects VITE_* env vars at build time via @lovable.dev/vite-tanstack-config.
  * Set VITE_NATIVE_API_URL in .env.local (or CI env) to your deployed Worker URL,
- * e.g. https://edgecase-cockpit.workers.dev.
+ * e.g. https://veritas.mcplinux.dev.
  */
 
-const DEFAULT_NATIVE_API_URL = "https://edgecase-cockpit.asher-lewis-knight.workers.dev";
+const DEFAULT_NATIVE_API_URL = "https://veritas.mcplinux.dev";
 
 interface CapacitorWindow {
   Capacitor?: { isNativePlatform?: () => boolean };
